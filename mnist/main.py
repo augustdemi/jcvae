@@ -17,8 +17,9 @@ NUM_STYLE = 10
 # training parameters
 NUM_SAMPLES = 8
 NUM_BATCH = 100
+RESTORE = False
 CKPT_EPOCH= 0
-NUM_EPOCHS = 100
+NUM_EPOCHS = 1000
 LABEL_FRACTION = 0.002
 SUP_FRAC = 0.02
 LEARNING_RATE = 1e-3
@@ -30,7 +31,7 @@ CUDA = torch.cuda.is_available()
 MODEL_NAME = 'mnist-semisupervised-%02ddim' % NUM_STYLE
 DATA_PATH = '../data'
 WEIGHTS_PATH = '../weights'
-RESTORE = True
+
 
 print('probtorch:', probtorch.__version__,
       'torch:', torch.__version__,
@@ -55,8 +56,8 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-enc = Encoder(num_pixels=784, num_hidden=256, num_digits=10, num_style=NUM_STYLE)
-dec = Decoder(num_pixels=784, num_hidden=256, num_digits=10, num_style=NUM_STYLE)
+enc = Encoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=NUM_STYLE)
+dec = Decoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=NUM_STYLE)
 if CUDA:
     enc.cuda()
     dec.cuda()
