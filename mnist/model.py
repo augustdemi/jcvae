@@ -41,14 +41,33 @@ class Encoder(nn.Module):
         logvarPrivate = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
         stdPrivate = torch.exp(logvarPrivate)
 
-        q.normal(muPrivate,
-                 stdPrivate,
-                 name='styles')
+        shared_logit = stats[:, :, (2 * self.zPrivate_dim):]
 
-        q.concrete(logits=stats[:, :, (2 * self.zPrivate_dim):],
-                            temperature=self.digit_temp,
-                            value=labels,
-                            name='digits')
+        q.normal(loc=muPrivate,
+                 scale=stdPrivate,
+                 name='privateA')
+
+        q.concrete(logits=shared_logit,
+                    temperature=self.digit_temp,
+                    name='sharedA')
+        if labels is not None:
+            alpha_logit = shared_logit
+            beta_logit = torch.log(labels + EPS) # param for concrete dist. should be bigger than 0
+            prior_logit = torch.zeros_like(labels) # prior is the concrete dist. for uniform dist.
+            poe_logit = torch.pow(alpha_logit + beta_logit + prior_logit, 3)
+
+            q.concrete(logits=poe_logit,
+                       temperature=self.digit_temp,
+                       name='poe') # will follow sharedB since sharedB is obtained by identity map
+
+            q.concrete(logits=beta_logit,
+                       temperature=self.digit_temp,
+                       value=labels,
+                       name='sharedB')
+
+            label_loss = lambda y_pred, target: torch.log((target == y_pred).float())
+            q.loss(label_loss, q['sharedA'].value.max(-1)[1], labels.max(-1)[1], name='labels_cross')
+            q.loss(label_loss, q['poe'].value.max(-1)[1], labels.max(-1)[1], name='labels_poe')
         return q
 
 
@@ -58,12 +77,11 @@ class Decoder(nn.Module):
                     zShared_dim=10,
                     zPrivate_dim=50):
         super(self.__class__, self).__init__()
-        self.num_digits = zShared_dim
-        self.digit_log_weights = torch.zeros(zShared_dim)
         self.digit_temp = 0.66
 
-        self.style_mean = torch.zeros(zPrivate_dim)
-        self.style_std = torch.ones(zPrivate_dim)
+        self.style_mean = zPrivate_dim
+        self.style_std = zPrivate_dim
+        self.num_digits = zShared_dim
 
         self.dec_hidden = nn.Sequential(
                             nn.Linear(zPrivate_dim + zShared_dim, num_hidden),
@@ -72,21 +90,32 @@ class Decoder(nn.Module):
                            nn.Linear(num_hidden, num_pixels),
                            nn.Sigmoid())
 
-    def forward(self, images, q=None, num_samples=None):
-        p = probtorch.Trace()
-        zShared = p.concrete(logits=self.digit_log_weights,
+    def forward(self, images, latents, out_name, q=None, p=None, num_samples=None):
+
+
+        private=latents['private']
+        shared=latents['shared']
+        digit_log_weights = torch.zeros_like(q[shared].dist.logits) # prior is the concrete dist for uniform dist. with all params=1
+        style_mean = torch.zeros_like(q[private].dist.loc)
+        style_std = torch.ones_like(q[private].dist.scale)
+
+        if p is None:
+            p = probtorch.Trace()
+            p.normal(style_mean,
+                            style_std,
+                            value=q[private],
+                            name=private)
+        zPrivate = p[private].value
+        zShared = p.concrete(logits=digit_log_weights,
                             temperature=self.digit_temp,
-                            value=q['digits'],
-                            name='digits')
-        zPrivate = p.normal(self.style_mean,
-                          self.style_std,
-                          value=q['styles'],
-                          name='styles')
+                            value=q[shared],
+                            name=shared)
+
 
         hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
         images_mean = self.dec_image(hiddens)
         # define reconstruction loss (log prob of bernoulli dist)
         p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
                                   torch.log(1 - x_hat + EPS) * (1-x)).sum(-1),
-               images_mean, images, name='images')
+               images_mean, images, name=out_name)
         return p

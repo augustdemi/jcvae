@@ -10,12 +10,13 @@ import probtorch
 
 # model parameters
 NUM_PIXELS = 784
+## model 바꿔서 돌려보기 as marginals.
 NUM_HIDDEN = 256
 NUM_DIGITS = 10
 NUM_STYLE = 10
 
 # training parameters
-NUM_SAMPLES = 8
+NUM_SAMPLES = 1
 NUM_BATCH = 100
 RESTORE = False
 CKPT_EPOCH= 0
@@ -23,7 +24,14 @@ NUM_EPOCHS = 1000
 LABEL_FRACTION = 0.002
 SUP_FRAC = 0.02
 LEARNING_RATE = 1e-3
-BETA1 = 0.90
+
+BIAS_TRAIN = (60000 - 1) / (NUM_BATCH - 1)
+BIAS_TEST = (10000 - 1) / (NUM_BATCH - 1)
+
+# LOSS parameters:
+LAMBDA = 30.0
+BETA = (1.0, 10.0, 1.0)
+
 EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
@@ -65,14 +73,31 @@ if CUDA:
     cuda_tensors(dec)
 
 optimizer =  torch.optim.Adam(list(enc.parameters())+list(dec.parameters()),
-                              lr=LEARNING_RATE,
-                              betas=(BETA1, 0.999))
+                              lr=LEARNING_RATE)
 
-def elbo(q, p, alpha=0.1):
-    if NUM_SAMPLES is None:
-        return probtorch.objectives.montecarlo.elbo(q, p, sample_dim=None, batch_dim=0, alpha=alpha)
+
+def elbo(q, p, lamb=LAMBDA, beta=BETA, bias=1.0):
+    # from each of modality
+    latents = ['private', 'shared']
+    lossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['imagesA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
+                                        lamb=1.0, beta=beta, bias=bias)
+
+    if q['poe'] is not None:
+        # by POE
+        loss_poeA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
+                                                    lamb=1.0, beta=beta, bias=bias)
+        loss_poeB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
+                                                    lamb=lamb, beta=beta, bias=bias)
+
+        # by cross
+        loss_crossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_cross'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
+                                                    lamb=1.0, beta=beta, bias=bias)
+        loss_crossB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_cross'], latents=['sharedA'], sample_dim=0, batch_dim=1,
+                                                    lamb=lamb, beta=beta, bias=bias)
+        loss = lossA + loss_poeA + loss_poeB + loss_crossA + loss_crossB
     else:
-        return probtorch.objectives.montecarlo.elbo(q, p, sample_dim=0, batch_dim=1, alpha=alpha)
+        loss = 5 * lossA
+    return loss
 
 FIXED = []
 
@@ -82,6 +107,7 @@ def train(data, enc, dec, optimizer,
     enc.train()
     dec.train()
     N = 0
+    # torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == NUM_BATCH:
             N += NUM_BATCH
@@ -98,11 +124,19 @@ def train(data, enc, dec, optimizer,
             if label_mask[b]:
                 if label_fraction == SUP_FRAC:
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
-                # else:
-                #     FIXED.append([images, labels_onehot])
+                    p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
+                            num_samples=NUM_SAMPLES)
+                    p = dec(images, {'private': 'privateA', 'shared': 'sharedB'}, out_name='images_cross', q=q, p=p,
+                            num_samples=NUM_SAMPLES)
+                    p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
+                            num_samples=NUM_SAMPLES)
+
             else:
                 q = enc(images, num_samples=NUM_SAMPLES)
-            p = dec(images, q, num_samples=NUM_SAMPLES)
+                p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
+                        num_samples=NUM_SAMPLES)
+
+
             loss = -elbo(q, p)
             # print(b)
 
@@ -130,7 +164,12 @@ def train(data, enc, dec, optimizer,
                 optimizer.zero_grad()
 
                 q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
-                p = dec(images, q, num_samples=NUM_SAMPLES)
+                p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
+                        num_samples=NUM_SAMPLES)
+                p = dec(images, {'private': 'privateA', 'shared': 'sharedB'}, out_name='images_cross', q=q, p=p,
+                        num_samples=NUM_SAMPLES)
+                p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
+                        num_samples=NUM_SAMPLES)
                 loss = -elbo(q, p)
                 loss.backward()
                 optimizer.step()
@@ -152,7 +191,8 @@ def test(data, enc, dec, infer=True):
             if CUDA:
                 images = images.cuda()
             q = enc(images, num_samples=NUM_SAMPLES)
-            p = dec(images, q, num_samples=NUM_SAMPLES)
+            p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
+                    num_samples=NUM_SAMPLES)
             batch_elbo = elbo(q, p)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
@@ -162,14 +202,14 @@ def test(data, enc, dec, infer=True):
                 log_q = q.log_joint(0, 1)
                 log_w = log_p - log_q
                 w = torch.nn.functional.softmax(log_w, 0)
-                y_samples = q['digits'].value
+                y_samples = q['sharedA'].value
                 y_expect = (w.unsqueeze(-1) * y_samples).sum(0)
                 _ , y_pred = y_expect.max(-1)
                 if CUDA:
                     y_pred = y_pred.cpu()
                 epoch_correct += (labels == y_pred).sum().item()
             else:
-                _, y_pred = q['digits'].value.max(-1)
+                _, y_pred = q['sharedA'].value.max(-1)
                 if CUDA:
                     y_pred = y_pred.cpu()
                 epoch_correct += (labels == y_pred).sum().item() / (NUM_SAMPLES or 1.0)
