@@ -12,6 +12,8 @@ import probtorch
 NUM_PIXELS = 784
 ## model 바꿔서 돌려보기 as marginals.
 NUM_HIDDEN = 256
+# NUM_HIDDEN1 = 400
+# NUM_HIDDEN2 = 200
 NUM_DIGITS = 10
 NUM_STYLE = 10
 
@@ -78,7 +80,6 @@ optimizer =  torch.optim.Adam(list(enc.parameters())+list(dec.parameters()),
 
 def elbo(q, p, lamb=LAMBDA, beta=BETA, bias=1.0):
     # from each of modality
-    latents = ['private', 'shared']
     lossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['imagesA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                         lamb=1.0, beta=beta, bias=bias)
 
@@ -96,7 +97,7 @@ def elbo(q, p, lamb=LAMBDA, beta=BETA, bias=1.0):
                                                     lamb=lamb, beta=beta, bias=bias)
         loss = lossA + loss_poeA + loss_poeB + loss_crossA + loss_crossB
     else:
-        loss = 5 * lossA
+        loss = 3 * lossA
     return loss
 
 FIXED = []
@@ -107,7 +108,7 @@ def train(data, enc, dec, optimizer,
     enc.train()
     dec.train()
     N = 0
-    # torch.autograd.set_detect_anomaly(True)
+    torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == NUM_BATCH:
             N += NUM_BATCH
