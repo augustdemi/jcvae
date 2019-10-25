@@ -2,7 +2,7 @@ from collections import OrderedDict, MutableMapping
 from .util import batch_sum, partial_sum, log_mean_exp
 import abc
 from enum import Enum
-import re
+import torch
 import math
 
 __all__ = ["Stochastic", "Factor", "RandomVariable", "Trace"]
@@ -406,11 +406,17 @@ class Trace(MutableMapping):
                 log_pw_joints = log_pw_joints + log_pw_joint
 
                 # perform bias correction for diagonal terms
-                # log_pw_joint[range(batch_size), range(batch_size)] = log_pw_joint[range(batch_size), range(batch_size)] - math.log(bias)
-                # log_pw[range(batch_size), range(batch_size)] = log_pw[range(batch_size), range(batch_size)] - math.log(bias)
+
+                bias_mat = torch.zeros_like(log_pw_joint)
+                bias_mat[range(batch_size), range(batch_size)] = bias_mat[range(batch_size), range(batch_size)] - math.log(bias)
+
+                log_pw_joint = log_pw_joint + bias_mat
+                log_pw = log_pw + bias_mat
+
                 # log average over pairs (B) or (S, B)
                 # zi에 대해 sum 이미 되어버린 log_pw_joint(100, 100,1)을가지고 100을 sum out 시켜 marginal구함
                 log_marginal = log_mean_exp(log_pw_joint, 1).transpose(0, batch_dim) #128,128,1 -128,1-> 1,128
+
                 # log product over marginals (B) or (S, B): #128,128,1 -- 128,1 -->
                 # zi가 남아있는 log_pw(100, 100, 1, 10)에대해, 100을 sum out 시켜 marginal zi(100,1,10)를 만든후 zi들을 곱해버림(partial sum wrt dim=2)
                 log_prod_marginal = batch_sum(log_mean_exp(log_pw, 1),
@@ -421,7 +427,9 @@ class Trace(MutableMapping):
                 log_marginals = log_marginals + log_marginal
                 log_prod_marginals = log_prod_marginals + log_prod_marginal
         # perform bias correction for log pairwise joint
-        # log_pw_joints[range(batch_size), range(batch_size)] = log_pw_joints[range(batch_size), range(batch_size)] - math.log(bias)
+        bias_mat = torch.zeros_like(log_pw_joint)
+        bias_mat[range(batch_size), range(batch_size)] = bias_mat[range(batch_size), range(batch_size)] - math.log(bias)
+        log_pw_joints = log_pw_joints + bias_mat
         log_pw_joints = log_mean_exp(log_pw_joints, 1).transpose(0, batch_dim)
         return log_pw_joints, log_marginals, log_prod_marginals
 
