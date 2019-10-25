@@ -144,14 +144,16 @@ def train(data, enc, dec, optimizer,
             sup = random() < SUP_FRAC
 
             optimizer.zero_grad()
-            if label_fraction < SUP_FRAC and sup:
-                loss.backward(retain_graph=True)
-            else:
-                loss.backward(retain_graph=False)
+            loss.backward(retain_graph=True)
             optimizer.step()
+
             if CUDA:
                 loss = loss.cpu()
             epoch_elbo -= loss.item()
+            if b == 100:
+                print('100 th loss---------------')
+                print(loss)
+                print('-------------------------')
 
             if label_fraction < SUP_FRAC and sup:
                 # print(b)
@@ -178,6 +180,7 @@ def train(data, enc, dec, optimizer,
                 optimizer.step()
                 if CUDA:
                     sup_loss = sup_loss.cpu()
+                print(sup_loss)
                 epoch_elbo -= sup_loss.item()
     return epoch_elbo / N, label_mask
 
