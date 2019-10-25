@@ -54,11 +54,11 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=NUM_BATCH, shuffle=True)
+                batch_size=NUM_BATCH, shuffle=False)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=NUM_BATCH, shuffle=True)
+                batch_size=NUM_BATCH, shuffle=False)
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -144,8 +144,8 @@ def train(data, enc, dec, optimizer,
             loss.backward(retain_graph=True)
             if CUDA:
                 loss = loss.cpu()
-            if b % 100 == 0:
-                print('b: ', b, loss)
+            # if b % 100 == 0:
+            #     print('b: ', b, loss)
             epoch_elbo -= loss.item()
 
             if label_fraction < SUP_FRAC and sup:
