@@ -406,11 +406,13 @@ class Trace(MutableMapping):
                 log_pw_joints = log_pw_joints + log_pw_joint
 
                 # perform bias correction for diagonal terms
-                log_pw_joint[range(batch_size), range(batch_size)] -= math.log(bias)
-                log_pw[range(batch_size), range(batch_size)] -= math.log(bias)
+                # log_pw_joint[range(batch_size), range(batch_size)] = log_pw_joint[range(batch_size), range(batch_size)] - math.log(bias)
+                # log_pw[range(batch_size), range(batch_size)] = log_pw[range(batch_size), range(batch_size)] - math.log(bias)
                 # log average over pairs (B) or (S, B)
-                log_marginal = log_mean_exp(log_pw_joint, 1).transpose(0, batch_dim)
-                # log product over marginals (B) or (S, B)
+                # zi에 대해 sum 이미 되어버린 log_pw_joint(100, 100,1)을가지고 100을 sum out 시켜 marginal구함
+                log_marginal = log_mean_exp(log_pw_joint, 1).transpose(0, batch_dim) #128,128,1 -128,1-> 1,128
+                # log product over marginals (B) or (S, B): #128,128,1 -- 128,1 -->
+                # zi가 남아있는 log_pw(100, 100, 1, 10)에대해, 100을 sum out 시켜 marginal zi(100,1,10)를 만든후 zi들을 곱해버림(partial sum wrt dim=2)
                 log_prod_marginal = batch_sum(log_mean_exp(log_pw, 1),
                                               sample_dim + 1, 0)
                 if node.mask is not None:
@@ -419,7 +421,7 @@ class Trace(MutableMapping):
                 log_marginals = log_marginals + log_marginal
                 log_prod_marginals = log_prod_marginals + log_prod_marginal
         # perform bias correction for log pairwise joint
-        log_pw_joints[range(batch_size), range(batch_size)] -= math.log(bias)
+        # log_pw_joints[range(batch_size), range(batch_size)] = log_pw_joints[range(batch_size), range(batch_size)] - math.log(bias)
         log_pw_joints = log_mean_exp(log_pw_joints, 1).transpose(0, batch_dim)
         return log_pw_joints, log_marginals, log_prod_marginals
 
