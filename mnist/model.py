@@ -112,8 +112,8 @@ class Decoder(nn.Module):
                             value=q[shared],
                             name=shared)
         if shared == 'poe':
-            # hiddens = self.dec_hidden(torch.cat([torch.pow(zShared, 1/3), zPrivate], -1))
-            hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
+            hiddens = self.dec_hidden(torch.cat([torch.pow(zShared + EPS, 1/3), zPrivate], -1))
+            # hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
         else:
             hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
         images_mean = self.dec_image(hiddens)
