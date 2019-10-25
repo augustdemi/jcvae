@@ -139,21 +139,14 @@ def train(data, enc, dec, optimizer,
 
 
             loss = -elbo(q, p)
-            # print(b)
-
             sup = random() < SUP_FRAC
 
-            optimizer.zero_grad()
             loss.backward(retain_graph=True)
-            optimizer.step()
-
             if CUDA:
                 loss = loss.cpu()
+            if b % 100 == 0:
+                print('b: ', b, loss)
             epoch_elbo -= loss.item()
-            if b == 100:
-                print('100 th loss---------------')
-                print(loss)
-                print('-------------------------')
 
             if label_fraction < SUP_FRAC and sup:
                 # print(b)
@@ -174,13 +167,13 @@ def train(data, enc, dec, optimizer,
                 p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                         num_samples=NUM_SAMPLES)
                 sup_loss = -elbo(q, p)
-
-                optimizer.zero_grad()
                 sup_loss.backward()
                 optimizer.step()
                 if CUDA:
                     sup_loss = sup_loss.cpu()
-                print(sup_loss)
+                print('-------------- b: ', b)
+                print('unsup: ', loss)
+                print('sup: ', sup_loss)
                 epoch_elbo -= sup_loss.item()
     return epoch_elbo / N, label_mask
 
