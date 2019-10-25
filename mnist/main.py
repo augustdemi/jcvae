@@ -141,11 +141,12 @@ def train(data, enc, dec, optimizer,
             # print(b)
 
             sup = random() < SUP_FRAC
-            loss.backward(retain_graph=True)
-            # if label_fraction < SUP_FRAC and sup:
-            #     loss.backward(retain_graph=True)
-            # else:
-            #     loss.backward(retain_graph=False)
+
+            optimizer.zero_grad()
+            if label_fraction < SUP_FRAC and sup:
+                loss.backward(retain_graph=True)
+            else:
+                loss.backward(retain_graph=False)
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
@@ -161,7 +162,6 @@ def train(data, enc, dec, optimizer,
                 if CUDA:
                     images = images.cuda()
                     labels_onehot = labels_onehot.cuda()
-                optimizer.zero_grad()
 
                 q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
@@ -170,12 +170,14 @@ def train(data, enc, dec, optimizer,
                         num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                         num_samples=NUM_SAMPLES)
-                loss = -elbo(q, p)
-                loss.backward()
+                sup_loss = -elbo(q, p)
+
+                optimizer.zero_grad()
+                sup_loss.backward()
                 optimizer.step()
                 if CUDA:
-                    loss = loss.cpu()
-                epoch_elbo -= loss.item()
+                    sup_loss = sup_loss.cpu()
+                epoch_elbo -= sup_loss.item()
     return epoch_elbo / N, label_mask
 
 def test(data, enc, dec, infer=True):
