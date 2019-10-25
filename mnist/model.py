@@ -65,8 +65,9 @@ class Encoder(nn.Module):
                        value=labels,
                        name='sharedB')
 
-            label_loss = lambda y_pred, target: torch.log(((target == y_pred).float() + EPS))
+            label_loss = lambda y_pred, target: (1 - (target == y_pred).float())
             q.loss(label_loss, q['sharedA'].value.max(-1)[1], labels.max(-1)[1], name='labels_cross')
+            # print(torch.log( (q['sharedA'].value.max(-1)[1] == labels.max(-1)[1]).float() + 1e-9))
             q.loss(label_loss, q['poe'].value.max(-1)[1], labels.max(-1)[1], name='labels_poe')
         return q
 
@@ -111,7 +112,8 @@ class Decoder(nn.Module):
                             value=q[shared],
                             name=shared)
         if shared == 'poe':
-            hiddens = self.dec_hidden(torch.cat([torch.pow(zShared, 1/3), zPrivate], -1))
+            # hiddens = self.dec_hidden(torch.cat([torch.pow(zShared, 1/3), zPrivate], -1))
+            hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
         else:
             hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
         images_mean = self.dec_image(hiddens)
