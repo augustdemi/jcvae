@@ -65,7 +65,7 @@ class Encoder(nn.Module):
                        value=labels,
                        name='sharedB')
 
-            label_loss = lambda y_pred, target: torch.log((target == y_pred).float())
+            label_loss = lambda y_pred, target: torch.log(((target == y_pred).float() + EPS))
             q.loss(label_loss, q['sharedA'].value.max(-1)[1], labels.max(-1)[1], name='labels_cross')
             q.loss(label_loss, q['poe'].value.max(-1)[1], labels.max(-1)[1], name='labels_poe')
         return q
@@ -110,9 +110,10 @@ class Decoder(nn.Module):
                             temperature=self.digit_temp,
                             value=q[shared],
                             name=shared)
-
-
-        hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
+        if shared == 'poe':
+            hiddens = self.dec_hidden(torch.cat([torch.pow(zShared, 1/3), zPrivate], -1))
+        else:
+            hiddens = self.dec_hidden(torch.cat([zShared, zPrivate], -1))
         images_mean = self.dec_image(hiddens)
         # define reconstruction loss (log prob of bernoulli dist)
         p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
