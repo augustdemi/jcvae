@@ -54,7 +54,7 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=NUM_BATCH, shuffle=False)
+                batch_size=NUM_BATCH, shuffle=True)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
@@ -215,7 +215,11 @@ def test(data, enc, dec, infer=True):
     return epoch_elbo / N, epoch_correct / N
 
 
-def get_paired_data(data, paired_cnt):
+def get_paired_data(paired_cnt):
+    data = torch.utils.data.DataLoader(
+        datasets.MNIST(DATA_PATH, train=True, download=True,
+                       transform=transforms.ToTensor()),
+        batch_size=NUM_BATCH, shuffle=False)
     per_idx_img = {}
     for i in range(10):
         per_idx_img.update({i:[]})
@@ -251,7 +255,7 @@ if RESTORE:
 mask = {}
 
 if LABEL_FRACTION < SUP_FRAC:
-    fixed_imgs, fixed_labels = get_paired_data(train_data, 100)
+    fixed_imgs, fixed_labels = get_paired_data(100)
 for e in range(CKPT_EPOCH, NUM_EPOCHS):
     train_start = time.time()
     if LABEL_FRACTION < SUP_FRAC:
