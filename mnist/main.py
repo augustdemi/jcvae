@@ -8,57 +8,74 @@ import sys
 sys.path.append('../')
 import probtorch
 
+# NUM_HIDDEN1 = 400
+# NUM_HIDDEN2 = 200
+
+
+#------------------------------------------------
+# training parameters
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--n_shared', type=int, default=10,
+                        help='size of the latent embedding of shared')
+    parser.add_argument('--n_private', type=int, default=10,
+                        help='size of the latent embedding of private')
+    parser.add_argument('--batch_size', type=int, default=100, metavar='N',
+                        help='input batch size for training [default: 100]')
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+                        help='number of epochs to train [default: 200]')
+    parser.add_argument('--epochs', type=int, default=200, metavar='N',
+                        help='number of epochs to train [default: 200]')
+    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+                        help='learning rate [default: 1e-3]')
+
+    parser.add_argument('--label_frac', type=float, default=1.,
+                        help='how many labels to use')
+    parser.add_argument('--sup_frac', type=float, default=1.,
+                        help='supervision ratio')
+    parser.add_argument('--lambda-text', type=float, default=10.,
+                        help='multipler for text reconstruction [default: 10]')
+    parser.add_argument('--beta', type=float, default=10.,
+                        help='multipler for TC [default: 10]')
+    parser.add_argument('--cuda', action='store_true', default=False,
+                        help='enables CUDA training [default: False]')
+
+    parser.add_argument('--ckpt_path', type=str, default='../weights',
+                        help='save and load path for ckpt')
+
+    args = parser.parse_args()
+
+#------------------------------------------------
+
+
+EPS = 1e-9
+CUDA = args.cuda
+
+# path parameters
+MODEL_NAME = 'mnist-priv%02ddim-label_frac%s-sup_frac%s' % (args.n_private, args.label_frac, args.sup_frac)
+DATA_PATH = '../data'
+
+BETA = (1., args.beta, 1.)
+BIAS_TRAIN = (60000 - 1) / (args.batch_size - 1)
+BIAS_TEST = (10000 - 1) / (args.batch_size - 1)
 # model parameters
 NUM_PIXELS = 784
 ## model 바꿔서 돌려보기 as marginals.
 NUM_HIDDEN = 256
-# NUM_HIDDEN1 = 400
-# NUM_HIDDEN2 = 200
-NUM_DIGITS = 10
-NUM_STYLE = 10
-
-# training parameters
 NUM_SAMPLES = 1
-NUM_BATCH = 100
-RESTORE = False
-CKPT_EPOCH= 0
-NUM_EPOCHS = 200
-LABEL_FRACTION = 0.02
-SUP_FRAC = 0.02
-LEARNING_RATE = 1e-3
-
-BIAS_TRAIN = (60000 - 1) / (NUM_BATCH - 1)
-BIAS_TEST = (10000 - 1) / (NUM_BATCH - 1)
-
-# LOSS parameters:
-LAMBDA = 30.0
-BETA = (1.0, 10.0, 1.0)
-
-EPS = 1e-9
-CUDA = torch.cuda.is_available()
-
-# path parameters
-MODEL_NAME = 'mnist-semisupervised-%02ddim' % NUM_STYLE
-DATA_PATH = '../data'
-WEIGHTS_PATH = '../weights'
-
-
-print('probtorch:', probtorch.__version__,
-      'torch:', torch.__version__,
-      'cuda:', torch.cuda.is_available())
-
-
 if not os.path.isdir(DATA_PATH):
     os.makedirs(DATA_PATH)
 
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=NUM_BATCH, shuffle=True)
+                batch_size=args.n_private, shuffle=True)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=NUM_BATCH, shuffle=False)
+                batch_size=args.n_private, shuffle=False)
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -66,8 +83,8 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-enc = Encoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=NUM_STYLE)
-dec = Decoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=NUM_STYLE)
+enc = Encoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=args.n_private)
+dec = Decoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=args.n_private)
 if CUDA:
     enc.cuda()
     dec.cuda()
@@ -75,10 +92,10 @@ if CUDA:
     cuda_tensors(dec)
 
 optimizer =  torch.optim.Adam(list(enc.parameters())+list(dec.parameters()),
-                              lr=LEARNING_RATE)
+                              lr=args.lr)
 
 
-def elbo(q, p, lamb=LAMBDA, beta=BETA, bias=1.0):
+def elbo(q, p, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
     lossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['imagesA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                         lamb=1.0, beta=beta, bias=bias)
@@ -103,17 +120,17 @@ def elbo(q, p, lamb=LAMBDA, beta=BETA, bias=1.0):
 LOSS = 0
 
 def train(data, enc, dec, optimizer,
-          label_mask={}, label_fraction=LABEL_FRACTION, fixed_imgs=None, fixed_labels=None):
+          label_mask={}, fixed_imgs=None, fixed_labels=None):
     epoch_elbo = 0.0
     enc.train()
     dec.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if images.size()[0] == NUM_BATCH:
-            N += NUM_BATCH
+        if images.size()[0] == args.n_private:
+            N += args.n_private
             images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(NUM_BATCH, NUM_DIGITS)
+            labels_onehot = torch.zeros(args.n_private, args.n_shared)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
             if CUDA:
@@ -121,9 +138,9 @@ def train(data, enc, dec, optimizer,
                 labels_onehot = labels_onehot.cuda()
             optimizer.zero_grad()
             if b not in label_mask:
-                label_mask[b] = (random() < label_fraction)
+                label_mask[b] = (random() < args.label_fraction)
             if label_mask[b]:
-                if label_fraction == SUP_FRAC:
+                if args.label_fraction == args.sup_frac:
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                     p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                             num_samples=NUM_SAMPLES)
@@ -131,7 +148,7 @@ def train(data, enc, dec, optimizer,
                             num_samples=NUM_SAMPLES)
                     p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                             num_samples=NUM_SAMPLES)
-                    loss = -elbo(q, p)
+                    loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
                     print('sup b:', b, loss.cpu().item())
                     print('unsup b-1:', b-1, LOSS)
@@ -141,15 +158,15 @@ def train(data, enc, dec, optimizer,
                 q = enc(images, num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                         num_samples=NUM_SAMPLES)
-                loss = -elbo(q, p)
+                loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
 
 
-            if label_fraction < SUP_FRAC and random() < SUP_FRAC:
+            if args.label_fraction < args.sup_frac and random() < args.sup_frac:
                 # print(b)
-                N += NUM_BATCH
+                N += args.n_private
                 images = fixed_imgs.view(-1, NUM_PIXELS)
-                labels_onehot = torch.zeros(NUM_BATCH, NUM_DIGITS)
+                labels_onehot = torch.zeros(args.n_private, args.n_shared)
                 labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
                 optimizer.zero_grad()
@@ -164,7 +181,7 @@ def train(data, enc, dec, optimizer,
                         num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                         num_samples=NUM_SAMPLES)
-                sup_loss = -elbo(q, p)
+                sup_loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
                 sup_loss.backward()
                 optimizer.step()
 
@@ -193,15 +210,15 @@ def test(data, enc, dec, infer=True):
     epoch_correct = 0
     N = 0
     for b, (images, labels) in enumerate(data):
-        if images.size()[0] == NUM_BATCH:
-            N += NUM_BATCH
+        if images.size()[0] == args.n_private:
+            N += args.n_private
             images = images.view(-1, NUM_PIXELS)
             if CUDA:
                 images = images.cuda()
             q = enc(images, num_samples=NUM_SAMPLES)
             p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                     num_samples=NUM_SAMPLES)
-            batch_elbo = elbo(q, p)
+            batch_elbo = elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
@@ -228,7 +245,7 @@ def get_paired_data(paired_cnt):
     data = torch.utils.data.DataLoader(
         datasets.MNIST(DATA_PATH, train=True, download=True,
                        transform=transforms.ToTensor()),
-        batch_size=NUM_BATCH, shuffle=False)
+        batch_size=args.n_private, shuffle=False)
     per_idx_img = {}
     for i in range(10):
         per_idx_img.update({i:[]})
@@ -257,22 +274,24 @@ def get_paired_data(paired_cnt):
 import time
 from random import random
 
-if RESTORE:
-    enc.load_state_dict(torch.load('%s/%s-LABEL_FRACTION%s-SUP_FRAC%s-enc_epoch%s.rar' % (WEIGHTS_PATH, MODEL_NAME, LABEL_FRACTION, SUP_FRAC, CKPT_EPOCH)))
-    dec.load_state_dict(torch.load('%s/%s-LABEL_FRACTION%s-SUP_FRAC%s-dec_epoch%s.rar' % (WEIGHTS_PATH, MODEL_NAME, LABEL_FRACTION, SUP_FRAC, CKPT_EPOCH)))
+if args.ckpt_epochs > 0:
+    enc.load_state_dict(torch.load('%s/%s-enc_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+    dec.load_state_dict(torch.load('%s/%s-dec_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
 
 mask = {}
 
-if LABEL_FRACTION < SUP_FRAC:
+if args.label_frac < args.sup_frac:
     fixed_imgs, fixed_labels = get_paired_data(100)
-for e in range(CKPT_EPOCH, NUM_EPOCHS):
+
+
+for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    if LABEL_FRACTION < SUP_FRAC:
+    if args.label_frac < args.sup_frac:
         train_elbo, mask = train(train_data, enc, dec,
-                                 optimizer, mask, LABEL_FRACTION, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
+                                 optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
     else:
         train_elbo, mask = train(train_data, enc, dec,
-                                 optimizer, mask, LABEL_FRACTION)
+                                 optimizer, mask)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, enc, dec)
@@ -281,12 +300,12 @@ for e in range(CKPT_EPOCH, NUM_EPOCHS):
             e, train_elbo, train_end - train_start,
             test_elbo, test_accuracy, test_end - test_start))
 
-if not os.path.isdir(WEIGHTS_PATH):
-    os.mkdir(WEIGHTS_PATH)
+if not os.path.isdir(args.ckpt_path):
+    os.mkdir(args.ckpt_path)
 torch.save(enc.state_dict(),
-           '%s/%s-LABEL_FRACTION%s-SUP_FRAC%s-enc_epoch%s.rar' % (WEIGHTS_PATH, MODEL_NAME, LABEL_FRACTION, SUP_FRAC, NUM_EPOCHS ))
+           '%s/%s-enc_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs ))
 torch.save(dec.state_dict(),
-           '%s/%s-LABEL_FRACTION%s-SUP_FRAC%s-dec_epoch%s.rar' % (WEIGHTS_PATH, MODEL_NAME, LABEL_FRACTION, SUP_FRAC, NUM_EPOCHS))
+           '%s/%s-dec_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
 
 print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, enc, dec, infer=False))
 print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, enc, dec, infer=True))
