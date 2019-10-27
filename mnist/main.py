@@ -60,8 +60,8 @@ MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s' % (args.run_id
 DATA_PATH = '../data'
 
 import os
-desc_file = os.path.join(args.ckpt_path, 'run_id', str(args.run_id), '.txt', 'w')
-with open(desc_file) as outfile:
+desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
+with open(desc_file, 'w') as outfile:
     outfile.write(args.run_desc)
 
 BETA = (1., args.beta, 1.)
