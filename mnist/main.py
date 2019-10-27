@@ -35,12 +35,10 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda-text', type=float, default=10.,
+    parser.add_argument('--lambda_text', type=float, default=10.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta', type=float, default=10.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--cuda', action='store_true', default=False,
-                        help='enables CUDA training [default: False]')
 
     parser.add_argument('--ckpt_path', type=str, default='../weights',
                         help='save and load path for ckpt')
@@ -51,7 +49,7 @@ if __name__ == "__main__":
 
 
 EPS = 1e-9
-CUDA = args.cuda
+CUDA = torch.cuda.is_available()
 
 # path parameters
 MODEL_NAME = 'mnist-priv%02ddim-label_frac%s-sup_frac%s' % (args.n_private, args.label_frac, args.sup_frac)
