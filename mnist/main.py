@@ -18,6 +18,10 @@ import probtorch
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+                        help='run_id')
+    parser.add_argument('--run_desc', type=str, default='',
+                        help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=10,
                         help='size of the latent embedding of shared')
     parser.add_argument('--n_private', type=int, default=10,
@@ -52,8 +56,13 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist-priv%02ddim-label_frac%s-sup_frac%s' % (args.n_private, args.label_frac, args.sup_frac)
+MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac)
 DATA_PATH = '../data'
+
+import os
+desc_file = os.path.join(args.ckpt_path, 'run_id', str(args.run_id), '.txt', 'w')
+with open(desc_file) as outfile:
+    outfile.write(args.run_desc)
 
 BETA = (1., args.beta, 1.)
 BIAS_TRAIN = (60000 - 1) / (args.batch_size - 1)
@@ -100,17 +109,20 @@ def elbo(q, p, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
 
     if q['poe'] is not None:
         # by POE
+        # 기대하는바:sharedA가 sharedB를 따르길. 즉 sharedA에만 digit정보가 있으며, 그 permutataion이 GT에서처럼 identity이기를
         loss_poeA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
                                                     lamb=1.0, beta=beta, bias=bias)
+        # 의미 없음. rec 은 항상 0. 인풋이 항상 GT고 poe결과도 GT를 따라갈 확률이 크기 때문(학습 초반엔 A가 unif이라서, 학습 될수록 A가 B label을 잘 따를테니)
+        #loss 값 변화 자체로는 의미 없지만, 이 일정한 loss(GT)가 나오도록하는 sharedA의 back pg에는 의미가짐
         loss_poeB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
                                                     lamb=lamb, beta=beta, bias=bias)
 
         # by cross
-        loss_crossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_cross'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
-                                                    lamb=1.0, beta=beta, bias=bias)
-        loss_crossB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_cross'], latents=['sharedA'], sample_dim=0, batch_dim=1,
-                                                    lamb=lamb, beta=beta, bias=bias)
-        loss = lossA + loss_poeA + loss_poeB + loss_crossA + loss_crossB
+        # loss_crossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_cross'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
+        #                                             lamb=1.0, beta=beta, bias=bias)
+        # loss_crossB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_cross'], latents=['sharedA'], sample_dim=0, batch_dim=1,
+        #                                             lamb=lamb, beta=beta, bias=bias)
+        loss = loss_poeA + loss_poeB
     else:
         loss = 3 * lossA
     return loss
@@ -147,11 +159,6 @@ def train(data, enc, dec, optimizer,
                     p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                             num_samples=NUM_SAMPLES)
                     loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-
-                    print('b-1:', LOSS)
-                    print('sup b:', b, loss.cpu())
-                    print('------------------------------')
-
             else:
                 q = enc(images, num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
