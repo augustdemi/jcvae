@@ -136,9 +136,9 @@ def train(data, enc, dec, optimizer,
                 labels_onehot = labels_onehot.cuda()
             optimizer.zero_grad()
             if b not in label_mask:
-                label_mask[b] = (random() < args.label_fraction)
+                label_mask[b] = (random() < args.label_frac)
             if label_mask[b]:
-                if args.label_fraction == args.sup_frac:
+                if args.label_frac == args.sup_frac:
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                     p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                             num_samples=NUM_SAMPLES)
@@ -160,7 +160,7 @@ def train(data, enc, dec, optimizer,
 
 
 
-            if args.label_fraction < args.sup_frac and random() < args.sup_frac:
+            if args.label_frac < args.sup_frac and random() < args.sup_frac:
                 # print(b)
                 N += args.n_private
                 images = fixed_imgs.view(-1, NUM_PIXELS)
