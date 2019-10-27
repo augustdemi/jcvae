@@ -100,7 +100,7 @@ def elbo(q, p, lamb=LAMBDA, beta=BETA, bias=1.0):
         loss = 3 * lossA
     return loss
 
-FIXED = []
+LOSS = 0
 
 def train(data, enc, dec, optimizer,
           label_mask={}, label_fraction=LABEL_FRACTION, fixed_imgs=None, fixed_labels=None):
@@ -131,13 +131,17 @@ def train(data, enc, dec, optimizer,
                             num_samples=NUM_SAMPLES)
                     p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                             num_samples=NUM_SAMPLES)
+                    loss = -elbo(q, p)
+
+                    print('sup b:', b, loss.cpu().item())
+                    print('unsup b-1:', b-1, LOSS)
+                    print('------------------------------')
 
             else:
                 q = enc(images, num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                         num_samples=NUM_SAMPLES)
-
-            loss = -elbo(q, p)
+                loss = -elbo(q, p)
 
 
 
@@ -148,6 +152,7 @@ def train(data, enc, dec, optimizer,
                 labels_onehot = torch.zeros(NUM_BATCH, NUM_DIGITS)
                 labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+                optimizer.zero_grad()
                 if CUDA:
                     images = images.cuda()
                     labels_onehot = labels_onehot.cuda()
@@ -176,6 +181,7 @@ def train(data, enc, dec, optimizer,
                 optimizer.step()
                 if CUDA:
                     loss = loss.cpu()
+                LOSS = loss
                 epoch_elbo -= loss.item()
 
     return epoch_elbo / N, label_mask
