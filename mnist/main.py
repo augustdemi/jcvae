@@ -148,8 +148,8 @@ def train(data, enc, dec, optimizer,
                             num_samples=NUM_SAMPLES)
                     loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
-                    print('sup b:', b, loss.cpu().item())
-                    print('unsup b-1:', b-1, LOSS)
+                    print('b-1:', LOSS)
+                    print('sup b:', b, loss.cpu())
                     print('------------------------------')
 
             else:
