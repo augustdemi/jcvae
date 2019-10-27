@@ -137,16 +137,11 @@ def train(data, enc, dec, optimizer,
                 p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                         num_samples=NUM_SAMPLES)
 
-
             loss = -elbo(q, p)
-            sup = random() < SUP_FRAC
 
-            loss.backward(retain_graph=True)
-            if CUDA:
-                loss = loss.cpu()
-            epoch_elbo -= loss.item()
 
-            if label_fraction < SUP_FRAC and sup:
+
+            if label_fraction < SUP_FRAC and random() < SUP_FRAC:
                 # print(b)
                 N += NUM_BATCH
                 images = fixed_imgs.view(-1, NUM_PIXELS)
@@ -166,14 +161,21 @@ def train(data, enc, dec, optimizer,
                         num_samples=NUM_SAMPLES)
                 sup_loss = -elbo(q, p)
                 sup_loss.backward()
+                optimizer.step()
 
                 if CUDA:
                     sup_loss = sup_loss.cpu()
+                if CUDA:
+                    loss = loss.cpu()
                 print('-------------- b: ', b)
                 print('unsup: ', loss)
                 print('sup: ', sup_loss)
                 epoch_elbo -= sup_loss.item()
             else:
+                loss.backward()
+                if CUDA:
+                    loss = loss.cpu()
+                epoch_elbo -= loss.item()
                 optimizer.step()
 
     return epoch_elbo / N, label_mask
