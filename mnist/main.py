@@ -22,8 +22,8 @@ NUM_SAMPLES = 1
 NUM_BATCH = 100
 RESTORE = False
 CKPT_EPOCH= 0
-NUM_EPOCHS = 100
-LABEL_FRACTION = 0.002
+NUM_EPOCHS = 200
+LABEL_FRACTION = 0.02
 SUP_FRAC = 0.02
 LEARNING_RATE = 1e-3
 
@@ -173,10 +173,10 @@ def train(data, enc, dec, optimizer,
                 epoch_elbo -= sup_loss.item()
             else:
                 loss.backward()
+                optimizer.step()
                 if CUDA:
                     loss = loss.cpu()
                 epoch_elbo -= loss.item()
-                optimizer.step()
 
     return epoch_elbo / N, label_mask
 
