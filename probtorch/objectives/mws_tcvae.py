@@ -14,7 +14,7 @@ def elbo(q, p, rec, latents=None, sample_dim=None, batch_dim=None, lamb=1.0, bet
     elbo = lamb * reconst_loss - kl
     elbo = elbo.mean(sample_dim) # across sample_dim
     elbo = elbo.mean() if size_average else elbo.sum() # avg = across batch_dim
-    return elbo
+    return (reconst_loss.mean(), kl.mean())
 
 def _get_probability(q, p, latents, sample_dim, batch_dim, bias):
     log_pz = p.log_joint(sample_dim, batch_dim, latents) # =  p['private'].log_prob.sum(2) + p['shared'].log_prob

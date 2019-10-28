@@ -102,29 +102,50 @@ optimizer =  torch.optim.Adam(list(enc.parameters())+list(dec.parameters()),
                               lr=args.lr)
 
 
-def elbo(q, p, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(iter, q, p, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0, prt=False):
     # from each of modality
-    lossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['imagesA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
+    reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, p, p['imagesA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                         lamb=1.0, beta=beta, bias=bias)
 
     if q['poe'] is not None:
         # by POE
         # 기대하는바:sharedA가 sharedB를 따르길. 즉 sharedA에만 digit정보가 있으며, 그 permutataion이 GT에서처럼 identity이기를
-        loss_poeA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
+        reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
                                                     lamb=1.0, beta=beta, bias=bias)
         # 의미 없음. rec 은 항상 0. 인풋이 항상 GT고 poe결과도 GT를 따라갈 확률이 크기 때문(학습 초반엔 A가 unif이라서, 학습 될수록 A가 B label을 잘 따를테니)
         #loss 값 변화 자체로는 의미 없지만, 이 일정한 loss(GT)가 나오도록하는 sharedA의 back pg에는 의미가짐
-        loss_poeB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
+        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
                                                     lamb=lamb, beta=beta, bias=bias)
 
         # by cross
-        # loss_crossA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_cross'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
-        #                                             lamb=1.0, beta=beta, bias=bias)
-        # loss_crossB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_cross'], latents=['sharedA'], sample_dim=0, batch_dim=1,
-        #                                             lamb=lamb, beta=beta, bias=bias)
-        loss = loss_poeA + loss_poeB
+        reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, p, p['images_cross'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
+                                                    lamb=1.0, beta=beta, bias=bias)
+        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, p, q['labels_cross'], latents=['sharedA'], sample_dim=0, batch_dim=1,
+                                                    lamb=lamb, beta=beta, bias=bias)
+
+        loss = (reconst_loss_A - kl_A) + (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
+        loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        if iter % 100 == 0:
+            print('=========================================')
+            print(iter)
+            print('reconst_loss_A: ', reconst_loss_A)
+            print('kl_A: ', kl_A)
+            print('-----------------------------------------')
+            print('reconst_loss_poeA: ', reconst_loss_poeA)
+            print('reconst_loss_poeA: ', kl_poeA)
+            print('-----------------------------------------')
+            print('reconst_loss_poeB: ', reconst_loss_poeB)
+            print('kl_poeB: ', kl_poeB)
+            print('-----------------------------------------')
+            print('reconst_loss_crA: ', reconst_loss_crA)
+            print('kl_crA: ', kl_crA)
+            print('-----------------------------------------')
+            print('reconst_loss_crB: ', reconst_loss_crB)
+            print('kl_crB: ', kl_crB)
+            print('=========================================')
     else:
-        loss = 3 * lossA
+        loss = 3 * (reconst_loss_A - kl_A)
     return loss
 
 LOSS = 0
@@ -158,12 +179,12 @@ def train(data, enc, dec, optimizer,
                             num_samples=NUM_SAMPLES)
                     p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                             num_samples=NUM_SAMPLES)
-                    loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                    loss = -elbo(b, q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             else:
                 q = enc(images, num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                         num_samples=NUM_SAMPLES)
-                loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                loss = -elbo(b, q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
             if args.label_frac < args.sup_frac and random() < args.sup_frac:
                 # print(b)
@@ -184,7 +205,7 @@ def train(data, enc, dec, optimizer,
                         num_samples=NUM_SAMPLES)
                 p = dec(images, {'private': 'privateA', 'shared': 'poe'}, out_name='images_poe', q=q, p=p,
                         num_samples=NUM_SAMPLES)
-                sup_loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                sup_loss = -elbo(b, q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
                 sup_loss.backward()
                 optimizer.step()
 
@@ -221,7 +242,7 @@ def test(data, enc, dec, infer=True):
             q = enc(images, num_samples=NUM_SAMPLES)
             p = dec(images, {'private': 'privateA', 'shared': 'sharedA'}, out_name='imagesA', q=q,
                     num_samples=NUM_SAMPLES)
-            batch_elbo = elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
+            batch_elbo = elbo(b, q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
