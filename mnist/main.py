@@ -309,8 +309,8 @@ def test(data, encA, decA, encB, decB, infer=True):
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += 1 + pB['labels_sharedA'].loss.sum().item()
-    return epoch_elbo / N, epoch_correct / N
+            epoch_correct += pB['labels_sharedA'].loss.sum().item()
+    return epoch_elbo / N, 1 + epoch_correct / N
 
 
 def get_paired_data(paired_cnt):
