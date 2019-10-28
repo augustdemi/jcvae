@@ -6,6 +6,7 @@ import sys
 sys.path.append('../')
 import probtorch
 from probtorch.util import expand_inputs
+from torch.nn import functional as F
 
 EPS = 1e-9
 TEMP = 0.66
@@ -142,7 +143,7 @@ class DecoderB(nn.Module):
         self.dec_label = nn.Sequential(
                            nn.Linear(num_hidden, num_digits))
 
-    def forward(self, labels, shared, q=None, p=None, num_samples=None):
+    def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True):
         p = probtorch.Trace()
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
@@ -161,9 +162,14 @@ class DecoderB(nn.Module):
                 hiddens = self.dec_hidden(zShared)
 
             pred_labels = self.dec_label(hiddens)
-            labels = labels.unsqueeze(0)
             # define reconstruction loss (log prob of bernoulli dist)
-            p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
-                   pred_labels, labels, name='labels_' + shared_name)
+            pred_labels = F.log_softmax(pred_labels + EPS, dim=2)
+            if train:
+                p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
+                       pred_labels, labels.unsqueeze(0), name='labels_' + shared_name)
+            else:
+                p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
+                       pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)
+
         return p
 
