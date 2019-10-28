@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import norm
+from torch.nn import functional as F
 
 from torch.nn import Parameter
 import torch
@@ -145,8 +146,7 @@ class DecoderB(nn.Module):
                             nn.Linear(zShared_dim, num_hidden),
                             nn.ReLU())
         self.dec_label = nn.Sequential(
-                           nn.Linear(num_hidden, num_digits),
-                            nn.Softmax())
+                           nn.Linear(num_hidden, num_digits))
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None):
         p = probtorch.Trace()
@@ -156,6 +156,7 @@ class DecoderB(nn.Module):
             # prior for z_shared # prior is the concrete dist for uniform dist. with all params=1
             zShared = p.concrete(logits=torch.zeros_like(q['sharedB'].dist.logits),
                                 temperature=self.digit_temp,
+
                                 value=shared[shared_name],
                                 name=shared_name)
 
@@ -165,7 +166,7 @@ class DecoderB(nn.Module):
                 hiddens = self.dec_hidden(zShared)
 
             pred_labels = self.dec_label(hiddens)
-
+            pred_labels = F.softmax(pred_labels, dim=2)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
                    pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)

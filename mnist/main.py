@@ -309,7 +309,7 @@ def test(data, encA, decA, encB, decB, infer=True):
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += pB['labels_sharedA'].loss.sum().item()
+            epoch_correct += 1 + pB['labels_sharedA'].loss.sum().item()
     return epoch_elbo / N, epoch_correct / N
 
 
@@ -386,5 +386,5 @@ torch.save(decB.state_dict(),
            '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
 
 
-print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, enc, dec, infer=False))
-print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, enc, dec, infer=True))
+print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=False))
+# print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=True))
