@@ -2,14 +2,12 @@ from torchvision import datasets, transforms
 import os
 import torch
 
-from model import Encoder, Decoder
+from model2 import Encoder, Decoder
 
 import sys
 sys.path.append('../')
 import probtorch
 
-# NUM_HIDDEN1 = 400
-# NUM_HIDDEN2 = 200
 
 
 #------------------------------------------------
@@ -71,6 +69,10 @@ BIAS_TEST = (10000 - 1) / (args.batch_size - 1)
 NUM_PIXELS = 784
 ## model 바꿔서 돌려보기 as marginals.
 NUM_HIDDEN = 256
+NUM_HIDDEN1 = 400
+NUM_HIDDEN2 = 200
+
+
 NUM_SAMPLES = 1
 if not os.path.isdir(DATA_PATH):
     os.makedirs(DATA_PATH)
@@ -90,8 +92,8 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-enc = Encoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=args.n_private)
-dec = Decoder(num_pixels=784, num_hidden=256, zShared_dim=10, zPrivate_dim=args.n_private)
+enc = Encoder(num_pixels=784, num_hidden1=NUM_HIDDEN1, num_hidden2=NUM_HIDDEN2, zPrivate_dim=args.n_private)
+dec = Decoder(num_pixels=784, num_hidden1=NUM_HIDDEN1, num_hidden2=NUM_HIDDEN2, zPrivate_dim=args.n_private)
 if CUDA:
     enc.cuda()
     dec.cuda()
