@@ -289,7 +289,7 @@ def test(data, encA, decA, encB, decB, infer=True):
             qB = encB(labels_onehot, num_samples=NUM_SAMPLES)
 
             ## poe ##
-            prior_logit = torch.zeros_like(labels)  # prior is the concrete dist. of uniform dist.
+            prior_logit = torch.zeros_like(qA['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
             poe_logit = qA['sharedA'].dist.logits + qB['sharedB'].dist.logits + prior_logit
             poe_sample = qA.concrete(logits=poe_logit,
                                      temperature=0.66,
