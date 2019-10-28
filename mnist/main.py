@@ -106,34 +106,34 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(iter, qA, pA, qB, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
-    reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(qA, pA, pA['images_sharedA'], latents=['private', 'sharedA'], sample_dim=0, batch_dim=1,
+    reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                         lamb=1.0, beta=beta, bias=bias)
-    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(qB, pB, pB['labels_sharedB'], latents=['sharedB'],
+    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedB'], latents=['sharedB'],
                                                                    sample_dim=0, batch_dim=1,
                                                                    lamb=lamb, beta=beta, bias=bias)
 
-    if qA['poe'] is not None:
+    if q['poe'] is not None:
         # by POE
         # 기대하는바:sharedA가 sharedB를 따르길. 즉 sharedA에만 digit정보가 있으며, 그 permutataion이 GT에서처럼 identity이기를
-        reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(qA, pA, pA['images_poe'], latents=['private', 'poe'], sample_dim=0, batch_dim=1,
+        reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
                                                     lamb=1.0, beta=beta, bias=bias)
         # 의미 없음. rec 은 항상 0. 인풋이 항상 GT고 poe결과도 GT를 따라갈 확률이 크기 때문(학습 초반엔 A가 unif이라서, 학습 될수록 A가 B label을 잘 따를테니)
         #loss 값 변화 자체로는 의미 없지만, 이 일정한 loss(GT)가 나오도록하는 sharedA의 back pg에는 의미가짐
-        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(qB, pB, pB['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
+        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
                                                     lamb=lamb, beta=beta, bias=bias)
 
         # # by cross
-        # reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(qA, pA, pA['images_sharedB'], latents=['private', 'sharedB'], sample_dim=0, batch_dim=1,
-        #                                             lamb=1.0, beta=beta, bias=bias)
-        # reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(qB, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
-        #                                             lamb=lamb, beta=beta, bias=bias)
+        reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedB'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
+                                                    lamb=1.0, beta=beta, bias=bias)
+        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
+                                                    lamb=lamb, beta=beta, bias=bias)
 
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
+        # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+        #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
-        #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
         if iter % 100 == 0:
             print('=========================================')
             print(iter)
@@ -183,37 +183,31 @@ def train(data, encA, decA, encB, decB, optimizer,
                 label_mask[b] = (random() < args.label_frac)
             if label_mask[b]:
                 if args.label_frac == args.sup_frac:
-                    qA = encA(images, num_samples=NUM_SAMPLES)
-                    qB = encB(labels_onehot, num_samples=NUM_SAMPLES)
-
+                    # encode
+                    q = encA(images, num_samples=NUM_SAMPLES)
+                    q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
                     ## poe ##
-                    prior_logit = torch.zeros_like(qA['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-                    poe_logit = qA['sharedA'].dist.logits + qB['sharedB'].dist.logits + prior_logit
+                    prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+                    poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
                     poe_temp = np.power(TEMP, 3)
-                    poe_sample = qA.concrete(logits=poe_logit,
+                    q.concrete(logits=poe_logit,
                                temperature=poe_temp,
                                name='poe')
-                    qB.concrete(logits=poe_logit,
-                                temperature=poe_temp,
-                                value = poe_sample,
-                                name='poe')
-
-                    pA = decA(images, {'sharedA': qA['sharedA'], 'sharedB': qB['sharedB'], 'poe':qA['poe']}, q=qA,
+                    # decode
+                    pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
                             num_samples=NUM_SAMPLES)
-                    pB = decB(labels_onehot, {'sharedA': qA['sharedA'], 'sharedB': qB['sharedB'], 'poe':qB['poe']}, q=qB,
+                    pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
                             num_samples=NUM_SAMPLES)
-
-                    loss = -elbo(b, qA, pA, qB, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                    # loss
+                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             else:
-                qA = encA(images, num_samples=NUM_SAMPLES)
-                qB = encB(labels_onehot, num_samples=NUM_SAMPLES)
-
-                pA = decA(images, {'sharedA': qA['sharedA']}, q=qA,
+                q = encA(images, num_samples=NUM_SAMPLES)
+                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+                pA = decA(images, {'sharedA': q['sharedA']}, q=q,
                           num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedB': qB['sharedB']}, q=qB,
+                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                           num_samples=NUM_SAMPLES)
-
-                loss = -elbo(b, qA, pA, qB, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
             if args.label_frac < args.sup_frac and random() < args.sup_frac:
                 # print(b)
@@ -227,27 +221,23 @@ def train(data, encA, decA, encB, decB, optimizer,
                     images = images.cuda()
                     labels_onehot = labels_onehot.cuda()
 
-                qA = encA(images, num_samples=NUM_SAMPLES)
-                qB = encB(labels_onehot, num_samples=NUM_SAMPLES)
-
+                # encode
+                q = encA(images, num_samples=NUM_SAMPLES)
+                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
                 ## poe ##
-                prior_logit = torch.zeros_like(labels)  # prior is the concrete dist. of uniform dist.
-                poe_logit = qA['sharedA'].dist.logits + qB['sharedB'].dist.logits + prior_logit
+                prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+                poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
                 poe_temp = np.power(TEMP, 3)
-                poe_sample = qA.concrete(logits=poe_logit,
-                                         temperature=poe_temp,
-                                         name='poe')
-                qB.concrete(logits=poe_logit,
-                            temperature=poe_temp,
-                            value=poe_sample,
-                            name='poe')
-
-                pA = decA(images, {'sharedA': qA['sharedA'], 'sharedB': qB['sharedB'], 'poe': qA['poe']}, q=qA,
+                q.concrete(logits=poe_logit,
+                           temperature=poe_temp,
+                           name='poe')
+                # decode
+                pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                           num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedA': qA['sharedA'], 'sharedB': qB['sharedB'], 'poe': qB['poe']}, q=qB,
+                pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                           num_samples=NUM_SAMPLES)
-
-                sup_loss = -elbo(b, qA, pA, qB, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                # loss
+                sup_loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
                 sup_loss.backward()
                 optimizer.step()
 
@@ -286,28 +276,23 @@ def test(data, encA, decA, encB, decB, infer=True):
             if CUDA:
                 images = images.cuda()
                 labels_onehot = labels_onehot.cuda()
-
-            qA = encA(images, num_samples=NUM_SAMPLES)
-            qB = encB(labels_onehot, num_samples=NUM_SAMPLES)
-
+            # encode
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             ## poe ##
-            prior_logit = torch.zeros_like(qA['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-            poe_logit = qA['sharedA'].dist.logits + qB['sharedB'].dist.logits + prior_logit
+            prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+            poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
             poe_temp = np.power(TEMP, 3)
-            poe_sample = qA.concrete(logits=poe_logit,
-                                     temperature=poe_temp,
-                                     name='poe')
-            qB.concrete(logits=poe_logit,
-                        temperature=poe_temp,
-                        value=poe_sample,
-                        name='poe')
-
-            pA = decA(images, {'sharedA': qA['sharedA'], 'sharedB': qB['sharedB'], 'poe': qA['poe']}, q=qA,
+            q.concrete(logits=poe_logit,
+                       temperature=poe_temp,
+                       name='poe')
+            # decode
+            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedA': qA['sharedA'], 'sharedB': qB['sharedB'], 'poe': qB['poe']}, q=qB,
+            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
-            batch_elbo = elbo(b, qA, pA, qB, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()

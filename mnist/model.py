@@ -28,8 +28,9 @@ class EncoderA(nn.Module):
         self.fc  = nn.Linear(num_hidden, 2*zPrivate_dim + zShared_dim)
 
     @expand_inputs
-    def forward(self, x, num_samples=None):
-        q = probtorch.Trace()
+    def forward(self, x, num_samples=None, q=None):
+        if q is None:
+            q = probtorch.Trace()
 
         hiddens = self.enc_hidden(x)
         stats = self.fc(hiddens)
@@ -42,7 +43,7 @@ class EncoderA(nn.Module):
 
         q.normal(loc=muPrivate,
                  scale=stdPrivate,
-                 name='private')
+                 name='privateA')
         q.concrete(logits=shared_logit,
                     temperature=self.digit_temp,
                     name='sharedA')
@@ -70,16 +71,16 @@ class DecoderA(nn.Module):
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
         digit_log_weights = torch.zeros_like(q['sharedA'].dist.logits) # prior is the concrete dist for uniform dist. with all params=1
-        style_mean = torch.zeros_like(q['private'].dist.loc)
-        style_std = torch.ones_like(q['private'].dist.scale)
+        style_mean = torch.zeros_like(q['privateA'].dist.loc)
+        style_std = torch.ones_like(q['privateA'].dist.scale)
 
         p = probtorch.Trace()
 
         # prior for z_private
         zPrivate = p.normal(style_mean,
                         style_std,
-                        value=q['private'],
-                        name='private')
+                        value=q['privateA'],
+                        name='privateA')
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared
@@ -117,8 +118,9 @@ class EncoderB(nn.Module):
 
 
     @expand_inputs
-    def forward(self, labels, num_samples=None):
-        q = probtorch.Trace()
+    def forward(self, labels, num_samples=None, q=None):
+        if q is None:
+            q = probtorch.Trace()
         hiddens = self.enc_hidden(labels)
         shared_logit = self.fc(hiddens)
 
