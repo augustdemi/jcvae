@@ -39,7 +39,7 @@ class EncoderA(nn.Module):
 
         muPrivate = stats[:, :, :self.zPrivate_dim]
         logvarPrivate = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
-        stdPrivate = torch.exp(logvarPrivate)
+        stdPrivate = torch.sqrt(torch.exp(logvarPrivate))
 
         shared_logit = stats[:, :, (2 * self.zPrivate_dim):]
 
