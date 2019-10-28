@@ -35,9 +35,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=0.002,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.02,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=10.,
                         help='multipler for text reconstruction [default: 10]')
@@ -78,11 +78,11 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.n_private, shuffle=True)
+                batch_size=args.batch_size, shuffle=True)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.n_private, shuffle=False)
+                batch_size=args.batch_size, shuffle=False)
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -137,10 +137,10 @@ def train(data, enc, dec, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if images.size()[0] == args.n_private:
-            N += args.n_private
+        if images.size()[0] == args.batch_size:
+            N += args.batch_size
             images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.n_private, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
             if CUDA:
@@ -165,13 +165,11 @@ def train(data, enc, dec, optimizer,
                         num_samples=NUM_SAMPLES)
                 loss = -elbo(q, p, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
-
-
             if args.label_frac < args.sup_frac and random() < args.sup_frac:
                 # print(b)
-                N += args.n_private
+                N += args.batch_size
                 images = fixed_imgs.view(-1, NUM_PIXELS)
-                labels_onehot = torch.zeros(args.n_private, args.n_shared)
+                labels_onehot = torch.zeros(args.batch_size, args.n_shared)
                 labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
                 optimizer.zero_grad()
@@ -215,8 +213,8 @@ def test(data, enc, dec, infer=True):
     epoch_correct = 0
     N = 0
     for b, (images, labels) in enumerate(data):
-        if images.size()[0] == args.n_private:
-            N += args.n_private
+        if images.size()[0] == args.batch_size:
+            N += args.batch_size
             images = images.view(-1, NUM_PIXELS)
             if CUDA:
                 images = images.cuda()
@@ -250,7 +248,7 @@ def get_paired_data(paired_cnt):
     data = torch.utils.data.DataLoader(
         datasets.MNIST(DATA_PATH, train=True, download=True,
                        transform=transforms.ToTensor()),
-        batch_size=args.n_private, shuffle=False)
+        batch_size=args.batch_size, shuffle=False)
     per_idx_img = {}
     for i in range(10):
         per_idx_img.update({i:[]})
