@@ -130,10 +130,8 @@ def elbo(iter, qA, pA, qB, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         # reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(qB, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
         #                                             lamb=lamb, beta=beta, bias=bias)
 
-        # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + (reconst_loss_poeA - kl_poeA) \
-        #        + (lamb * reconst_loss_poeB - kl_poeB) \
-        loss =  (reconst_loss_poeA - kl_poeA) + (1000 * reconst_loss_B - kl_B)
-               #+ (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
         if iter % 100 == 0:
