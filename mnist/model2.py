@@ -78,7 +78,8 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     def __init__(self, num_pixels=784,
-                       num_hidden=256,
+                       num_hidden1=256,
+                       num_hidden2=256,
                     zShared_dim=10,
                     zPrivate_dim=50):
         super(self.__class__, self).__init__()
@@ -89,10 +90,12 @@ class Decoder(nn.Module):
         self.num_digits = zShared_dim
 
         self.dec_hidden = nn.Sequential(
-                            nn.Linear(zPrivate_dim + zShared_dim, num_hidden),
+                            nn.Linear(zPrivate_dim + zShared_dim, num_hidden2),
+                            nn.ReLU(),
+                            nn.Linear(num_hidden2, num_hidden1),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-                           nn.Linear(num_hidden, num_pixels),
+                           nn.Linear(num_hidden2, num_pixels),
                            nn.Sigmoid())
 
     def forward(self, images, latents, out_name, q=None, p=None, num_samples=None):
