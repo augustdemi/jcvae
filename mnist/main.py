@@ -1,5 +1,5 @@
 from torchvision import datasets, transforms
-import os
+import numpy as np
 import torch
 
 from model import EncoderA, EncoderB, DecoderA, DecoderB
@@ -67,7 +67,7 @@ BIAS_TRAIN = (60000 - 1) / (args.batch_size - 1)
 BIAS_TEST = (10000 - 1) / (args.batch_size - 1)
 # model parameters
 NUM_PIXELS = 784
-
+TEMP = 0.66
 
 NUM_SAMPLES = 1
 if not os.path.isdir(DATA_PATH):
@@ -102,7 +102,7 @@ if CUDA:
     cuda_tensors(encB)
     cuda_tensors(decB)
 
-optimizer =  torch.optim.Adam(list(encA.parameters())+list(decA.parameters())+list(encB.parameters())+list(decB.parameters()),
+optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+list(encA.parameters())+list(decA.parameters()),
                               lr=args.lr)
 
 
@@ -130,8 +130,9 @@ def elbo(iter, qA, pA, qB, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         # reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(qB, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
         #                                             lamb=lamb, beta=beta, bias=bias)
 
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + (reconst_loss_poeA - kl_poeA) \
-               + (lamb * reconst_loss_poeB - kl_poeB) \
+        # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + (reconst_loss_poeA - kl_poeA) \
+        #        + (lamb * reconst_loss_poeB - kl_poeB) \
+        loss =  (reconst_loss_poeA - kl_poeA) + (1000 * reconst_loss_B - kl_B)
                #+ (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
@@ -190,11 +191,12 @@ def train(data, encA, decA, encB, decB, optimizer,
                     ## poe ##
                     prior_logit = torch.zeros_like(qA['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
                     poe_logit = qA['sharedA'].dist.logits + qB['sharedB'].dist.logits + prior_logit
+                    poe_temp = np.power(TEMP, 3)
                     poe_sample = qA.concrete(logits=poe_logit,
-                               temperature=0.66,
+                               temperature=poe_temp,
                                name='poe')
                     qB.concrete(logits=poe_logit,
-                                temperature=0.66,
+                                temperature=poe_temp,
                                 value = poe_sample,
                                 name='poe')
 
@@ -233,11 +235,12 @@ def train(data, encA, decA, encB, decB, optimizer,
                 ## poe ##
                 prior_logit = torch.zeros_like(labels)  # prior is the concrete dist. of uniform dist.
                 poe_logit = qA['sharedA'].dist.logits + qB['sharedB'].dist.logits + prior_logit
+                poe_temp = np.power(TEMP, 3)
                 poe_sample = qA.concrete(logits=poe_logit,
-                                         temperature=0.66,
+                                         temperature=poe_temp,
                                          name='poe')
                 qB.concrete(logits=poe_logit,
-                            temperature=0.66,
+                            temperature=poe_temp,
                             value=poe_sample,
                             name='poe')
 
@@ -292,11 +295,12 @@ def test(data, encA, decA, encB, decB, infer=True):
             ## poe ##
             prior_logit = torch.zeros_like(qA['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
             poe_logit = qA['sharedA'].dist.logits + qB['sharedB'].dist.logits + prior_logit
+            poe_temp = np.power(TEMP, 3)
             poe_sample = qA.concrete(logits=poe_logit,
-                                     temperature=0.66,
+                                     temperature=poe_temp,
                                      name='poe')
             qB.concrete(logits=poe_logit,
-                        temperature=0.66,
+                        temperature=poe_temp,
                         value=poe_sample,
                         name='poe')
 

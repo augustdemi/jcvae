@@ -1,9 +1,4 @@
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import norm
-from torch.nn import functional as F
-
-from torch.nn import Parameter
 import torch
 import torch.nn as nn
 
@@ -73,7 +68,6 @@ class DecoderA(nn.Module):
                            nn.Sigmoid())
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
-
         digit_log_weights = torch.zeros_like(q['sharedA'].dist.logits) # prior is the concrete dist for uniform dist. with all params=1
         style_mean = torch.zeros_like(q['private'].dist.loc)
         style_std = torch.ones_like(q['private'].dist.scale)
@@ -150,13 +144,14 @@ class DecoderB(nn.Module):
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None):
         p = probtorch.Trace()
-
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared # prior is the concrete dist for uniform dist. with all params=1
+            temp = self.digit_temp
+            if 'poe' in shared_name:
+                temp = np.power(temp, 3)
             zShared = p.concrete(logits=torch.zeros_like(q['sharedB'].dist.logits),
-                                temperature=self.digit_temp,
-
+                                temperature=temp,
                                 value=shared[shared_name],
                                 name=shared_name)
 
@@ -166,9 +161,9 @@ class DecoderB(nn.Module):
                 hiddens = self.dec_hidden(zShared)
 
             pred_labels = self.dec_label(hiddens)
-            pred_labels = F.softmax(pred_labels, dim=2)
+            labels = labels.unsqueeze(0)
             # define reconstruction loss (log prob of bernoulli dist)
-            p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
-                   pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)
+            p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
+                   pred_labels, labels, name='labels_' + shared_name)
         return p
 
