@@ -95,7 +95,7 @@ class Decoder(nn.Module):
                             nn.Linear(num_hidden2, num_hidden1),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-                           nn.Linear(num_hidden2, num_pixels),
+                           nn.Linear(num_hidden1, num_pixels),
                            nn.Sigmoid())
 
     def forward(self, images, latents, out_name, q=None, p=None, num_samples=None):
