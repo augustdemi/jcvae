@@ -279,11 +279,12 @@ def test(data, encA, decA, encB, decB, infer=True):
         if images.size()[0] == args.batch_size:
             N += args.batch_size
             images = images.view(-1, NUM_PIXELS)
-            if CUDA:
-                images = images.cuda()
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
+            if CUDA:
+                images = images.cuda()
+                labels_onehot = labels_onehot.cuda()
 
             qA = encA(images, num_samples=NUM_SAMPLES)
             qB = encB(labels_onehot, num_samples=NUM_SAMPLES)
