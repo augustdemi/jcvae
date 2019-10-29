@@ -140,13 +140,6 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
 
         if iter % 100 == 0:
             print('=========================================')
-            print(iter)
-            print('reconst_loss_A: ', reconst_loss_A)
-            print('kl_A: ', kl_A)
-            print('-----------------------------------------')
-            print('reconst_loss_B: ', reconst_loss_B)
-            print('kl_B: ', kl_B)
-            print('-----------------------------------------')
             print('reconst_loss_poeA: ', reconst_loss_poeA)
             print('kl_poeA: ', kl_poeA)
             print('-----------------------------------------')
@@ -163,7 +156,14 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
 
     if iter % 100 == 0:
+        print('reconst_loss_A: ', reconst_loss_A)
+        print('kl_A: ', kl_A)
+        print('-----------------------------------------')
+        print('reconst_loss_B: ', reconst_loss_B)
+        print('kl_B: ', kl_B)
+        print('-----------------------------------------')
         print('loss: ', loss)
+        print(iter)
         print('=========================================')
 
     return loss
