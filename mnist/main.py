@@ -243,11 +243,12 @@ def train(data, encA, decA, encB, decB, optimizer,
                 # loss
                 loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             else:
+                shff_labels_onehot = labels_onehot[:, torch.randperm(10)]
                 q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+                q = encB(shff_labels_onehot, num_samples=NUM_SAMPLES, q=q)
                 pA = decA(images, {'sharedA': q['sharedA']}, q=q,
                           num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+                pB = decB(shff_labels_onehot, {'sharedB': q['sharedB']}, q=q,
                           num_samples=NUM_SAMPLES)
                 loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
