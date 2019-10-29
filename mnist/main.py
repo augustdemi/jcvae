@@ -34,9 +34,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1,
+    parser.add_argument('--label_frac', type=float, default=0.001,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1,
+    parser.add_argument('--sup_frac', type=float, default=0.1,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
@@ -205,13 +205,12 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                       num_samples=NUM_SAMPLES)
+            for param in encB.parameters():
+                param.requires_grad = True
+            for param in decB.parameters():
+                param.requires_grad = True
             # loss
-            sup_loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-            sup_loss.backward()
-            optimizer.step()
-            if CUDA:
-                sup_loss = sup_loss.cpu()
-            epoch_elbo -= sup_loss.item()
+            loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
         else:
             N += args.batch_size
             images = images.view(-1, NUM_PIXELS)
@@ -240,6 +239,10 @@ def train(data, encA, decA, encB, decB, optimizer,
                         num_samples=NUM_SAMPLES)
                 pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
                         num_samples=NUM_SAMPLES)
+                for param in encB.parameters():
+                    param.requires_grad = True
+                for param in decB.parameters():
+                    param.requires_grad = True
                 # loss
                 loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             else:
@@ -254,14 +257,13 @@ def train(data, encA, decA, encB, decB, optimizer,
                     param.requires_grad = False
                 for param in decB.parameters():
                     param.requires_grad = False
-
                 loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
-            loss.backward()
-            optimizer.step()
-            if CUDA:
-                loss = loss.cpu()
-            epoch_elbo -= loss.item()
+        loss.backward()
+        optimizer.step()
+        if CUDA:
+            loss = loss.cpu()
+        epoch_elbo -= loss.item()
 
     return epoch_elbo / N, label_mask
 
@@ -286,9 +288,9 @@ def test(data, encA, decA, encB, decB, infer=True):
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images, {'sharedA': q['sharedA']}, q=q,
+            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
 
             batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
