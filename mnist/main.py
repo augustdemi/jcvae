@@ -57,7 +57,7 @@ CUDA = torch.cuda.is_available()
 MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac)
 DATA_PATH = '../data'
 
-if len(args.desc_file) > 0:
+if len(args.run_desc) > 1:
     import os
     desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
     with open(desc_file, 'w') as outfile:
@@ -134,30 +134,36 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
         #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
-        loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
-        if iter % 100 == 0:
-            print('=========================================')
-            print(iter)
-            print('reconst_loss_A: ', reconst_loss_A)
-            print('kl_A: ', kl_A)
-            print('-----------------------------------------')
-            print('reconst_loss_B: ', reconst_loss_B)
-            print('kl_B: ', kl_B)
-            print('-----------------------------------------')
-            print('reconst_loss_poeA: ', reconst_loss_poeA)
-            print('kl_poeA: ', kl_poeA)
-            print('-----------------------------------------')
-            print('reconst_loss_poeB: ', reconst_loss_poeB)
-            print('kl_poeB: ', kl_poeB)
-            print('-----------------------------------------')
-            print('reconst_loss_crA: ', reconst_loss_crA)
-            print('kl_crA: ', kl_crA)
-            print('-----------------------------------------')
-            print('reconst_loss_crB: ', reconst_loss_crB)
-            print('kl_crB: ', kl_crB)
-            print('=========================================')
+        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
+               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
     else:
-        loss = 2*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+        loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+
+    if iter % 100 == 0:
+        print('=========================================')
+        print(iter)
+        print('reconst_loss_A: ', reconst_loss_A)
+        print('kl_A: ', kl_A)
+        print('-----------------------------------------')
+        print('reconst_loss_B: ', reconst_loss_B)
+        print('kl_B: ', kl_B)
+        print('-----------------------------------------')
+        print('reconst_loss_poeA: ', reconst_loss_poeA)
+        print('kl_poeA: ', kl_poeA)
+        print('-----------------------------------------')
+        print('reconst_loss_poeB: ', reconst_loss_poeB)
+        print('kl_poeB: ', kl_poeB)
+        print('-----------------------------------------')
+        print('reconst_loss_crA: ', reconst_loss_crA)
+        print('kl_crA: ', kl_crA)
+        print('-----------------------------------------')
+        print('reconst_loss_crB: ', reconst_loss_crB)
+        print('kl_crB: ', kl_crB)
+        print('-----------------------------------------')
+        print('loss: ', loss)
+        print('=========================================')
+
     return loss
 
 def train(data, encA, decA, encB, decB, optimizer,
