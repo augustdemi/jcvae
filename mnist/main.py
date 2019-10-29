@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import os
 
-from model2 import EncoderA, EncoderB, DecoderA, DecoderB
+from model import EncoderA, EncoderB, DecoderA, DecoderB
 
 import sys
 sys.path.append('../')
@@ -77,7 +77,7 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=False)
+                batch_size=args.batch_size, shuffle=True)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
@@ -243,13 +243,18 @@ def train(data, encA, decA, encB, decB, optimizer,
                 # loss
                 loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             else:
-                shff_labels_onehot = labels_onehot[:, torch.randperm(10)]
+                # labels_onehot = labels_onehot[:, torch.randperm(10)]
                 q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(shff_labels_onehot, num_samples=NUM_SAMPLES, q=q)
+                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
                 pA = decA(images, {'sharedA': q['sharedA']}, q=q,
                           num_samples=NUM_SAMPLES)
-                pB = decB(shff_labels_onehot, {'sharedB': q['sharedB']}, q=q,
+                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                           num_samples=NUM_SAMPLES)
+                for param in encB.parameters():
+                    param.requires_grad = False
+                for param in decB.parameters():
+                    param.requires_grad = False
+
                 loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
             loss.backward()
@@ -281,18 +286,10 @@ def test(data, encA, decA, encB, decB, infer=True):
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            ## poe ##
-            prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-            poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-            poe_temp = np.power(TEMP, 3)
-            q.concrete(logits=poe_logit,
-                       temperature=poe_temp,
-                       name='poe')
-            # decode
-            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
+            pA = decA(images, {'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
-                      num_samples=NUM_SAMPLES, train=False)
+            pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+                      num_samples=NUM_SAMPLES)
 
             batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             if CUDA:
