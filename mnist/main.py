@@ -291,7 +291,7 @@ def test(data, encA, decA, encB, decB, infer=True):
             pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
-                      num_samples=NUM_SAMPLES)
+                      num_samples=NUM_SAMPLES, train=False)
 
             batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             if CUDA:
