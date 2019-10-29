@@ -77,7 +77,7 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=True)
+                batch_size=args.batch_size, shuffle=False)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
@@ -178,7 +178,41 @@ def train(data, encA, decA, encB, decB, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if images.size()[0] == args.batch_size:
+        if args.label_frac < args.sup_frac and random() < args.sup_frac:
+            # print(b)
+            N += args.batch_size
+            images = fixed_imgs.view(-1, NUM_PIXELS)
+            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
+            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+            optimizer.zero_grad()
+            if CUDA:
+                images = images.cuda()
+                labels_onehot = labels_onehot.cuda()
+
+            # encode
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            ## poe ##
+            prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+            poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
+            poe_temp = np.power(TEMP, 3)
+            q.concrete(logits=poe_logit,
+                       temperature=poe_temp,
+                       name='poe')
+            # decode
+            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            # loss
+            sup_loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+            sup_loss.backward()
+            optimizer.step()
+            if CUDA:
+                sup_loss = sup_loss.cpu()
+            epoch_elbo -= sup_loss.item()
+        else:
             N += args.batch_size
             images = images.view(-1, NUM_PIXELS)
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
@@ -190,46 +224,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             optimizer.zero_grad()
             if b not in label_mask:
                 label_mask[b] = (random() < args.label_frac)
-            if label_mask[b]:
-                if args.label_frac == args.sup_frac:
-                    # encode
-                    q = encA(images, num_samples=NUM_SAMPLES)
-                    q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                    ## poe ##
-                    prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-                    poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-                    poe_temp = np.power(TEMP, 3)
-                    q.concrete(logits=poe_logit,
-                               temperature=poe_temp,
-                               name='poe')
-                    # decode
-                    pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                            num_samples=NUM_SAMPLES)
-                    pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                            num_samples=NUM_SAMPLES)
-                    # loss
-                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-            else:
-                q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                pA = decA(images, {'sharedA': q['sharedA']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-
-            if args.label_frac < args.sup_frac and random() < args.sup_frac:
-                # print(b)
-                N += args.batch_size
-                images = fixed_imgs.view(-1, NUM_PIXELS)
-                labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-                labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
-                labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-                optimizer.zero_grad()
-                if CUDA:
-                    images = images.cuda()
-                    labels_onehot = labels_onehot.cuda()
-
+            if (label_mask[b] and args.label_frac == args.sup_frac):
                 # encode
                 q = encA(images, num_samples=NUM_SAMPLES)
                 q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
@@ -241,29 +236,26 @@ def train(data, encA, decA, encB, decB, optimizer,
                            temperature=poe_temp,
                            name='poe')
                 # decode
-                pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
-                          num_samples=NUM_SAMPLES)
+                pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
+                        num_samples=NUM_SAMPLES)
+                pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
+                        num_samples=NUM_SAMPLES)
                 # loss
-                sup_loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-                sup_loss.backward()
-                optimizer.step()
-
-                if CUDA:
-                    sup_loss = sup_loss.cpu()
-                if CUDA:
-                    loss = loss.cpu()
-                print('-------------- b: ', b)
-                print('unsup: ', loss)
-                print('sup: ', sup_loss)
-                epoch_elbo -= sup_loss.item()
+                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
             else:
-                loss.backward()
-                optimizer.step()
-                if CUDA:
-                    loss = loss.cpu()
-                epoch_elbo -= loss.item()
+                q = encA(images, num_samples=NUM_SAMPLES)
+                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+                pA = decA(images, {'sharedA': q['sharedA']}, q=q,
+                          num_samples=NUM_SAMPLES)
+                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+                          num_samples=NUM_SAMPLES)
+                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+
+            loss.backward()
+            optimizer.step()
+            if CUDA:
+                loss = loss.cpu()
+            epoch_elbo -= loss.item()
 
     return epoch_elbo / N, label_mask
 
