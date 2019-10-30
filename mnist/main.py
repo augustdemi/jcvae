@@ -310,8 +310,8 @@ def get_paired_data(paired_cnt, seed):
         datasets.MNIST(DATA_PATH, train=True, download=True,
                        transform=transforms.ToTensor()),
         batch_size=args.batch_size, shuffle=False)
-    tr_labels = data.dataset.train_labels
-    tr_imgs = data.dataset.train_data
+    tr_labels = data.dataset.targets
+    tr_imgs = data.dataset.data
 
     cnt = int(paired_cnt / 10)
     assert cnt == paired_cnt / 10
@@ -333,13 +333,44 @@ def get_paired_data(paired_cnt, seed):
         per_label_random_idx = random.sample(label_idx[i], cnt)
         total_random_idx.extend(per_label_random_idx)
 
-    imgs = tr_imgs[total_random_idx]
-    labels = tr_labels[total_random_idx]
-    torch.manual_seed(seed)
-    imgs = imgs[torch.randperm(imgs.shape[0]),:,:].type(torch.float32)
-    labels = labels[torch.randperm(labels.shape[0])].type(torch.int64)
+    imgs = []
+    labels = []
+    for idx in total_random_idx:
+        img, label = data.dataset.__getitem__(idx)
+        imgs.append(img)
+        labels.append(torch.tensor(label))
+    imgs = torch.stack(imgs, dim=0)
+    labels = torch.stack(labels, dim=0)
+
     return imgs, labels
 
+# def get_paired_data(paired_cnt, seed):
+#     data = torch.utils.data.DataLoader(
+#         datasets.MNIST(DATA_PATH, train=True, download=True,
+#                        transform=transforms.ToTensor()),
+#         batch_size=args.batch_size, shuffle=False)
+#     per_idx_img = {}
+#     for i in range(10):
+#         per_idx_img.update({i:[]})
+#     for (images, labels) in data:
+#         for i in range(labels.shape[0]):
+#             label = int(labels[i].data.detach().cpu().numpy())
+#             if len(per_idx_img[label]) < int(paired_cnt/10):
+#                 per_idx_img[label].append(images[i])
+#
+#     imgs = []
+#     labels = []
+#     for i in range(10):
+#         imgs.extend(per_idx_img[i])
+#         labels.extend([i]*int(paired_cnt/10))
+#     import numpy as np
+#     np.random.seed(0)
+#     np.random.shuffle(imgs)
+#     np.random.seed(0)
+#     np.random.shuffle(labels)
+#     imgs=torch.stack(imgs)
+#     labels=torch.tensor(labels)
+#     return imgs, labels
 
 if args.ckpt_epochs > 0:
     if CUDA:
