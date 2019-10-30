@@ -56,7 +56,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac)
+MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta)
 DATA_PATH = '../data'
 
 if len(args.run_desc) > 1:
