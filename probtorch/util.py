@@ -4,6 +4,9 @@ from numbers import Number
 import math
 from functools import wraps
 
+import os
+import imageio
+import subprocess
 
 __all__ = ['broadcast_size',
            'expanded_size',
@@ -136,3 +139,35 @@ def log_sum_exp(value, dim=None, keepdim=False):
             return m + math.log(sum_exp)
         else:
             return m + torch.log(sum_exp)
+
+
+def mkdirs(path):
+
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
+def grid2gif(img_dir, out_gif, delay=100, duration=0.1):
+    '''
+    make (moving) GIF from images
+    '''
+
+    if True:  # os.name=='nt':
+
+        fnames = [ \
+            str(os.path.join(img_dir, f)) for f in os.listdir(img_dir) \
+            if ('jpg' in f)]
+
+        fnames.sort()
+
+        images = []
+        for filename in fnames:
+            images.append(imageio.imread(filename))
+
+        imageio.mimsave(out_gif, images, duration=duration)
+
+    else:  # os.name=='posix'
+
+        img_str = str(os.path.join(img_dir, '*.jpg'))
+        cmd = 'convert -delay %s -loop 0 %s %s' % (delay, img_str, out_gif)
+        subprocess.call(cmd, shell=True)
