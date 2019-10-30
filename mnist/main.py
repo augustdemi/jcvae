@@ -78,7 +78,7 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=True)
+                batch_size=args.batch_size, shuffle=False)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
@@ -197,9 +197,8 @@ def train(data, encA, decA, encB, decB, optimizer,
             ## poe ##
             prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
             poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-            poe_temp = np.power(TEMP, 3)
             q.concrete(logits=poe_logit,
-                       temperature=poe_temp,
+                       temperature=TEMP,
                        name='poe')
             # decode
             pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
@@ -231,9 +230,8 @@ def train(data, encA, decA, encB, decB, optimizer,
                 ## poe ##
                 prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
                 poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-                poe_temp = np.power(TEMP, 3)
                 q.concrete(logits=poe_logit,
-                           temperature=poe_temp,
+                           temperature=TEMP,
                            name='poe')
                 # decode
                 pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
@@ -295,7 +293,7 @@ def test(data, encA, decA, encB, decB, infer=True):
                       num_samples=NUM_SAMPLES, train=False)
 
             batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-            save_traverse(args.epochs, data, encA, decA, CUDA, loc=-1)
+            # save_traverse(args.epochs, data, encA, decA, CUDA, loc=-1)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()

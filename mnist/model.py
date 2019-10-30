@@ -150,11 +150,8 @@ class DecoderB(nn.Module):
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared # prior is the concrete dist for uniform dist. with all params=1
-            temp = self.digit_temp
-            if 'poe' in shared_name:
-                temp = np.power(temp, 3)
             zShared = p.concrete(logits=torch.zeros_like(q['sharedB'].dist.logits),
-                                temperature=temp,
+                                temperature=self.digit_temp,
                                 value=shared[shared_name],
                                 name=shared_name)
 
