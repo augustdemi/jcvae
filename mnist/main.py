@@ -311,7 +311,6 @@ def get_paired_data(paired_cnt, seed):
                        transform=transforms.ToTensor()),
         batch_size=args.batch_size, shuffle=False)
     tr_labels = data.dataset.targets
-    tr_imgs = data.dataset.data
 
     cnt = int(paired_cnt / 10)
     assert cnt == paired_cnt / 10
@@ -323,15 +322,13 @@ def get_paired_data(paired_cnt, seed):
         label = int(tr_labels[idx].data.detach().cpu().numpy())
         label_idx[label].append(idx)
 
-    per_idx_img = {}
-    for i in range(10):
-        per_idx_img.update({i:[]})
-
-    random.seed(seed)
     total_random_idx = []
     for i in range(10):
+        random.seed(seed)
         per_label_random_idx = random.sample(label_idx[i], cnt)
         total_random_idx.extend(per_label_random_idx)
+    random.seed(seed)
+    random.shuffle(total_random_idx)
 
     imgs = []
     labels = []
