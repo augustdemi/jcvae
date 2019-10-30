@@ -335,10 +335,9 @@ def get_paired_data(paired_cnt, seed):
 
     imgs = tr_imgs[total_random_idx]
     labels = tr_labels[total_random_idx]
-
     torch.manual_seed(seed)
-    imgs = imgs[torch.randperm(imgs.shape[0]),:,:]
-    labels = labels[torch.randperm(labels.shape[0])]
+    imgs = imgs[torch.randperm(imgs.shape[0]),:,:].type(torch.float32)
+    labels = labels[torch.randperm(labels.shape[0])].type(torch.int64)
     return imgs, labels
 
 
