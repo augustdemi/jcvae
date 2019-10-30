@@ -1,5 +1,7 @@
 from torchvision import datasets, transforms
-import numpy as np
+
+import time
+import random
 import torch
 import os
 
@@ -28,14 +30,14 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=100, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=0.002,
+    parser.add_argument('--label_frac', type=float, default=100,
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=0.2,
                         help='supervision ratio')
@@ -43,6 +45,8 @@ if __name__ == "__main__":
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta', type=float, default=50.,
                         help='multipler for TC [default: 10]')
+    parser.add_argument('--seed', type=int, default=0, metavar='N',
+                        help='random seed for get_paired_data')
 
     parser.add_argument('--ckpt_path', type=str, default='../weights',
                         help='save and load path for ckpt')
@@ -179,7 +183,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if args.label_frac < args.sup_frac and random() < args.sup_frac:
+        if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += args.batch_size
             images = fixed_imgs.view(-1, NUM_PIXELS)
@@ -222,7 +226,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 labels_onehot = labels_onehot.cuda()
             optimizer.zero_grad()
             if b not in label_mask:
-                label_mask[b] = (random() < args.label_frac)
+                label_mask[b] = (random.random() < args.label_frac)
             if (label_mask[b] and args.label_frac == args.sup_frac):
                 # encode
                 q = encA(images, num_samples=NUM_SAMPLES)
@@ -301,38 +305,42 @@ def test(data, encA, decA, encB, decB, infer=True):
     return epoch_elbo / N, 1 + epoch_correct / N
 
 
-def get_paired_data(paired_cnt):
+def get_paired_data(paired_cnt, seed):
     data = torch.utils.data.DataLoader(
         datasets.MNIST(DATA_PATH, train=True, download=True,
                        transform=transforms.ToTensor()),
         batch_size=args.batch_size, shuffle=False)
+    tr_labels = data.dataset.train_labels
+    tr_imgs = data.dataset.train_data
+
+    cnt = int(paired_cnt / 10)
+    assert cnt == paired_cnt / 10
+
+    label_idx = {}
+    for i in range(10):
+        label_idx.update({i:[]})
+    for idx in  range(len(tr_labels)):
+        label = int(tr_labels[idx].data.detach().cpu().numpy())
+        label_idx[label].append(idx)
+
     per_idx_img = {}
     for i in range(10):
         per_idx_img.update({i:[]})
-    for (images, labels) in data:
-        for i in range(labels.shape[0]):
-            label = int(labels[i].data.detach().cpu().numpy())
-            if len(per_idx_img[label]) < int(paired_cnt/10):
-                per_idx_img[label].append(images[i])
 
-    imgs = []
-    labels = []
+    random.seed(seed)
+    total_random_idx = []
     for i in range(10):
-        imgs.extend(per_idx_img[i])
-        labels.extend([i]*int(paired_cnt/10))
-    import numpy as np
-    np.random.seed(0)
-    np.random.shuffle(imgs)
-    np.random.seed(0)
-    np.random.shuffle(labels)
-    imgs=torch.stack(imgs)
-    labels=torch.tensor(labels)
+        per_label_random_idx = random.sample(label_idx[i], cnt)
+        total_random_idx.extend(per_label_random_idx)
+
+    imgs = tr_imgs[total_random_idx]
+    labels = tr_labels[total_random_idx]
+
+    torch.manual_seed(seed)
+    imgs = imgs[torch.randperm(paired_cnt),:,:]
+    labels = labels[torch.randperm(paired_cnt)]
     return imgs, labels
 
-
-
-import time
-from random import random
 
 if args.ckpt_epochs > 0:
     if CUDA:
@@ -351,19 +359,15 @@ if args.ckpt_epochs > 0:
                                         map_location=torch.device('cpu')))
 
 mask = {}
-
-if args.label_frac < args.sup_frac:
-    fixed_imgs, fixed_labels = get_paired_data(100)
-
+fixed_imgs=None
+fixed_labels=None
+if args.label_frac > 1:
+    fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    if args.label_frac < args.sup_frac:
-        train_elbo, mask = train(train_data, encA, decA, encB, decB,
-                                 optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
-    else:
-        train_elbo, mask = train(train_data, encA, decA, encB, decB,
-                                 optimizer, mask)
+    train_elbo, mask = train(train_data, encA, decA, encB, decB,
+                             optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB,)
