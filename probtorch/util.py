@@ -3,7 +3,8 @@ import torch
 from numbers import Number
 import math
 from functools import wraps
-
+import torch.nn as nn
+import torch.nn.init as init
 import os
 import imageio
 import subprocess
@@ -171,3 +172,14 @@ def grid2gif(img_dir, out_gif, delay=100, duration=0.1):
         img_str = str(os.path.join(img_dir, '*.jpg'))
         cmd = 'convert -delay %s -loop 0 %s %s' % (delay, img_str, out_gif)
         subprocess.call(cmd, shell=True)
+
+
+def normal_init(m):
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        init.normal_(m.weight, 0, 0.02)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+    elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+        m.weight.data.fill_(1)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
