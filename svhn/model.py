@@ -40,7 +40,7 @@ class EncoderA(nn.Module):
             q = probtorch.Trace()
 
         hiddens = self.enc_hidden(x)
-        hiddens = hiddens.view(x.size(0), -1)
+        hiddens = hiddens.view(hiddens.size(0), -1)
         stats = self.fc(hiddens)
         stats = stats.unsqueeze(0)
         muPrivate = stats[:, :, :self.zPrivate_dim]
@@ -113,6 +113,8 @@ class DecoderA(nn.Module):
             hiddens = hiddens.view(-1, 128, 8, 8)
             images_mean = self.dec_image(hiddens)
 
+            images_mean = images_mean.view(images_mean.size(0), -1)
+            images = images.view(images.size(0), -1)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
                                       torch.log(1 - x_hat + EPS) * (1-x)).sum(-1),
