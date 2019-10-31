@@ -140,9 +140,9 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
         #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
-        loss = (reconst_loss_A / NUM_PIXELS - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA / NUM_PIXELS - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA / NUM_PIXELS - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
+               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
         # if iter % 100 == 0:
         #     print('=========================================')
@@ -159,7 +159,7 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         #     print('kl_crB: ', kl_crB)
         #     print('-----------------------------------------')
     else:
-        loss = 3*((reconst_loss_A / NUM_PIXELS - kl_A) + (lamb * reconst_loss_B - kl_B))
+        loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
 
     # if iter % 100 == 0:
     #     print('reconst_loss_A: ', reconst_loss_A)
