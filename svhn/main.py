@@ -37,9 +37,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=100,
+    parser.add_argument('--label_frac', type=float, default=1,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.2,
+    parser.add_argument('--sup_frac', type=float, default=1,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
@@ -72,7 +72,7 @@ BETA = (1., args.beta, 1.)
 BIAS_TRAIN = (60000 - 1) / (args.batch_size - 1)
 BIAS_TEST = (10000 - 1) / (args.batch_size - 1)
 # model parameters
-NUM_PIXELS = 784
+NUM_PIXELS = 3*32*32
 TEMP = 0.66
 
 NUM_SAMPLES = 1
@@ -140,9 +140,9 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
         #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A / NUM_PIXELS - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+               (reconst_loss_poeA / NUM_PIXELS - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
+               (reconst_loss_crA / NUM_PIXELS - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
         # if iter % 100 == 0:
         #     print('=========================================')
