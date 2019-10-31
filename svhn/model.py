@@ -29,6 +29,7 @@ class EncoderA(nn.Module):
             nn.ReLU(),
             nn.Linear(512, 2*zPrivate_dim + zShared_dim))
         self.weight_init()
+
     def weight_init(self):
         for m in self._modules:
             normal_init(self._modules[m])
@@ -78,6 +79,11 @@ class DecoderA(nn.Module):
                            nn.ReLU(),
                            nn.ConvTranspose2d(64, 3, 4, 2, 1, bias=False),
                            nn.Sigmoid())
+        self.weight_init()
+
+    def weight_init(self):
+        for m in self._modules:
+            normal_init(self._modules[m])
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
         digit_log_weights = torch.zeros_like(q['sharedA'].dist.logits) # prior is the concrete dist for uniform dist. with all params=1
@@ -126,7 +132,11 @@ class EncoderB(nn.Module):
             nn.ReLU())
 
         self.fc  = nn.Linear(num_hidden, zShared_dim)
+        self.weight_init()
 
+    def weight_init(self):
+        for m in self._modules:
+            normal_init(self._modules[m])
 
     @expand_inputs
     def forward(self, labels, num_samples=None, q=None):
@@ -155,6 +165,11 @@ class DecoderB(nn.Module):
                             nn.ReLU())
         self.dec_label = nn.Sequential(
                            nn.Linear(num_hidden, num_digits))
+        self.weight_init()
+
+    def weight_init(self):
+        for m in self._modules:
+            normal_init(self._modules[m])
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True):
         p = probtorch.Trace()
