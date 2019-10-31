@@ -11,9 +11,9 @@ def elbo(q, p, rec, latents=None, sample_dim=None, batch_dim=None, lamb=1.0, bet
     log_pz, log_qz, log_prod_qzi, log_q_zCx = _get_probability(q, p, latents, sample_dim, batch_dim, bias)
     kl = beta[0] * (log_q_zCx - log_qz) +  beta[1] * (log_qz - log_prod_qzi) + beta[2] * (log_prod_qzi - log_pz)
 
-    elbo = lamb * reconst_loss - kl
-    elbo = elbo.mean(sample_dim) # across sample_dim
-    elbo = elbo.mean() if size_average else elbo.sum() # avg = across batch_dim
+    # elbo = lamb * reconst_loss - kl
+    # elbo = elbo.mean(sample_dim) # across sample_dim
+    # elbo = elbo.mean() if size_average else elbo.sum() # avg = across batch_dim
     return (reconst_loss.mean(), kl.mean())
 
 def _get_probability(q, p, latents, sample_dim, batch_dim, bias):
