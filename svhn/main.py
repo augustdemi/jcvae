@@ -283,7 +283,7 @@ def test(data, encA, decA, encB, decB, infer=True):
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += args.batch_size
-            images = images.view(-1, NUM_PIXELS)
+            # images = images.view(-1, NUM_PIXELS)
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
