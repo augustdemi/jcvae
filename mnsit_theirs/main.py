@@ -189,31 +189,41 @@ def test(data, enc, dec, infer=True):
                 epoch_correct += (labels == y_pred).sum().item() / (NUM_SAMPLES or 1.0)
     return epoch_elbo / N, epoch_correct / N
 
+def get_paired_data(paired_cnt, seed):
+    data = torch.utils.data.DataLoader(
+        datasets.MNIST(DATA_PATH, train=True, download=True,
+                       transform=transforms.ToTensor()),
+        batch_size=args.batch_size, shuffle=False)
+    tr_labels = data.dataset.targets
 
-def get_paired_data(data, paired_cnt):
-    per_idx_img = {}
+    cnt = int(paired_cnt / 10)
+    assert cnt == paired_cnt / 10
+
+    label_idx = {}
     for i in range(10):
-        per_idx_img.update({i:[]})
-    for (images, labels) in data:
-        for i in range(labels.shape[0]):
-            label = int(labels[i].data.detach().cpu().numpy())
-            if len(per_idx_img[label]) < int(paired_cnt/10):
-                per_idx_img[label].append(images[i])
+        label_idx.update({i:[]})
+    for idx in  range(len(tr_labels)):
+        label = int(tr_labels[idx].data.detach().cpu().numpy())
+        label_idx[label].append(idx)
+
+    total_random_idx = []
+    for i in range(10):
+        random.seed(seed)
+        per_label_random_idx = random.sample(label_idx[i], cnt)
+        total_random_idx.extend(per_label_random_idx)
+    random.seed(seed)
+    random.shuffle(total_random_idx)
 
     imgs = []
     labels = []
-    for i in range(10):
-        imgs.extend(per_idx_img[i])
-        labels.extend([i]*int(paired_cnt/10))
-    import numpy as np
-    np.random.seed(0)
-    np.random.shuffle(imgs)
-    np.random.seed(0)
-    np.random.shuffle(labels)
-    imgs=torch.stack(imgs)
-    labels=torch.tensor(labels)
-    return imgs, labels
+    for idx in total_random_idx:
+        img, label = data.dataset.__getitem__(idx)
+        imgs.append(img)
+        labels.append(torch.tensor(label))
+    imgs = torch.stack(imgs, dim=0)
+    labels = torch.stack(labels, dim=0)
 
+    return imgs, labels
 
 
 import time
@@ -228,17 +238,15 @@ if args.ckpt_epochs > 0:
         dec.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 mask = {}
+fixed_imgs=None
+fixed_labels=None
+if args.label_frac > 1:
+    fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
 
-if args.label_frac < args.sup_frac:
-    fixed_imgs, fixed_labels = get_paired_data(train_data, 100)
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    if args.label_frac < args.sup_frac:
-        train_elbo, mask = train(train_data, enc, dec,
-                                 optimizer, mask, args.label_frac, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
-    else:
-        train_elbo, mask = train(train_data, enc, dec,
-                                 optimizer, mask, args.label_frac)
+    train_elbo, mask = train(train_data, encA, decA, encB, decB,
+                             optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, enc, dec)
