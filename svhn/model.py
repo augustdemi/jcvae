@@ -20,14 +20,17 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
 
         self.enc_hidden = nn.Sequential(
-            nn.Conv2d(3, 64, 4, 2, 1, bias=False),
+            nn.Conv2d(3, 32, 4, 2, 1, bias=False),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, 4, 2, 1, bias=False),
             nn.ReLU(),
             nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.ReLU())
+
         self.fc = nn.Sequential(
-            nn.Linear(128 * 8 * 8, 512),
+            nn.Linear(128 * 4 * 4, 256),
             nn.ReLU(),
-            nn.Linear(512, 2*zPrivate_dim + zShared_dim))
+            nn.Linear(256, 2*zPrivate_dim + zShared_dim))
         self.weight_init()
 
     def weight_init(self):
@@ -70,14 +73,16 @@ class DecoderA(nn.Module):
         self.num_digits = zShared_dim
 
         self.dec_hidden = nn.Sequential(
-                            nn.Linear(zPrivate_dim + zShared_dim, 512),
+                            nn.Linear(zPrivate_dim + zShared_dim, 256),
                             nn.ReLU(),
-                            nn.Linear(512, 128 * 8 * 8),
+                            nn.Linear(256, 128 * 4 * 4),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-                           nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+                            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+                            nn.ReLU(),
+                           nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
                            nn.ReLU(),
-                           nn.ConvTranspose2d(64, 3, 4, 2, 1, bias=False),
+                           nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=False),
                            nn.Sigmoid())
         self.weight_init()
 
@@ -110,7 +115,7 @@ class DecoderA(nn.Module):
             else:
                 hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
-            hiddens = hiddens.view(-1, 128, 8, 8)
+            hiddens = hiddens.view(-1, 128, 4, 4)
             images_mean = self.dec_image(hiddens)
 
             images_mean = images_mean.view(images_mean.size(0), -1)
