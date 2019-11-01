@@ -13,8 +13,7 @@ TEMP = 0.66
 
 class EncoderA(nn.Module):
     def __init__(self, num_pixels=784,
-                       num_hidden1=400,
-                       num_hidden2=200,
+                       num_hidden=512,
                        zShared_dim=10,
                      zPrivate_dim=50):
         super(self.__class__, self).__init__()
@@ -23,13 +22,10 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
 
         self.enc_hidden = nn.Sequential(
-            nn.Linear(num_pixels, num_hidden1),
-            nn.ReLU(),
-            nn.Linear(num_hidden1, num_hidden2),
-            nn.ReLU()
-        )
+            nn.Linear(num_pixels, num_hidden),
+            nn.ReLU())
 
-        self.fc  = nn.Linear(num_hidden2, 2*zPrivate_dim + zShared_dim)
+        self.fc  = nn.Linear(num_hidden, 2*zPrivate_dim + zShared_dim)
 
     @expand_inputs
     def forward(self, x, num_samples=None, q=None):
@@ -41,7 +37,7 @@ class EncoderA(nn.Module):
 
         muPrivate = stats[:, :, :self.zPrivate_dim]
         logvarPrivate = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
-        stdPrivate = torch.sqrt(torch.exp(logvarPrivate))
+        stdPrivate = torch.sqrt(torch.exp(logvarPrivate) + EPS)
 
         shared_logit = stats[:, :, (2 * self.zPrivate_dim):]
 
@@ -56,8 +52,7 @@ class EncoderA(nn.Module):
 
 class DecoderA(nn.Module):
     def __init__(self, num_pixels=784,
-                       num_hidden1=400,
-                       num_hidden2=200,
+                       num_hidden=512,
                     zShared_dim=10,
                     zPrivate_dim=50):
         super(self.__class__, self).__init__()
@@ -68,12 +63,10 @@ class DecoderA(nn.Module):
         self.num_digits = zShared_dim
 
         self.dec_hidden = nn.Sequential(
-                            nn.Linear(zPrivate_dim + zShared_dim, num_hidden2),
-                            nn.ReLU(),
-                            nn.Linear(num_hidden2, num_hidden1),
+                            nn.Linear(zPrivate_dim + zShared_dim, num_hidden),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-                           nn.Linear(num_hidden1, num_pixels),
+                           nn.Linear(num_hidden, num_pixels),
                            nn.Sigmoid())
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
