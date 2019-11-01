@@ -29,9 +29,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1,
+    parser.add_argument('--label_frac', type=float, default=100,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1,
+    parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
@@ -116,10 +116,15 @@ def train(data, enc, dec, optimizer,
         if images.size()[0] == args.batch_size:
             if args.label_frac > 1 and random.random() < args.sup_frac:
                 N += args.batch_size
-                images = images.view(-1, NUM_PIXELS)
+                images = fixed_imgs.view(-1, NUM_PIXELS)
                 labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-                labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+                labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+
+                # print('--------------s')
+                # print(b)
+                # print(images.sum())
+                # print(labels_onehot.sum())
                 optimizer.zero_grad()
                 if CUDA:
                     images = images.cuda()
@@ -144,6 +149,10 @@ def train(data, enc, dec, optimizer,
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                 else:
                     q = enc(images, num_samples=NUM_SAMPLES)
+                    # print('un--------------')
+                    # print(b)
+                    # print(images.sum())
+                    # print(labels_onehot.sum())
                 p = dec(images, q, num_samples=NUM_SAMPLES)
                 loss = -elbo(q, p)
             loss.backward()
