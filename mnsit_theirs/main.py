@@ -139,7 +139,7 @@ def train(data, enc, dec, optimizer,
                     labels_onehot = labels_onehot.cuda()
                 optimizer.zero_grad()
                 if b not in label_mask:
-                    label_mask[b] = (random() < label_fraction)
+                    label_mask[b] = (random.random() < label_fraction)
                 if label_mask[b]:
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                 else:
