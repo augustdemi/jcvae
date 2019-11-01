@@ -27,7 +27,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--label_frac', type=float, default=100.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.4,
+    parser.add_argument('--sup_frac', type=float, default=0.8,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=400.,
                         help='multipler for text reconstruction [default: 10]')
@@ -185,10 +185,19 @@ def train(data, encA, decA, encB, decB, optimizer,
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += args.batch_size
-            images = fixed_imgs.view(-1, NUM_PIXELS)
+            shuffled_idx = list(range(int(args.label_frac)))
+            random.shuffle(shuffled_idx)
+            shuffled_idx = shuffled_idx[:args.batch_size]
+            # print(shuffled_idx[:10])
+            fixed_imgs_batch = fixed_imgs[shuffled_idx]
+            fixed_labels_batch = fixed_labels[shuffled_idx]
+            # print(fixed_imgs_batch.sum())
+
+            images = fixed_imgs_batch.view(-1, NUM_PIXELS)
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
+            labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
