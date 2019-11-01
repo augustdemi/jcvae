@@ -1,6 +1,7 @@
 from torchvision import datasets, transforms
 import os
 import torch
+import random
 
 from model import Encoder, Decoder
 
@@ -216,7 +217,6 @@ def get_paired_data(data, paired_cnt):
 
 
 import time
-from random import random
 
 if args.ckpt_epochs > 0:
     if CUDA:
