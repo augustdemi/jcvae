@@ -140,7 +140,7 @@ def train(data, enc, dec, optimizer,
                 optimizer.zero_grad()
                 if b not in label_mask:
                     label_mask[b] = (random.random() < label_fraction)
-                if label_mask[b]:
+                if (label_mask[b] and args.label_frac == args.sup_frac):
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                 else:
                     q = enc(images, num_samples=NUM_SAMPLES)
