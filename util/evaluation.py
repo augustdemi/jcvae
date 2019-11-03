@@ -90,3 +90,87 @@ def save_traverse(iters, data_loader, enc, dec, cuda, fixed_idxs, output_dir_trv
     grid2gif(
         out_dir, str(os.path.join(out_dir, 'traverse' + '.gif')), delay=10
     )
+
+
+def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
+    # fixed_idxs = [3, 2, 1, 18, 4, 15, 11, 17, 61, 99]
+
+    num_labels = 10
+    per_label_samples = 100
+    per_label_cnt = {}
+    for i in range(num_labels):
+        per_label_cnt.update({i: 0})
+
+    # fixed_XA = [0] * (num_labels * per_label_samples)
+    # fixed_XB = [0] * (num_labels * per_label_samples)
+    fixed_XA = []
+    fixed_XB = []
+    for i in range(num_labels):
+        j = 0
+        while per_label_cnt[i] < per_label_samples:
+            img, label = data_loader.dataset.__getitem__(j)
+            if label == i:
+                if flatten_pixel is not None:
+                    img = img.view(-1, flatten_pixel)
+                if cuda:
+                    img = img.cuda()
+                img = img.squeeze(0)
+                fixed_XA.append(img)
+                fixed_XB.append(label)
+                per_label_cnt[i] += 1
+            j+=1
+
+
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    q = enc(fixed_XA, num_samples=1)
+    batch_dim= 1
+
+    # for my model
+    batch_size = q['privateA'].value.shape[1]
+    z_private= q['privateA'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+    z_shared= q['sharedA'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+
+    q_ziCx_private = torch.exp(q['privateA'].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
+    q_ziCx_shared = torch.exp(q['sharedA'].dist.log_pmf(z_shared).transpose(1, batch_dim + 1))
+    q_ziCx = torch.cat((q_ziCx_private,q_ziCx_shared), dim=2)
+
+
+    # for baseline
+    # batch_size = q['styles'].value.shape[1]
+    # z_private= q['styles'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+    # q_ziCx_private = torch.exp(q['styles'].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
+    # q_ziCx = q_ziCx_private
+
+
+    latent_dim = q_ziCx.shape[-1]
+    mi_zi_y = torch.tensor([.0] * latent_dim)
+    for k in range(num_labels):
+        q_ziCxk = q_ziCx[k * per_label_samples:(k + 1) * per_label_samples, k * per_label_samples:(k + 1) * per_label_samples, :]
+        marg_q_ziCxk = q_ziCxk.sum(1)
+        mi_zi_y += (marg_q_ziCxk * (np.log(batch_size/num_labels) + torch.log(marg_q_ziCxk) - torch.log(q_ziCx[k * per_label_samples:(k + 1) * per_label_samples, :, :].sum(1)))).mean(0)
+    mi_zi_y = mi_zi_y / batch_size
+    print(mi_zi_y)
+
+
+    import matplotlib.pyplot as plt
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(111)
+    ax.bar(range(latent_dim), mi_zi_y.detach().cpu().numpy())
+    ax.set_xticks(range(latent_dim))
+    ax.set_title('poeA')
+    plt.show()
+
+    # ax = fig.add_subplot(222)
+    # ax.bar(range(11),poeB)
+    # ax.set_xticks(range(11))
+    # ax.set_title('poeB')
+    #
+    # ax = fig.add_subplot(223)
+    # ax.bar(range(11),a)
+    # ax.set_xticks(range(11))
+    # ax.set_title('infA')
+    #
+    # ax = fig.add_subplot(224)
+    # ax.bar(range(11),b)
+    # ax.set_xticks(range(11))
+    # ax.set_title('infB')
