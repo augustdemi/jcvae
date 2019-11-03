@@ -1,16 +1,16 @@
 from torchvision import datasets, transforms
-
+from torch.utils.data import DataLoader
 import time
 import random
 import torch
 import os
 
-from model3 import EncoderA, EncoderB, DecoderA, DecoderB
+from model import EncoderA, EncoderB, DecoderA, DecoderB
 
 import sys
 sys.path.append('../')
 import probtorch
-import eval
+import util
 #------------------------------------------------
 # training parameters
 
@@ -27,7 +27,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--label_frac', type=float, default=100.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.8,
+    parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=400.,
                         help='multipler for text reconstruction [default: 10]')
@@ -75,17 +75,17 @@ TEMP = 0.66
 NUM_SAMPLES = 1
 
 
-if not os.path.isdir(DATA_PATH):
-    os.makedirs(DATA_PATH)
+if not os.path.isdir(args.ckpt_path):
+    os.makedirs(args.ckpt_path)
 
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=False)
+                batch_size=args.batch_size, shuffle=True)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=False)
+                batch_size=args.batch_size, shuffle=True)
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -169,7 +169,6 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
     #     print('loss: ', loss)
     #     print(iter)
     #     print('=========================================')
-
     return loss
 
 def train(data, encA, decA, encB, decB, optimizer,
@@ -346,36 +345,7 @@ def get_paired_data(paired_cnt, seed):
         labels.append(torch.tensor(label))
     imgs = torch.stack(imgs, dim=0)
     labels = torch.stack(labels, dim=0)
-
     return imgs, labels
-
-# def get_paired_data(paired_cnt, seed):
-#     data = torch.utils.data.DataLoader(
-#         datasets.MNIST(DATA_PATH, train=True, download=True,
-#                        transform=transforms.ToTensor()),
-#         batch_size=args.batch_size, shuffle=False)
-#     per_idx_img = {}
-#     for i in range(10):
-#         per_idx_img.update({i:[]})
-#     for (images, labels) in data:
-#         for i in range(labels.shape[0]):
-#             label = int(labels[i].data.detach().cpu().numpy())
-#             if len(per_idx_img[label]) < int(paired_cnt/10):
-#                 per_idx_img[label].append(images[i])
-#
-#     imgs = []
-#     labels = []
-#     for i in range(10):
-#         imgs.extend(per_idx_img[i])
-#         labels.extend([i]*int(paired_cnt/10))
-#     import numpy as np
-#     np.random.seed(0)
-#     np.random.shuffle(imgs)
-#     np.random.seed(0)
-#     np.random.shuffle(labels)
-#     imgs=torch.stack(imgs)
-#     labels=torch.tensor(labels)
-#     return imgs, labels
 
 if args.ckpt_epochs > 0:
     if CUDA:
@@ -398,6 +368,8 @@ fixed_imgs=None
 fixed_labels=None
 if args.label_frac > 1:
     fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
+
+
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
@@ -422,6 +394,8 @@ torch.save(encB.state_dict(),
 torch.save(decB.state_dict(),
            '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
 
-eval.save_imgs.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 18, 4, 15, 11, 17, 61, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
-print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=False))
+
+# util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+# util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 18, 4, 15, 11, 17, 61, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+# print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=False))
 # print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=True))
