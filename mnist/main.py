@@ -60,6 +60,10 @@ CUDA = torch.cuda.is_available()
 MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s-seed%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta, args.seed)
 DATA_PATH = '../data'
 
+
+if not os.path.isdir(args.ckpt_path):
+    os.makedirs(args.ckpt_path)
+
 if len(args.run_desc) > 1:
     desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
     with open(desc_file, 'w') as outfile:
@@ -75,8 +79,6 @@ TEMP = 0.66
 NUM_SAMPLES = 1
 
 
-if not os.path.isdir(args.ckpt_path):
-    os.makedirs(args.ckpt_path)
 
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
