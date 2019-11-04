@@ -2,6 +2,8 @@ import torch
 import numpy as np
 import os
 from torchvision.utils import save_image
+from torch.utils.data import Dataset, DataLoader
+# from dataset import CustomDataset
 
 import sys
 sys.path.append('../')
@@ -178,6 +180,35 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
 
 
 
+
+
+class CustomDataset(Dataset):
+    '''
+    Dataset when it is possible and efficient to load all data items to memory
+    '''
+
+    ####
+    def __init__(self, data_tensor, transform=None):
+        '''
+        data_tensor = actual data items; (N x C x H x W)
+        '''
+
+        self.data_tensor = data_tensor
+        self.transform = transform
+
+    ####
+    def __getitem__(self, i):
+        img = self.data_tensor[i]
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        return img, i
+
+    ####
+    def __len__(self):
+        return self.data_tensor.size(0)
+
 def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_dim, NUM_PIXELS=4096):
     # some hyperparams
     num_pairs = 800  # # data pairs (d,y) for majority vote classification
@@ -199,30 +230,30 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
     dl = DataLoader(
         data_loader.dataset, batch_size=bs,
         shuffle=True, pin_memory=True)
+
+    # root = os.path.join('../../data/3dfaces/basel_face_renders.pth')
+    # data = torch.load(root).float().div(255)  # (50x21x11x11x64x64)
+    # data = data.view(-1, 64, 64).unsqueeze(1)  # (127050 x 1 x 64 x 64)
+    # train_kwargs = {'data_tensor': data}
+    # dataset = CustomDataset(**train_kwargs)
+    # dl = DataLoader( dataset, batch_size=bs, shuffle=True,
+    #     num_workers=1, pin_memory=True)
+
     iterator = iter(dl)
 
     M = []
     for ib in range(int(nsamps_agn_factor / bs)):
         # sample a mini-batch
-        XAb, XBb, _ = next(iterator)  # (bs x C x H x W)
+        _, XBb, _ = next(iterator)  # (bs x C x H x W)
 
-        XAb = XAb.view(-1, NUM_PIXELS)
         XBb = XBb.view(-1, NUM_PIXELS)
         if cuda:
-            XAb = XAb.cuda()
             XBb = XBb.cuda()
 
         # encode
-        q = encA(XAb, num_samples=1)
-        q = encB(XBb, num_samples=1, q=q)
-        ## poe ##
-        mu_poe, _ = apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                   q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-
-        mub = torch.cat([q['privateA'].dist.loc, mu_poe, q['privateB'].dist.loc], dim=1)
-
-    M.append(mub.cpu().detach().numpy())
-
+        q = encB(XBb, num_samples=1)
+        mub = torch.cat([q['privateB'].dist.loc.squeeze(0), q['sharedB'].dist.loc.squeeze(0)], dim=1)
+        M.append(mub.cpu().detach().numpy())
     M = np.concatenate(M, 0)
 
     # estimate sample vairance and mean of latent points for each dim
@@ -232,7 +263,7 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
 
     factor_ids = range(0, len(latent_sizes))  # true factor ids
     vars_per_factor = np.zeros(
-        [num_pairs, zA_dim + zS_dim + zB_dim])
+        [num_pairs, zB_dim + zS_dim])
     true_factor_ids = np.zeros(num_pairs, np.int)  # true factor ids
 
     # prepare data pairs for majority-vote classification
@@ -241,7 +272,6 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
 
         # repeat num_paris/num_factors times
         for r in range(int(num_pairs / len(factor_ids))):
-
             # a true factor (id and class value) to fix
             fac_id = j
             fac_class = np.random.randint(latent_sizes[fac_id])
@@ -250,25 +280,21 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
             indices = np.where(latent_classes[:, fac_id] == fac_class)[0]
             used_indices = dl.dataset.b_idx
             indices = np.array([elt for elt in indices if elt in used_indices])
+            if len(indices) == 0:
+                continue
             np.random.shuffle(indices)
             idx = indices[:nsamps_per_factor]
             M = []
             for ib in range(int(nsamps_per_factor / bs)):
-                XBb, _= dl.dataset.get_3dface([idx[(ib * bs):(ib + 1) * bs]])
-                if XAb.shape[0] < 1:  # no more samples
+                XBb = dl.dataset.get_3dface([idx[(ib * bs):(ib + 1) * bs]])
+                # XBb, _ = dl.dataset[idx[(ib * bs):(ib + 1) * bs]]
+                if XBb.shape[0] < 1:  # no more samples
                     continue;
-                XAb = XAb.view(-1, NUM_PIXELS)
                 XBb = XBb.view(-1, NUM_PIXELS)
                 if cuda:
-                    XAb = XAb.cuda()
                     XBb = XBb.cuda()
-                q = encA(XAb, num_samples=1)
-                q = encB(XBb, num_samples=1, q=q)
-                ## poe ##
-                mu_poe, _ = apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                     q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-
-                mub = torch.cat([q['privateA'].dist.loc, mu_poe, q['privateB'].dist.loc], dim=1)
+                q = encB(XBb, num_samples=1)
+                mub = torch.cat([q['privateB'].dist.loc.squeeze(0), q['sharedB'].dist.loc.squeeze(0)], dim=1)
                 M.append(mub.cpu().detach().numpy())
             M = np.concatenate(M, 0)
 
@@ -290,14 +316,15 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
         vars_per_factor / (vars_agn_factor + 1e-20), axis=1)
 
     # contingency table
-    C = np.zeros([zA_dim + zS_dim + zB_dim, len(factor_ids)])
+    C = np.zeros([zB_dim + zS_dim, len(factor_ids)])
     for i in range(num_pairs):
         C[smallest_var_dims[i], true_factor_ids[i]] += 1
 
     num_errs = 0  # # misclassifying errors of majority vote classifier
-    for k in range(zA_dim + zS_dim + zB_dim):
+    for k in range(zB_dim + zS_dim):
         num_errs += np.sum(C[k, :]) - np.max(C[k, :])
 
     metric1 = (num_pairs - num_errs) / num_pairs  # metric = accuracy
-    print(metric1)
     return metric1, C
+
+
