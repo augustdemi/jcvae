@@ -238,8 +238,8 @@ def test(data, encA, decA, encB, decB, infer=True):
     epoch_elbo = 0.0
     epoch_correct = 0
     N = 0
-    for b, (images, labels) in enumerate(data):
-        if images.size()[0] == args.batch_size:
+    for b, (imagesA, imagesB, _, _) in enumerate(data):
+        if imagesA.size()[0] == args.batch_size:
             N += args.batch_size
             imagesA = imagesA.view(-1, NUM_PIXELS)
             imagesB = imagesB.view(-1, NUM_PIXELS)
