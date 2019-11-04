@@ -50,6 +50,18 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt_path', type=str, default='../weights',
                         help='save and load path for ckpt')
 
+
+    # visdom
+    parser.add_argument( '--viz_on',
+      default=False, type=probtorch.util.str2bool, help='enable visdom visualization' )
+    parser.add_argument( '--viz_port',
+      default=8097, type=int, help='visdom port number' )
+    parser.add_argument( '--viz_ll_iter',
+      default=1000, type=int, help='visdom line data logging iter' )
+    parser.add_argument( '--viz_la_iter',
+      default=5000, type=int, help='visdom line data applying iter' )
+    #parser.add_argument( '--viz_ra_iter',
+
     args = parser.parse_args()
 
 #------------------------------------------------
@@ -75,12 +87,57 @@ if len(args.run_desc) > 1:
 BETA = (1., args.beta, 1.)
 BIAS_TRAIN = 1.0
 BIAS_TEST = 1.0
-
 # model parameters
 NUM_PIXELS = 4096
 TEMP = 0.66
-
 NUM_SAMPLES = 1
+
+# visdom setup
+if args.viz_on:
+    WIN_ID = dict(
+        recon='win_recon'
+    )
+    LINE_GATHER = probtorch.util.DataGather(
+        'iter', 'recon_A', 'recon_B'
+    )
+
+import visdom
+
+viz_port = args.viz_port  # port number, eg, 8097
+viz = visdom.Visdom(port=args.viz_port)
+viz_ll_iter = args.viz_ll_iter
+viz_la_iter = args.viz_la_iter
+
+def viz_init():
+    viz.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
+    # if self.eval_metrics:
+    #     self.viz.close(env=self.name+'/lines', win=WIN_ID['metrics'])
+
+
+####
+def visualize_line():
+    # prepare data to plot
+    data = LINE_GATHER.data
+    iters = torch.Tensor(data['iter'])
+    recon_A = torch.Tensor(data['recon_A'])
+    recon_B = torch.Tensor(data['recon_B'])
+
+    recons = torch.stack(
+        [recon_A.detach(), recon_B.detach()], -1
+    )
+
+    viz.line(
+        X=iters, Y=recons, env=MODEL_NAME + '/lines',
+        win=WIN_ID['recon'], update='append',
+        opts=dict(xlabel='iter', ylabel='recon losses',
+                  title='Recon Losses', legend=['A', 'B'])
+    )
+
+
+
+viz_init()
+
+
 
 train_data = torch.utils.data.DataLoader(Position(train=True), batch_size=args.batch_size, shuffle=True)
 test_data = torch.utils.data.DataLoader(Position(train=False), batch_size=args.batch_size, shuffle=True)
@@ -104,7 +161,8 @@ if CUDA:
     cuda_tensors(decA)
     cuda_tensors(encB)
     cuda_tensors(decB)
-
+util.evaluation.eval_disentangle_metric1(train_data, CUDA, encA, encB, args.n_private, args.n_private,
+                                         args.n_shared)
 optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+list(encA.parameters())+list(decA.parameters()),
                               lr=args.lr)
 
@@ -134,34 +192,14 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
         loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
-
-        # if iter % 100 == 0:
-        #     print('=========================================')
-        #     print('reconst_loss_poeA: ', reconst_loss_poeA)
-        #     print('kl_poeA: ', kl_poeA)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_poeB: ', reconst_loss_poeB)
-        #     print('kl_poeB: ', kl_poeB)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_crA: ', reconst_loss_crA)
-        #     print('kl_crA: ', kl_crA)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_crB: ', reconst_loss_crB)
-        #     print('kl_crB: ', kl_crB)
-        #     print('-----------------------------------------')
     else:
         loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
 
-    # if iter % 100 == 0:
-    #     print('reconst_loss_A: ', reconst_loss_A)
-    #     print('kl_A: ', kl_A)
-    #     print('-----------------------------------------')
-    #     print('reconst_loss_B: ', reconst_loss_B)
-    #     print('kl_B: ', kl_B)
-    #     print('-----------------------------------------')
-    #     print('loss: ', loss)
-    #     print(iter)
-    #     print('=========================================')
+    if args.viz_on and (iter % args.viz_ll_iter == 0):
+        LINE_GATHER.insert(iter=iter,
+                           recon_A=reconst_loss_A.item(),
+                           recon_B=reconst_loss_B.item()
+                           )
     return loss
 
 def train(data, encA, decA, encB, decB, optimizer,
@@ -173,7 +211,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     decA.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
-    for b, (imagesA, imagesB, _, _) in enumerate(data):
+    for b, (imagesA, imagesB, _) in enumerate(data):
         N += args.batch_size
         imagesA = imagesA.view(-1, NUM_PIXELS)
         imagesB = imagesB.view(-1, NUM_PIXELS)
@@ -230,7 +268,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
     return epoch_elbo / N, label_mask
 
-def test(data, encA, decA, encB, decB, infer=True):
+def test(data, encA, decA, encB, decB, epoch):
     encA.eval()
     decA.eval()
     encB.eval()
@@ -238,7 +276,7 @@ def test(data, encA, decA, encB, decB, infer=True):
     epoch_elbo = 0.0
     epoch_correct = 0
     N = 0
-    for b, (imagesA, imagesB, _, _) in enumerate(data):
+    for b, (imagesA, imagesB, _) in enumerate(data):
         if imagesA.size()[0] == args.batch_size:
             N += args.batch_size
             imagesA = imagesA.view(-1, NUM_PIXELS)
@@ -262,7 +300,12 @@ def test(data, encA, decA, encB, decB, infer=True):
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             # epoch_correct += pB['labels_sharedA'].loss.sum().item()
-    return epoch_elbo / N, 1 + epoch_correct / N
+    if epoch % 10 ==0:
+        metric1, C = util.evaluation.eval_disentangle_metric1(train_data, CUDA, encA, encB, args.n_private, args.n_private,
+                                                 args.n_shared)
+    else:
+        metric1 = -1
+    return epoch_elbo / N, metric1
 
 
 def get_paired_data(paired_cnt, seed):
@@ -290,7 +333,7 @@ def get_paired_data(paired_cnt, seed):
     imgs = []
     labels = []
     for idx in total_random_idx:
-        img, label, _, _ = data.dataset.__getitem__(idx)
+        img, label, _ = data.dataset.__getitem__(idx)
         imgs.append(img)
         labels.append(torch.tensor(label))
     imgs = torch.stack(imgs, dim=0)
@@ -329,15 +372,24 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
+
     train_elbo, mask = train(train_data, encA, decA, encB, decB,
                              optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
+
     train_end = time.time()
     test_start = time.time()
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB,)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
     test_end = time.time()
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
             test_elbo, test_accuracy, test_end - test_start))
+
+
+    # (visdom) visualize line stats (then flush out)
+    if args.viz_on and (e % args.viz_la_iter == 0):
+        visualize_line()
+        LINE_GATHER.flush()
+
 
 if not os.path.isdir(args.ckpt_path):
     os.mkdir(args.ckpt_path)
@@ -352,5 +404,20 @@ torch.save(decB.state_dict(),
 
 # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 # util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 18, 4, 15, 11, 17, 61, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
-# print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=False))
-# print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=True))
+
+
+####
+def visualize_line_metrics(self, iters, metric1, metric2):
+    # prepare data to plot
+    iters = torch.tensor([iters], dtype=torch.int64).detach()
+    metric1 = torch.tensor([metric1])
+    metric2 = torch.tensor([metric2])
+    metrics = torch.stack([metric1.detach(), metric2.detach()], -1)
+
+    viz.line(
+        X=iters, Y=metrics, env=MODEL_NAME + '/lines',
+        win=WIN_ID['metrics'], update='append',
+        opts=dict(xlabel='iter', ylabel='metrics',
+                  title='Disentanglement metrics',
+                  legend=['metric1', 'metric2'])
+    )
