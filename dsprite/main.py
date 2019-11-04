@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str)
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=10,
+    parser.add_argument('--n_shared', type=int, default=2,
                         help='size of the latent embedding of shared')
     parser.add_argument('--n_private', type=int, default=10,
                         help='size of the latent embedding of private')
@@ -93,21 +93,6 @@ TEMP = 0.66
 NUM_SAMPLES = 1
 
 # visdom setup
-if args.viz_on:
-    WIN_ID = dict(
-        recon='win_recon'
-    )
-    LINE_GATHER = probtorch.util.DataGather(
-        'iter', 'recon_A', 'recon_B'
-    )
-
-import visdom
-
-viz_port = args.viz_port  # port number, eg, 8097
-viz = visdom.Visdom(port=args.viz_port)
-viz_ll_iter = args.viz_ll_iter
-viz_la_iter = args.viz_la_iter
-
 def viz_init():
     viz.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
     # if self.eval_metrics:
@@ -133,14 +118,27 @@ def visualize_line():
                   title='Recon Losses', legend=['A', 'B'])
     )
 
+if args.viz_on:
+    WIN_ID = dict(
+        recon='win_recon'
+    )
+    LINE_GATHER = probtorch.util.DataGather(
+        'iter', 'recon_A', 'recon_B'
+    )
+    viz_init()
 
+    import visdom
 
-viz_init()
+    viz_port = args.viz_port  # port number, eg, 8097
+    viz = visdom.Visdom(port=args.viz_port)
+    viz_ll_iter = args.viz_ll_iter
+    viz_la_iter = args.viz_la_iter
+
 
 
 
 train_data = torch.utils.data.DataLoader(Position(train=True), batch_size=args.batch_size, shuffle=True)
-test_data = torch.utils.data.DataLoader(Position(train=False), batch_size=args.batch_size, shuffle=True)
+test_data = train_data
 
 def cuda_tensors(obj):
     for attr in dir(obj):
