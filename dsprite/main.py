@@ -4,7 +4,7 @@ import time
 import random
 import torch
 import os
-
+import visdom
 from model import EncoderA, EncoderB, DecoderA, DecoderB
 from dataset import Position
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser.add_argument( '--viz_on',
       default=False, type=probtorch.util.str2bool, help='enable visdom visualization' )
     parser.add_argument( '--viz_port',
-      default=8097, type=int, help='visdom port number' )
+      default=8002, type=int, help='visdom port number' )
     parser.add_argument( '--viz_ll_iter',
       default=1000, type=int, help='visdom line data logging iter' )
     parser.add_argument( '--viz_la_iter',
@@ -106,11 +106,9 @@ def visualize_line():
     iters = torch.Tensor(data['iter'])
     recon_A = torch.Tensor(data['recon_A'])
     recon_B = torch.Tensor(data['recon_B'])
-
     recons = torch.stack(
         [recon_A.detach(), recon_B.detach()], -1
     )
-
     viz.line(
         X=iters, Y=recons, env=MODEL_NAME + '/lines',
         win=WIN_ID['recon'], update='append',
@@ -126,9 +124,6 @@ if args.viz_on:
         'iter', 'recon_A', 'recon_B'
     )
     viz_init()
-
-    import visdom
-
     viz_port = args.viz_port  # port number, eg, 8097
     viz = visdom.Visdom(port=args.viz_port)
     viz_ll_iter = args.viz_ll_iter
@@ -146,10 +141,10 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-encA = EncoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private)
-decA = DecoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private)
-encB = EncoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private)
-decB = DecoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private)
+encA = EncoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
+decA = DecoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
+encB = EncoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
+decB = DecoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
