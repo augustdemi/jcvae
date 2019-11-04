@@ -109,7 +109,7 @@ def visualize_line():
     recons = torch.stack(
         [recon_A.detach(), recon_B.detach()], -1
     )
-    viz.line(
+    VIZ.line(
         X=iters, Y=recons, env=MODEL_NAME + '/lines',
         win=WIN_ID['recon'], update='append',
         opts=dict(xlabel='iter', ylabel='recon losses',
@@ -123,9 +123,10 @@ if args.viz_on:
     LINE_GATHER = probtorch.util.DataGather(
         'iter', 'recon_A', 'recon_B'
     )
-    viz_init()
+
     viz_port = args.viz_port  # port number, eg, 8097
-    viz = visdom.Visdom(port=args.viz_port)
+    VIZ = visdom.Visdom(port=args.viz_port)
+    viz_init()
     viz_ll_iter = args.viz_ll_iter
     viz_la_iter = args.viz_la_iter
 
@@ -399,14 +400,14 @@ torch.save(decB.state_dict(),
 
 
 ####
-def visualize_line_metrics(self, iters, metric1, metric2):
+def visualize_line_metrics(iters, metric1, metric2):
     # prepare data to plot
     iters = torch.tensor([iters], dtype=torch.int64).detach()
     metric1 = torch.tensor([metric1])
     metric2 = torch.tensor([metric2])
     metrics = torch.stack([metric1.detach(), metric2.detach()], -1)
 
-    viz.line(
+    VIZ.line(
         X=iters, Y=metrics, env=MODEL_NAME + '/lines',
         win=WIN_ID['metrics'], update='append',
         opts=dict(xlabel='iter', ylabel='metrics',
