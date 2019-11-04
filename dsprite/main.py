@@ -94,7 +94,7 @@ NUM_SAMPLES = 1
 
 # visdom setup
 def viz_init():
-    viz.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
     # if self.eval_metrics:
     #     self.viz.close(env=self.name+'/lines', win=WIN_ID['metrics'])
 
