@@ -154,8 +154,7 @@ if CUDA:
     cuda_tensors(decA)
     cuda_tensors(encB)
     cuda_tensors(decB)
-util.evaluation.eval_disentangle_metric1(train_data, CUDA, encA, encB, args.n_private, args.n_private,
-                                         args.n_shared)
+
 optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+list(encA.parameters())+list(decA.parameters()),
                               lr=args.lr)
 
