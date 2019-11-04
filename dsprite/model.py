@@ -73,21 +73,24 @@ class DecoderA(nn.Module):
                            nn.Sigmoid())
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
-        style_mean = torch.zeros_like(q['privateA'].dist.loc)
-        style_std = torch.ones_like(q['privateA'].dist.scale)
+        priv_mean = torch.zeros_like(q['privateA'].dist.loc)
+        priv_std = torch.ones_like(q['privateA'].dist.scale)
+
+        shared_mean = torch.zeros_like(q['sharedA'].dist.loc)
+        shared_std = torch.ones_like(q['sharedA'].dist.scale)
 
         p = probtorch.Trace()
 
         # prior for z_private
-        zPrivate = p.normal(style_mean,
-                        style_std,
-                        value=q['privateA'],
-                        name='privateA')
+        zPrivate = p.normal(priv_mean,
+                            priv_std,
+                            value=q['privateA'],
+                            name='privateA')
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared
-            zShared = p.normal(style_mean,
-                                style_std,
+            zShared = p.normal(shared_mean,
+                               shared_std,
                                 value=shared[shared_name],
                                 name=shared_name)
 
@@ -167,21 +170,24 @@ class DecoderB(nn.Module):
                            nn.Sigmoid())
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
-        style_mean = torch.zeros_like(q['privateB'].dist.loc)
-        style_std = torch.ones_like(q['privateB'].dist.scale)
+        priv_mean = torch.zeros_like(q['privateB'].dist.loc)
+        priv_std = torch.ones_like(q['privateB'].dist.scale)
+
+        shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
+        shared_std = torch.ones_like(q['sharedB'].dist.scale)
 
         p = probtorch.Trace()
 
         # prior for z_private
-        zPrivate = p.normal(style_mean,
-                        style_std,
+        zPrivate = p.normal(priv_mean,
+                            priv_std,
                         value=q['privateB'],
                         name='privateB')
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared
-            zShared = p.normal(style_mean,
-                                style_std,
+            zShared = p.normal(shared_mean,
+                               shared_std,
                                 value=shared[shared_name],
                                 name=shared_name)
 
