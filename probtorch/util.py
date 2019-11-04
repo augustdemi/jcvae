@@ -8,6 +8,10 @@ import torch.nn.init as init
 import os
 import imageio
 import subprocess
+import numpy as np
+
+from torchvision import transforms
+
 
 __all__ = ['broadcast_size',
            'expanded_size',
@@ -183,3 +187,49 @@ def normal_init(m):
         m.weight.data.fill_(1)
         if m.bias is not None:
             m.bias.data.fill_(0)
+
+
+def transform(image, resize=None):
+    from PIL import Image
+
+    if len(image.shape) ==3:
+        image = np.transpose(image, (1, 2, 0))
+        image = Image.fromarray(image, mode='RGB')
+    else:
+        image = Image.fromarray(image, mode='L')
+    if resize:
+        image = transforms.Compose([
+            transforms.Resize(resize),
+            transforms.ToTensor()
+        ])(image)
+    else:
+        image = transforms.Compose([
+            transforms.ToTensor()
+        ])(image)
+    return image
+
+
+
+
+def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB, std_sharedB):
+    '''
+    induce zS = encAB(xA,xB) via POE, that is,
+        q(zI,zT,zS|xI,xT) := qI(zI|xI) * qT(zT|xT) * q(zS|xI,xT)
+            where q(zS|xI,xT) \propto p(zS) * qI(zS|xI) * qT(zS|xT)
+    '''
+
+    ZERO = torch.zeros(std_sharedA.shape)
+    if use_cuda:
+        ZERO = ZERO.cuda()
+
+    logvar_sharedA = torch.log(std_sharedA ** 2)
+    logvar_sharedB = torch.log(std_sharedB ** 2)
+    logvarS = -torch.logsumexp(
+        torch.stack((ZERO, -logvar_sharedA, -logvar_sharedB), dim=2),
+        dim=2
+    )
+    stdS = torch.sqrt(torch.exp(logvarS))
+    muS = (mu_sharedA / (std_sharedA ** 2) +
+           mu_sharedB / (std_sharedB ** 2)) * (stdS ** 2)
+
+    return muS, stdS
