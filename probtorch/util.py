@@ -233,3 +233,36 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB, std_sharedB):
            mu_sharedB / (std_sharedB ** 2)) * (stdS ** 2)
 
     return muS, stdS
+
+
+class DataGather(object):
+    '''
+    create (array)lists, one for each category, eg,
+      self.data['recon'] = [2.3, 1.5, 0.8, ...],
+      self.data['kl'] = [0.3, 1.8, 2.2, ...],
+      self.data['acc'] = [0.3, 0.4, 0.5, ...], ...
+    '''
+
+    def __init__(self, *args):
+        self.keys = args
+        self.data = self.get_empty_data_dict()
+
+    def get_empty_data_dict(self):
+        return {arg: [] for arg in self.keys}
+
+    def insert(self, **kwargs):
+        for key in kwargs.keys():
+            self.data[key].append(kwargs[key])
+
+    def flush(self):
+        self.data = self.get_empty_data_dict()
+
+import argparse
+
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
