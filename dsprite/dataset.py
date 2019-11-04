@@ -38,12 +38,7 @@ class Position(Dataset):
 
         self.train = train  # training set or test set
         self.aug = aug
-        if self.aug:
-            self.input_a, self.input_b, self.class_idxA, self.class_idxB, self.label, self.per_class_n_pairs = make_dataset_augment(self.train)
-        else:
-            self.input_a, self.input_b, self.a_idx, self.b_idx, self.label = make_dataset_fixed(self.train)
-
-
+        self.input_a, self.input_b, self.a_idx, self.b_idx, self.pair_label = make_dataset_fixed(self.train)
 
     def __getitem__(self, index):
         """
@@ -53,19 +48,26 @@ class Position(Dataset):
             tuple: (image, target) where target is index of the target class.
         """
 
-        if self.aug:
-            a_idx, b_idx = self.get_pair(index)
-            a_img, b_img, label = self.input_a[a_idx], self.input_b[b_idx], self.label[index]
-        else:
-            a_img, b_img, label = self.input_a[self.a_idx[index]], self.input_b[self.b_idx[index]], self.label[index]
-
+        a_img, b_img, pair_label = self.input_a['imgs'][self.a_idx[index]], self.input_b['imgs'][self.b_idx[index]], self.pair_label[index]
 
         a_img = probtorch.util.transform(a_img) * 255
-        return a_img, b_img, label, index
+        return a_img, b_img, pair_label
 
     def __len__(self):
         # return self.input_a.size(0)
-        return len(self.label)
+        return len(self.pair_label)
+
+    def get_3dface(self, index):
+        """
+        Args:
+            index (int): Index
+        Returns:
+            tuple: (image, target) where target is index of the target class.
+        """
+
+        b_img = self.input_b['imgs'][index]
+
+        return b_img
 
     def get_pair(self, index):
         label = self.label[index]
@@ -205,7 +207,7 @@ def match_label(modalA, modalB):
             a_idx.extend(class_idxA)
             b_idx.extend(class_idxB)
         labels.extend([i] * min_len)
-    return a_idx, b_idx, labels
+    return np.array(a_idx), np.array(b_idx), np.array(labels)
 
 
 def make_dataset_fixed(train):
@@ -215,7 +217,7 @@ def make_dataset_fixed(train):
     modalA = {'imgs': imgsA, 'class_idx': class_idxA}
     modalB = {'imgs': imgsB, 'class_idx': class_idxB}
     a_idx, b_idx, labels = match_label(modalA, modalB)
-    return modalA['imgs'], modalB['imgs'], a_idx, b_idx, labels
+    return modalA, modalB, a_idx, b_idx, labels
 
 
 
@@ -224,3 +226,4 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     make_dataset_fixed('./data', 'digit', 'training.pt', 'test.pt')
+
