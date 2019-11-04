@@ -5,7 +5,8 @@ from torchvision.utils import save_image
 
 import sys
 sys.path.append('../')
-from probtorch.util import grid2gif, mkdirs
+from probtorch.util import grid2gif, mkdirs, apply_poe
+
 
 def save_traverse(iters, data_loader, enc, dec, cuda, fixed_idxs, output_dir_trvsl, flatten_pixel=None):
 
@@ -174,3 +175,129 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
     # ax.bar(range(11),b)
     # ax.set_xticks(range(11))
     # ax.set_title('infB')
+
+
+
+def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_dim, NUM_PIXELS=4096):
+    # some hyperparams
+    num_pairs = 800  # # data pairs (d,y) for majority vote classification
+    bs = 50  # batch size
+    nsamps_per_factor = 100  # samples per factor
+    nsamps_agn_factor = 5000  # factor-agnostic samples
+
+    from torch.utils.data import DataLoader
+
+
+    latent_classes, latent_values = np.load('../../data/3dfaces/gt_factor_labels.npy')
+    latent_values = latent_values
+    # latent values (actual values);(127050 x 4)
+    latent_classes = latent_classes
+    # classes ({0,1,...,K}-valued); (127050 x 4)
+    latent_sizes = np.array([50, 21, 11, 11])
+    N = latent_values.shape[0]
+
+    dl = DataLoader(
+        data_loader.dataset, batch_size=bs,
+        shuffle=True, pin_memory=True)
+    iterator = iter(dl)
+
+    M = []
+    for ib in range(int(nsamps_agn_factor / bs)):
+        # sample a mini-batch
+        XAb, XBb, _ = next(iterator)  # (bs x C x H x W)
+
+        XAb = XAb.view(-1, NUM_PIXELS)
+        XBb = XBb.view(-1, NUM_PIXELS)
+        if cuda:
+            XAb = XAb.cuda()
+            XBb = XBb.cuda()
+
+        # encode
+        q = encA(XAb, num_samples=1)
+        q = encB(XBb, num_samples=1, q=q)
+        ## poe ##
+        mu_poe, _ = apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                   q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+
+        mub = torch.cat([q['privateA'].dist.loc, mu_poe, q['privateB'].dist.loc], dim=1)
+
+    M.append(mub.cpu().detach().numpy())
+
+    M = np.concatenate(M, 0)
+
+    # estimate sample vairance and mean of latent points for each dim
+    vars_agn_factor = np.var(M, 0)
+
+    # 2) estimatet dim-wise vars of latent points with "one factor fixed"
+
+    factor_ids = range(0, len(latent_sizes))  # true factor ids
+    vars_per_factor = np.zeros(
+        [num_pairs, zA_dim + zS_dim + zB_dim])
+    true_factor_ids = np.zeros(num_pairs, np.int)  # true factor ids
+
+    # prepare data pairs for majority-vote classification
+    i = 0
+    for j in factor_ids:  # for each factor
+
+        # repeat num_paris/num_factors times
+        for r in range(int(num_pairs / len(factor_ids))):
+
+            # a true factor (id and class value) to fix
+            fac_id = j
+            fac_class = np.random.randint(latent_sizes[fac_id])
+
+            # randomly select images (with the fixed factor)
+            indices = np.where(latent_classes[:, fac_id] == fac_class)[0]
+            used_indices = dl.dataset.b_idx
+            indices = np.array([elt for elt in indices if elt in used_indices])
+            np.random.shuffle(indices)
+            idx = indices[:nsamps_per_factor]
+            M = []
+            for ib in range(int(nsamps_per_factor / bs)):
+                XBb, _= dl.dataset.get_3dface([idx[(ib * bs):(ib + 1) * bs]])
+                if XAb.shape[0] < 1:  # no more samples
+                    continue;
+                XAb = XAb.view(-1, NUM_PIXELS)
+                XBb = XBb.view(-1, NUM_PIXELS)
+                if cuda:
+                    XAb = XAb.cuda()
+                    XBb = XBb.cuda()
+                q = encA(XAb, num_samples=1)
+                q = encB(XBb, num_samples=1, q=q)
+                ## poe ##
+                mu_poe, _ = apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                     q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+
+                mub = torch.cat([q['privateA'].dist.loc, mu_poe, q['privateB'].dist.loc], dim=1)
+                M.append(mub.cpu().detach().numpy())
+            M = np.concatenate(M, 0)
+
+            # estimate sample var and mean of latent points for each dim
+            if M.shape[0] >= 2:
+                vars_per_factor[i, :] = np.var(M, 0)
+            else:  # not enough samples to estimate variance
+                vars_per_factor[i, :] = 0.0
+
+                # true factor id (will become the class label)
+            true_factor_ids[i] = fac_id
+
+            i += 1
+
+    # 3) evaluate majority vote classification accuracy
+
+    # inputs in the paired data for classification
+    smallest_var_dims = np.argmin(
+        vars_per_factor / (vars_agn_factor + 1e-20), axis=1)
+
+    # contingency table
+    C = np.zeros([zA_dim + zS_dim + zB_dim, len(factor_ids)])
+    for i in range(num_pairs):
+        C[smallest_var_dims[i], true_factor_ids[i]] += 1
+
+    num_errs = 0  # # misclassifying errors of majority vote classifier
+    for k in range(zA_dim + zS_dim + zB_dim):
+        num_errs += np.sum(C[k, :]) - np.max(C[k, :])
+
+    metric1 = (num_pairs - num_errs) / num_pairs  # metric = accuracy
+    print(metric1)
+    return metric1, C
