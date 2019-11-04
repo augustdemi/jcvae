@@ -100,7 +100,10 @@ class DecoderA(nn.Module):
                    images_mean, images, name= 'imagesA_' + shared_name)
         return p
 
-
+    def forward2(self, zPrivate, zShared):
+            hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
+            images_mean = self.dec_image(hiddens)
+            return images_mean
 
 class EncoderB(nn.Module):
     def __init__(self, num_pixels=784,
@@ -190,3 +193,9 @@ class DecoderB(nn.Module):
                                       torch.log(1 - x_hat + EPS) * (1-x)).sum(-1),
                    images_mean, images, name= 'imagesB_' + shared_name)
         return p
+
+    def forward2(self, zPrivate, zShared):
+            hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
+            images_mean = self.dec_image(hiddens)
+            return images_mean
+
