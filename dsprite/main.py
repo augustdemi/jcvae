@@ -303,10 +303,10 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_elbo += batch_elbo.item()
             # epoch_correct += pB['labels_sharedA'].loss.sum().item()
     if epoch % 2 ==0 or epoch + 1 == args.epochs:
-        metric1A = solverA.eval_disentangle_metric1()
-        metric2A = solverA.eval_disentangle_metric2()
-        metric1B = solverB.eval_disentangle_metric1()
-        metric2B = solverB.eval_disentangle_metric2()
+        metric1A, _ = solverA.eval_disentangle_metric1()
+        metric2A, _ = solverA.eval_disentangle_metric2()
+        metric1B, _ = solverB.eval_disentangle_metric1()
+        metric2B, _ = solverB.eval_disentangle_metric2()
 
     else:
         metric1A, metric2A, metric1B, metric2B = -1, -1, -1, -1
