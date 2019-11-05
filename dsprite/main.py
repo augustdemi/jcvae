@@ -18,20 +18,20 @@ import util
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=21, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
-    parser.add_argument('--dataset', type=str)
+    parser.add_argument('--dataset', type=str, default='dsprite')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=2,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=10,
+    parser.add_argument('--n_private', type=int, default=5,
                         help='size of the latent embedding of private')
-    parser.add_argument('--batch_size', type=int, default=100, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=200, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -40,14 +40,14 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=400.,
+    parser.add_argument('--lambda_text', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=10.,
+    parser.add_argument('--beta', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/1',
                         help='save and load path for ckpt')
 
 
@@ -155,6 +155,7 @@ if CUDA:
     cuda_tensors(decA)
     cuda_tensors(encB)
     cuda_tensors(decB)
+
 
 optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+list(encA.parameters())+list(decA.parameters()),
                               lr=args.lr)
@@ -356,6 +357,12 @@ if args.ckpt_epochs > 0:
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 
+
+
+metric1, C = util.evaluation.eval_disentangle_metric1(CUDA, encB, args.n_private,
+                                                      args.n_shared, num_pixels=4096)
+metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encB, args.n_private,
+                                                      args.n_shared, num_pixels=4096)
 mask = {}
 fixed_imgs=None
 fixed_labels=None

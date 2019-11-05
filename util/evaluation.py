@@ -209,49 +209,146 @@ class CustomDataset(Dataset):
     def __len__(self):
         return self.data_tensor.size(0)
 
-def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_dim, NUM_PIXELS=4096):
+def eval_disentangle_metric1(cuda, enc, z_dim, zS_dim, num_pixels=None, dataset='3dfaces'):
     # some hyperparams
     num_pairs = 800  # # data pairs (d,y) for majority vote classification
     bs = 50  # batch size
     nsamps_per_factor = 100  # samples per factor
     nsamps_agn_factor = 5000  # factor-agnostic samples
+    latent_classes, latent_sizes = latent_meta(dataset)
 
-    from torch.utils.data import DataLoader
+    if dataset == '3dfaces':
+        data = torch.load('../../data/3dfaces/basel_face_renders.pth').float().div(255)  # (50x21x11x11x64x64)
+        data = data.view(-1, 64, 64).unsqueeze(1)  # (127050 x 1 x 64 x 64)
+    elif dataset == 'dsprites':
+        imgs = np.load('../../data/dsprites/imgs.npy', encoding='latin1')
+        data = torch.from_numpy(imgs).unsqueeze(1).float()
+    train_kwargs = {'data_tensor': data}
 
-
-    latent_classes, latent_values = np.load('../../data/3dfaces/gt_factor_labels.npy')
-    latent_values = latent_values
-    # latent values (actual values);(127050 x 4)
-    latent_classes = latent_classes
-    # classes ({0,1,...,K}-valued); (127050 x 4)
-    latent_sizes = np.array([50, 21, 11, 11])
-    N = latent_values.shape[0]
-
-    dl = DataLoader(
-        data_loader.dataset, batch_size=bs,
-        shuffle=True, pin_memory=True)
-
-    # root = os.path.join('../../data/3dfaces/basel_face_renders.pth')
-    # data = torch.load(root).float().div(255)  # (50x21x11x11x64x64)
-    # data = data.view(-1, 64, 64).unsqueeze(1)  # (127050 x 1 x 64 x 64)
-    # train_kwargs = {'data_tensor': data}
-    # dataset = CustomDataset(**train_kwargs)
-    # dl = DataLoader( dataset, batch_size=bs, shuffle=True,
-    #     num_workers=1, pin_memory=True)
-
+    dataset = CustomDataset(**train_kwargs)
+    dl = DataLoader(dataset, batch_size=bs, shuffle=True,
+        pin_memory=True)
     iterator = iter(dl)
 
     M = []
     for ib in range(int(nsamps_agn_factor / bs)):
         # sample a mini-batch
-        _, XBb, _ = next(iterator)  # (bs x C x H x W)
-
-        XBb = XBb.view(-1, NUM_PIXELS)
+        image, _ = next(iterator)  # (bs x C x H x W)
+        if num_pixels is not None:
+            image = image.view(-1, num_pixels)
         if cuda:
-            XBb = XBb.cuda()
+            image = image.cuda()
 
         # encode
-        q = encB(XBb, num_samples=1)
+        q = enc(image, num_samples=1)
+        mub = torch.cat([q['privateB'].dist.loc.squeeze(0), q['sharedB'].dist.loc.squeeze(0)], dim=1)
+        M.append(mub.cpu().detach().numpy())
+    M = np.concatenate(M, 0) # 5000개의 데이터들의 mean값
+
+    # estimate sample vairance and mean of latent points for each dim
+    vars_agn_factor = np.var(M, 0) # (12,) : 5000개의 데이터로 만들어짐(bs 50으로 1000번 돌려서)
+
+    # 2) estimate dim-wise vars of latent points with "one factor fixed"
+
+    factor_ids = range(0, len(latent_sizes))  # true factor ids # for face, 0,1,2,3 중에 1,2는 스킵
+    vars_per_factor = np.zeros(
+        [num_pairs, z_dim + zS_dim]) # 800,12 개의 var...
+    true_factor_ids = np.zeros(num_pairs, np.int)  # true factor ids #(800,)size 의 0
+
+    # prepare data pairs for majority-vote classification
+    i = 0
+    for j in factor_ids:  # for each factor
+
+        # repeat num_paris/num_factors times
+        for r in range(int(num_pairs / len(factor_ids))): # factor별로 800/4=200번씩 반복한다.
+            # a true factor (id and class value) to fix
+            fac_id = j
+            fac_class = np.random.randint(latent_sizes[fac_id])
+
+            # randomly select images (with the fixed factor)
+            indices = np.where(latent_classes[:, fac_id] == fac_class)[0]
+            # used_indices = dl.dataset.b_idx
+            # indices = np.array([elt for elt in indices if elt in used_indices])
+            # if len(indices) == 0:
+            #     continue
+            np.random.shuffle(indices)
+            idx = indices[:nsamps_per_factor]
+            M = []
+            for ib in range(int(nsamps_per_factor / bs)): # nsamps_per_factor =100개의 데이터에대한 std를 구함. 단 이 100개의 데이터는 factor_id=j 에 해당하는 factor가 fix된 데이터들
+                image, _ = dl.dataset[idx[(ib * bs):(ib + 1) * bs]]
+                if num_pixels is not None:
+                    image = image.view(-1, num_pixels)
+                if cuda:
+                    image = image.cuda()
+                q = enc(image, num_samples=1)
+                mub = torch.cat([q['privateB'].dist.loc.squeeze(0), q['sharedB'].dist.loc.squeeze(0)], dim=1)
+                M.append(mub.cpu().detach().numpy())
+            M = np.concatenate(M, 0) # M: 100, 12 = batch size, private+shared의 factor_id가 fix된 샘플들의  mean
+
+            # estimate sample var and mean of latent points for each dim
+            if M.shape[0] >= 2:
+                vars_per_factor[i, :] = np.var(M, 0) # factor_id=j가 fix된 100개의 랜덤 샘플로 구한 each z_i의 variance 이걸 각 j별로 200번씩해서 차곡차곡 i에 쌓는다
+            else:  # not enough samples to estimate variance
+                vars_per_factor[i, :] = 0.0
+
+                # true factor id (will become the class label)
+            true_factor_ids[i] = fac_id # 각 i별로 true factor인 fac_id를 적어줌. 4개 차례로 200개씩 쌓일것
+
+            i += 1 # r*j = 800 in total.
+
+    # 3) evaluate majority vote classification accuracy
+
+    # inputs in the paired data for classification
+    smallest_var_dims = np.argmin(
+        vars_per_factor / (vars_agn_factor + 1e-20), axis=1) # vars_per_factor는 fix된 factor에 해당하는 v_i는 variance변화가 없을것. (axis=1기준으로 argmin구함 for each of 800 data) 분모는 rescaling위해
+
+    # contingency table
+    C = np.zeros([z_dim + zS_dim, len(factor_ids)])
+    for i in range(num_pairs):
+        C[smallest_var_dims[i], true_factor_ids[i]] += 1
+
+    num_errs = 0  # # misclassifying errors of majority vote classifier
+    for k in range(z_dim + zS_dim):
+        num_errs += np.sum(C[k, :]) - np.max(C[k, :])
+
+    metric1 = (num_pairs - num_errs) / num_pairs  # metric = accuracy
+    print('metric1', metric1)
+    return metric1, C
+
+
+def eval_disentangle_metric2(cuda, enc, z_dim, zS_dim, num_pixels=None, dataset='3dfaces'):
+    # some hyperparams
+    num_pairs = 800  # # data pairs (d,y) for majority vote classification
+    bs = 50  # batch size
+    nsamps_per_factor = 100  # samples per factor
+    nsamps_agn_factor = 5000  # factor-agnostic samples
+    latent_classes, latent_sizes = latent_meta('3dfaces')
+
+
+    if dataset == '3dfaces':
+        data = torch.load('../../data/3dfaces/basel_face_renders.pth').float().div(255)  # (50x21x11x11x64x64)
+        data = data.view(-1, 64, 64).unsqueeze(1)  # (127050 x 1 x 64 x 64)
+    elif dataset == 'dsprites':
+        imgs = np.load('../../data/dsprites/imgs.npy', encoding='latin1')
+        data = torch.from_numpy(imgs).unsqueeze(1).float()
+    train_kwargs = {'data_tensor': data}
+
+    dataset = CustomDataset(**train_kwargs)
+    dl = DataLoader(dataset, batch_size=bs, shuffle=True,
+        pin_memory=True)
+    iterator = iter(dl)
+
+    M = []
+    for ib in range(int(nsamps_agn_factor / bs)):
+        # sample a mini-batch
+        image, _ = next(iterator)  # (bs x C x H x W)
+        if num_pixels is not None:
+            image = image.view(-1, num_pixels)
+        if cuda:
+            image = image.cuda()
+
+        # encode
+        q = enc(image, num_samples=1)
         mub = torch.cat([q['privateB'].dist.loc.squeeze(0), q['sharedB'].dist.loc.squeeze(0)], dim=1)
         M.append(mub.cpu().detach().numpy())
     M = np.concatenate(M, 0)
@@ -263,7 +360,7 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
 
     factor_ids = range(0, len(latent_sizes))  # true factor ids
     vars_per_factor = np.zeros(
-        [num_pairs, zB_dim + zS_dim])
+        [num_pairs, z_dim + zS_dim])
     true_factor_ids = np.zeros(num_pairs, np.int)  # true factor ids
 
     # prepare data pairs for majority-vote classification
@@ -272,28 +369,36 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
 
         # repeat num_paris/num_factors times
         for r in range(int(num_pairs / len(factor_ids))):
-            # a true factor (id and class value) to fix
-            fac_id = j
-            fac_class = np.random.randint(latent_sizes[fac_id])
+            # randomly choose true factors (id's and class values) to fix
+            fac_ids = list(np.setdiff1d(factor_ids, j))
+            fac_classes = \
+                [np.random.randint(latent_sizes[k]) for k in fac_ids]
 
-            # randomly select images (with the fixed factor)
-            indices = np.where(latent_classes[:, fac_id] == fac_class)[0]
-            used_indices = dl.dataset.b_idx
-            indices = np.array([elt for elt in indices if elt in used_indices])
-            if len(indices) == 0:
-                continue
+            # randomly select images (with the other factors fixed)
+            if len(fac_ids) > 1:
+                indices = np.where(
+                    np.sum(latent_classes[:, fac_ids] == fac_classes, 1)
+                    == len(fac_ids)
+                )[0]
+            else:
+                indices = np.where(
+                    latent_classes[:, fac_ids] == fac_classes
+                )[0]
+
+            # used_indices = dl.dataset.b_idx
+            # indices = np.array([elt for elt in indices if elt in used_indices])
+            # if len(indices) == 0:
+            #     continue
             np.random.shuffle(indices)
             idx = indices[:nsamps_per_factor]
             M = []
             for ib in range(int(nsamps_per_factor / bs)):
-                XBb = dl.dataset.get_3dface([idx[(ib * bs):(ib + 1) * bs]])
-                # XBb, _ = dl.dataset[idx[(ib * bs):(ib + 1) * bs]]
-                if XBb.shape[0] < 1:  # no more samples
-                    continue;
-                XBb = XBb.view(-1, NUM_PIXELS)
+                image, _ = dl.dataset[idx[(ib * bs):(ib + 1) * bs]]
+                if num_pixels is not None:
+                    image = image.view(-1, num_pixels)
                 if cuda:
-                    XBb = XBb.cuda()
-                q = encB(XBb, num_samples=1)
+                    image = image.cuda()
+                q = enc(image, num_samples=1)
                 mub = torch.cat([q['privateB'].dist.loc.squeeze(0), q['sharedB'].dist.loc.squeeze(0)], dim=1)
                 M.append(mub.cpu().detach().numpy())
             M = np.concatenate(M, 0)
@@ -305,26 +410,42 @@ def eval_disentangle_metric1(data_loader, cuda, encA, encB, zA_dim, zB_dim, zS_d
                 vars_per_factor[i, :] = 0.0
 
                 # true factor id (will become the class label)
-            true_factor_ids[i] = fac_id
+            true_factor_ids[i] = j
 
             i += 1
 
     # 3) evaluate majority vote classification accuracy
 
     # inputs in the paired data for classification
-    smallest_var_dims = np.argmin(
+    largest_var_dims = np.argmax(
         vars_per_factor / (vars_agn_factor + 1e-20), axis=1)
 
     # contingency table
-    C = np.zeros([zB_dim + zS_dim, len(factor_ids)])
+    C = np.zeros([z_dim + zS_dim, len(factor_ids)])
     for i in range(num_pairs):
-        C[smallest_var_dims[i], true_factor_ids[i]] += 1
+        C[largest_var_dims[i], true_factor_ids[i]] += 1
 
     num_errs = 0  # # misclassifying errors of majority vote classifier
-    for k in range(zB_dim + zS_dim):
+    for k in range(z_dim + zS_dim):
         num_errs += np.sum(C[k, :]) - np.max(C[k, :])
 
-    metric1 = (num_pairs - num_errs) / num_pairs  # metric = accuracy
-    return metric1, C
+    metric2 = (num_pairs - num_errs) / num_pairs  # metric = accuracy
+    print('metric2', metric2)
+    return metric2, C
 
 
+def latent_meta(dataset):
+    if dataset == '3dfaces':
+        latent_classes, latent_values = np.load('../../data/3dfaces/gt_factor_labels.npy')
+        latent_classes = latent_classes
+        # classes ({0,1,...,K}-valued); (127050 x 4)
+        latent_sizes = np.array([50, 21, 11, 11])
+
+    elif dataset == 'dsprites':
+        latent_classes = np.load('../../data/latents_classes.npy', encoding='latin1')
+        latent_classes = latent_classes[:, [1, 2, 3, 4, 5]]
+        # classes ({0,1,...,K}-valued); (737280 x 5)
+        latent_sizes = np.array([3, 6, 40, 32, 32])
+    else:
+        latent_classes, latent_sizes = None, None
+    return latent_classes, latent_sizes
