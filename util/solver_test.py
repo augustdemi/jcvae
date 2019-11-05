@@ -552,17 +552,18 @@ class Solver(object):
                 np.random.shuffle(indices)
                 idx = indices[:nsamps_per_factor]
                 M = []
-                if len(indices) > 0 :
-                    for ib in range(int(nsamps_per_factor/bs)):
-                        image, _ = dl.dataset[idx[(ib * bs):(ib + 1) * bs]]
-                        if self.num_pixels is not None:
-                            image = image.view(-1, self.num_pixels)
-                        if self.cuda:
-                            image = image.cuda()
-                        q = self.enc(image, num_samples=1)
-                        mub = torch.cat(
-                            [q[self.latents['private']].dist.loc.squeeze(0), q[self.latents['shared']].dist.loc.squeeze(0)], dim=1)
-                        M.append(mub.cpu().detach().numpy())
+                for ib in range(int(nsamps_per_factor/bs)):
+                    image, _ = dl.dataset[idx[(ib * bs):(ib + 1) * bs]]
+                    if image.shape[0] == 0:
+                        continue
+                    if self.num_pixels is not None:
+                        image = image.view(-1, self.num_pixels)
+                    if self.cuda:
+                        image = image.cuda()
+                    q = self.enc(image, num_samples=1)
+                    mub = torch.cat(
+                        [q[self.latents['private']].dist.loc.squeeze(0), q[self.latents['shared']].dist.loc.squeeze(0)], dim=1)
+                    M.append(mub.cpu().detach().numpy())
                 M = np.concatenate(M, 0)
                 
                 # estimate sample var and mean of latent points for each dim
