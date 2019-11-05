@@ -481,7 +481,6 @@ class Solver(object):
             num_errs += np.sum(C[k,:]) - np.max(C[k,:])
         
         metric1 = (num_pairs - num_errs) / num_pairs  # metric = accuracy
-        print('metric1:', metric1)
         return metric1, C
     
     
@@ -593,8 +592,6 @@ class Solver(object):
             num_errs += np.sum(C[k,:]) - np.max(C[k,:])
     
         metric2 = (num_pairs - num_errs) / num_pairs  # metric = accuracy    
-        print('metric2:', metric2)
-
         return metric2, C
     
 
