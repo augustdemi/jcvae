@@ -268,7 +268,6 @@ def test(data, encA, decA, encB, decB, epoch):
     encB.eval()
     decB.eval()
     epoch_elbo = 0.0
-    epoch_correct = 0
     N = 0
     for b, (imagesA, imagesB, _) in enumerate(data):
         if imagesA.size()[0] == args.batch_size:
@@ -295,11 +294,13 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_elbo += batch_elbo.item()
             # epoch_correct += pB['labels_sharedA'].loss.sum().item()
     if epoch % 10 ==0:
-        metric1, C = util.evaluation.eval_disentangle_metric1(train_data, CUDA, encA, encB, args.n_private, args.n_private,
-                                                 args.n_shared)
+        metric1, C = util.evaluation.eval_disentangle_metric1(CUDA, encB, args.n_private,
+                                                              args.n_shared, num_pixels=4096)
+        metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encB, args.n_private,
+                                                              args.n_shared, num_pixels=4096)
     else:
-        metric1 = -1
-    return epoch_elbo / N, metric1
+        metric1, metric2 = -1, -1
+    return epoch_elbo / N, metric1, metric2
 
 
 def get_paired_data(paired_cnt, seed):
@@ -378,11 +379,11 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     train_end = time.time()
     test_start = time.time()
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
+    test_elbo, metric1, metric2 = test(test_data, encA, decA, encB, decB, e)
     test_end = time.time()
-    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
+    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Metric1 %0.3f, Metric2 %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
-            test_elbo, test_accuracy, test_end - test_start))
+            test_elbo, metric1, metric2, test_end - test_start))
 
 
     # (visdom) visualize line stats (then flush out)
