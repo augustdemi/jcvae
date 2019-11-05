@@ -50,7 +50,8 @@ class Position(Dataset):
 
         a_img, b_img, pair_label = self.input_a['imgs'][self.a_idx[index]], self.input_b['imgs'][self.b_idx[index]], self.pair_label[index]
 
-        a_img = probtorch.util.transform(a_img) * 255
+        a_img = torch.tensor(a_img, dtype=torch.float32)
+        # a_img = probtorch.util.transform(a_img) * 255
         return a_img, b_img, pair_label
 
     def __len__(self):

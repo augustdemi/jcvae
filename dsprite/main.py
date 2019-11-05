@@ -25,7 +25,7 @@ if __name__ == "__main__":
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=2,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=5,
+    parser.add_argument('--n_private', type=int, default=10,
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=200, metavar='N',
                         help='input batch size for training [default: 100]')
@@ -42,7 +42,9 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=5.,
+    parser.add_argument('--beta1', type=float, default=10.,
+                        help='multipler for TC [default: 10]')
+    parser.add_argument('--beta2', type=float, default=10.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -76,7 +78,13 @@ if not os.path.isdir(args.ckpt_path):
 
 
 # path parameters
-MODEL_NAME = '%s-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s-seed%s' % (args.dataset, args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta, args.seed)
+
+# path parameters
+if args.label_frac > 100:
+    MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
+else:
+    MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s' % (
+    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed)
 DATA_PATH = '../data'
 
 if len(args.run_desc) > 1:
@@ -84,7 +92,8 @@ if len(args.run_desc) > 1:
     with open(desc_file, 'w') as outfile:
         outfile.write(args.run_desc)
 
-BETA = (1., args.beta, 1.)
+BETA1 = (1., args.beta1, 1.)
+BETA2 = (1., args.beta2, 1.)
 BIAS_TRAIN = 1.0
 BIAS_TEST = 1.0
 # model parameters
@@ -161,27 +170,27 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
-                                        beta=beta, bias=bias)
+                                        beta=beta1, bias=bias)
     reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['privateB', 'sharedB'], sample_dim=0, batch_dim=1,
-                                        beta=beta, bias=bias)
+                                        beta=beta2, bias=bias)
     if q['poe'] is not None:
         # by POE
         # 기대하는바:sharedA가 sharedB를 따르길. 즉 sharedA에만 digit정보가 있으며, 그 permutataion이 GT에서처럼 identity이기를
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta1, bias=bias)
         # 의미 없음. rec 은 항상 0. 인풋이 항상 GT고 poe결과도 GT를 따라갈 확률이 크기 때문(학습 초반엔 A가 unif이라서, 학습 될수록 A가 B label을 잘 따를테니)
         #loss 값 변화 자체로는 의미 없지만, 이 일정한 loss(GT)가 나오도록하는 sharedA의 back pg에는 의미가짐
         reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_poe'], latents=['privateB', 'poe'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta2, bias=bias)
 
         # # by cross
         reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_sharedB'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta1, bias=bias)
         reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedA'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta2, bias=bias)
 
         loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
@@ -236,7 +245,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             for param in decB.parameters():
                 param.requires_grad = True
             # loss
-            loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+            loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2,  bias=BIAS_TRAIN)
         else:
             # encode
             q = encA(imagesA, num_samples=NUM_SAMPLES)
@@ -252,7 +261,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             for param in decB.parameters():
                 param.requires_grad = False
             # loss
-            loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+            loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2,  bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
@@ -287,17 +296,17 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(imagesB, {'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
 
-            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
+            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             # epoch_correct += pB['labels_sharedA'].loss.sum().item()
-    if epoch % 10 ==0:
+    if epoch % 2000 ==0:
         metric1, C = util.evaluation.eval_disentangle_metric1(CUDA, encB, args.n_private,
-                                                              args.n_shared, num_pixels=4096)
-        metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encB, args.n_private,
-                                                              args.n_shared, num_pixels=4096)
+                                                              args.n_shared, num_pixels=4096, dataset='dsprites')
+        metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encA, args.n_private,
+                                                              args.n_shared, num_pixels=4096, dataset='dsprites')
     else:
         metric1, metric2 = -1, -1
     return epoch_elbo / N, metric1, metric2
@@ -358,12 +367,18 @@ if args.ckpt_epochs > 0:
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 
+# latents={'private': 'privateA', 'shared':'sharedA'}
+# metric1, C = util.evaluation.eval_disentangle_metric1(CUDA, encA, args.n_private,
+#                                                       args.n_shared, latents, num_pixels=4096, dataset='dsprites')
+# metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encA, args.n_private,
+#                                                       args.n_shared, latents, num_pixels=4096, dataset='dsprites')
 
-
-metric1, C = util.evaluation.eval_disentangle_metric1(CUDA, encB, args.n_private,
-                                                      args.n_shared, num_pixels=4096)
-metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encB, args.n_private,
-                                                      args.n_shared, num_pixels=4096)
+#
+# latents={'private': 'privateB', 'shared':'sharedB'}
+# metric1, C = util.evaluation.eval_disentangle_metric1(CUDA, encB, args.n_private,
+#                                                       args.n_shared, latents, num_pixels=4096, dataset='3dfaces')
+# metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encB, args.n_private,
+#                                                       args.n_shared, latents, num_pixels=4096, dataset='3dfaces')
 mask = {}
 fixed_imgs=None
 fixed_labels=None
