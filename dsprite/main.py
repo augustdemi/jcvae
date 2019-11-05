@@ -87,12 +87,9 @@ if not os.path.isdir(args.ckpt_path):
 # path parameters
 
 # path parameters
-if args.batch_size > 100:
-    # MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
-    MODEL_NAME = 'mnist-run_id1-priv05dim-label_frac1.0-sup_frac1.0-lamb_text1.0-beta13.0-beta25.0-seed0'
-else:
-    MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s' % (
-    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed)
+MODEL_NAME = '%s-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1_%s-beta2_%s-seed%s-bs%s' %\
+             (args.dataset, args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
+
 DATA_PATH = '../data'
 
 if len(args.run_desc) > 1:
