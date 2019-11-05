@@ -12,6 +12,11 @@ import sys
 sys.path.append('../')
 import probtorch
 import util
+
+import sys
+sys.path.append('../')
+from util.solver_test import Solver
+
 #------------------------------------------------
 # training parameters
 
@@ -20,12 +25,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
-    parser.add_argument('--dataset', type=str, default='dsprite')
+    parser.add_argument('--dataset', type=str, default='dsprites')
+    parser.add_argument('--dset_dir', type=str, default='../../data/')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=2,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=10,
+    parser.add_argument('--n_private', type=int, default=5,
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=200, metavar='N',
                         help='input batch size for training [default: 100]')
@@ -42,16 +48,17 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=10.,
+    parser.add_argument('--beta1', type=float, default=3.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--beta2', type=float, default=10.,
+    parser.add_argument('--beta2', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/1',
                         help='save and load path for ckpt')
-
+    parser.add_argument( '--cuda',
+      default=False, type=probtorch.util.str2bool, help='enable visdom visualization' )
 
     # visdom
     parser.add_argument( '--viz_on',
@@ -80,8 +87,9 @@ if not os.path.isdir(args.ckpt_path):
 # path parameters
 
 # path parameters
-if args.label_frac > 100:
-    MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
+if args.batch_size > 100:
+    # MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
+    MODEL_NAME = 'mnist-run_id1-priv05dim-label_frac1.0-sup_frac1.0-lamb_text1.0-beta13.0-beta25.0-seed0'
 else:
     MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s' % (
     args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed)
@@ -139,11 +147,6 @@ if args.viz_on:
     viz_ll_iter = args.viz_ll_iter
     viz_la_iter = args.viz_la_iter
 
-
-
-
-train_data = torch.utils.data.DataLoader(Position(train=True), batch_size=args.batch_size, shuffle=True)
-test_data = train_data
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -302,14 +305,15 @@ def test(data, encA, decA, encB, decB, epoch):
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             # epoch_correct += pB['labels_sharedA'].loss.sum().item()
-    if epoch % 2000 ==0:
-        metric1, C = util.evaluation.eval_disentangle_metric1(CUDA, encB, args.n_private,
-                                                              args.n_shared, num_pixels=4096, dataset='dsprites')
-        metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encA, args.n_private,
-                                                              args.n_shared, num_pixels=4096, dataset='dsprites')
+    if epoch % 2 ==0 or epoch + 1 == args.epochs:
+        metric1A = solverA.eval_disentangle_metric1()
+        metric2A = solverA.eval_disentangle_metric2()
+        metric1B = solverB.eval_disentangle_metric1()
+        metric2B = solverB.eval_disentangle_metric2()
+
     else:
-        metric1, metric2 = -1, -1
-    return epoch_elbo / N, metric1, metric2
+        metric1A, metric2A, metric1B, metric2B = -1, -1, -1, -1
+    return epoch_elbo / N, metric1A, metric2A, metric1B, metric2B
 
 
 def get_paired_data(paired_cnt, seed):
@@ -379,9 +383,28 @@ if args.ckpt_epochs > 0:
 #                                                       args.n_shared, latents, num_pixels=4096, dataset='3dfaces')
 # metric2, C = util.evaluation.eval_disentangle_metric2(CUDA, encB, args.n_private,
 #                                                       args.n_shared, latents, num_pixels=4096, dataset='3dfaces')
+
+args.model_name = MODEL_NAME
+args.num_pixels = NUM_PIXELS
+
+args.dataset='dsprites'
+args.enc = encA
+args.latents={'private': 'privateA', 'shared':'sharedA'}
+solverA = Solver(args)
+
+args.dataset='3dfaces'
+args.enc = encB
+args.latents={'private': 'privateB', 'shared':'sharedB'}
+solverB = Solver(args)
+
+
 mask = {}
 fixed_imgs=None
 fixed_labels=None
+
+train_data = torch.utils.data.DataLoader(Position(train=True), batch_size=args.batch_size, shuffle=True)
+test_data = train_data
+
 if args.label_frac > 1:
     fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
 
@@ -394,11 +417,11 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     train_end = time.time()
     test_start = time.time()
-    test_elbo, metric1, metric2 = test(test_data, encA, decA, encB, decB, e)
+    test_elbo, metric1A, metric2A, metric1B, metric2B = test(test_data, encA, decA, encB, decB, e)
     test_end = time.time()
-    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Metric1 %0.3f, Metric2 %0.3f (%ds)' % (
+    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Metric1A %0.3f, Metric2A %0.3f, Metric1B %0.3f, Metric2B %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
-            test_elbo, metric1, metric2, test_end - test_start))
+            test_elbo, metric1A, metric2A, metric1B, metric2B, test_end - test_start))
 
 
     # (visdom) visualize line stats (then flush out)

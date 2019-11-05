@@ -33,12 +33,9 @@ class Position(Dataset):
                              optional function to apply to training outputs
     """
 
-    def __init__(self, train=True, aug=False):
+    def __init__(self):
         # self.root = os.path.expanduser(root)
-
-        self.train = train  # training set or test set
-        self.aug = aug
-        self.input_a, self.input_b, self.a_idx, self.b_idx, self.pair_label = make_dataset_fixed(self.train)
+        self.input_a, self.input_b, self.a_idx, self.b_idx, self.pair_label = make_dataset_fixed()
 
     def __getitem__(self, index):
         """
@@ -47,11 +44,8 @@ class Position(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-
         a_img, b_img, pair_label = self.input_a['imgs'][self.a_idx[index]], self.input_b['imgs'][self.b_idx[index]], self.pair_label[index]
-
         a_img = torch.tensor(a_img, dtype=torch.float32)
-        # a_img = probtorch.util.transform(a_img) * 255
         return a_img, b_img, pair_label
 
     def __len__(self):
@@ -98,12 +92,12 @@ def load_3dface():
     data = data.view(-1, 64, 64).unsqueeze(1)
     n = latent_values.shape[0]
     class_idx = {}
-    for i in range(121):
+    for i in range(231):
         class_idx.update({i:[]})
 
     face_pos_pair = {}
     idx = -1
-    for i in np.round(np.linspace(1, -1, 11),2):
+    for i in np.round(np.linspace(1, -1, 21),2):
         for j in np.round(np.linspace(-1, 1, 11),2):
             idx += 1
             face_pos_pair.update({(i,j):idx})
@@ -121,7 +115,7 @@ def load_dsprite():
 
     imgs = dataset_zip['imgs']
     metadata = dataset_zip['metadata'][()]
-    latents_sizes = metadata['latents_sizes']
+    latents_sizes = metadata['latents_sizes'] # [ 1,  3,  6, 40, 32, 32]
     latents_bases = np.concatenate((latents_sizes[::-1].cumprod()[::-1][1:],
                                     np.array([1, ])))
 
@@ -131,60 +125,35 @@ def load_dsprite():
     all_other_latents = []
     for i in range(3):
         for j in range(6):
-            for k in range(31):
+            for k in range(40):
                 all_other_latents.append([0, i, j, k])
 
-    pos11 = [0, 4, 8, 12, 15, 16, 17, 20, 24, 28, 31]
+    pos21 = [int(np.round(elt)) for elt in np.linspace(0,31,21)]
+    pos11 = [int(np.round(elt)) for elt in np.linspace(0,30,11)]
+    pos11_extend = pos11.copy()
+    pos11_extend.extend([elt+1 for elt in pos11])
 
     class_idx = {}
-    for i in range(121):
+    for i in range(231):
         class_idx.update({i:[]})
     pos_pair = {}
 
     idx = -1
-    for i in pos11:
+    for i in pos21:
         for j in pos11:
             idx += 1
-            pos_pair.update({(i,j):idx}) # idx = cardinality of  all possible pairs: 0~120
+            pos_pair.update({(i,j):idx}) # idx = cardinality of  all possible pairs: 0~230
+            pos_pair.update({(i,j+1):idx}) # for y position, j and j+1 are classified into same index in order to use many training data.
 
 
-    for i in pos11:
-        for j in pos11:
+    for i in pos21:
+        for j in pos11_extend:
             for one_latent in all_other_latents:
                 latent = one_latent.copy()
                 latent.extend([i, j]) # add posX, posY to (color, type, scale, rotation)
                 idx = pos_pair[(i,j)]
                 class_idx[idx].append(latent_to_index(latent))
     return imgs, class_idx
-
-
-def augment_label(modalA, modalB):
-    n_labels = len(modalA['labels'])
-    class_pair = {}
-    for i in range(n_labels):
-        class_pair.update({i: []})
-    per_class_n_pairs = []
-    for i in range(n_labels):
-        n_a_imgs = len(modalA['labels'][i])
-        n_b_imgs = len(modalB['labels'][i])
-        per_class_n_pairs.append(n_a_imgs * n_b_imgs)
-
-    all_index_pairs, all_labels = [], []
-    for i in range(n_labels):
-        all_labels.extend([i] * per_class_n_pairs[i])
-
-    return per_class_n_pairs, all_labels
-
-
-def make_dataset_augment(train):
-    np.random.seed(681307)
-    imgsA, class_idxA = load_dsprite()
-    imgsB, class_idxB = load_3dface()
-    modalA = {'imgs': imgsA, 'labels': class_idxA}
-    modalB = {'imgs': imgsB, 'labels': class_idxB}
-    per_class_n_pairs, all_labels = augment_label(modalA, modalB)
-    return imgsA, imgsB, class_idxA, class_idxB, all_labels, per_class_n_pairs
-
 
 
 
@@ -194,24 +163,19 @@ def match_label(modalA, modalB):
     for i in range(len(modalA['class_idx'])):
         class_idxA = modalA['class_idx'][i]
         class_idxB = modalB['class_idx'][i]
-        print('label {} len A, B: {}, {}'.format(i, len(class_idxA), len(class_idxB)))
-        min_len = min(len(class_idxA), len(class_idxB))
-        if len(class_idxA) > min_len:
-            b_idx.extend(class_idxB)
-            np.random.shuffle(class_idxA)
-            a_idx.extend(class_idxA[:len(class_idxB)])
-        elif len(class_idxA) < min_len:
-            a_idx.extend(class_idxA)
-            np.random.shuffle(class_idxB)
-            b_idx.extend(class_idxB[:len(class_idxA)])
-        else:
-            a_idx.extend(class_idxA)
-            b_idx.extend(class_idxB)
-        labels.extend([i] * min_len)
+        print('label {} len A, B: {}, {}'.format(i, len(class_idxA), len(class_idxB))) # A=sprite=1440, B=face=550
+        a_idx.extend(class_idxA)
+        b_idx.extend(class_idxB)
+        np.random.shuffle(class_idxB)
+        b_idx.extend(class_idxB)
+        rest = len(class_idxA) % len(class_idxB)
+        np.random.shuffle(class_idxB)
+        b_idx.extend(class_idxB[:rest])
+        labels.extend([i] * len(class_idxA))
     return np.array(a_idx), np.array(b_idx), np.array(labels)
 
 
-def make_dataset_fixed(train):
+def make_dataset_fixed():
     np.random.seed(681307)
     imgsA, class_idxA = load_dsprite()
     imgsB, class_idxB = load_3dface()
@@ -219,12 +183,4 @@ def make_dataset_fixed(train):
     modalB = {'imgs': imgsB, 'class_idx': class_idxB}
     a_idx, b_idx, labels = match_label(modalA, modalB)
     return modalA, modalB, a_idx, b_idx, labels
-
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    make_dataset_fixed('./data', 'digit', 'training.pt', 'test.pt')
 
