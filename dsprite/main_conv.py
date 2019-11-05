@@ -299,10 +299,10 @@ def test(data, encA, decA, encB, decB, epoch):
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             # epoch_correct += pB['labels_sharedA'].loss.sum().item()
-    metric1A = solverA.eval_disentangle_metric1()
-    metric2A = solverA.eval_disentangle_metric2()
-    metric1B = solverB.eval_disentangle_metric1()
-    metric2B = solverB.eval_disentangle_metric2()
+    metric1A, _ = solverA.eval_disentangle_metric1()
+    metric2A, _ = solverA.eval_disentangle_metric2()
+    metric1B, _ = solverB.eval_disentangle_metric1()
+    metric2B, _ = solverB.eval_disentangle_metric2()
     return epoch_elbo / N, metric1A, metric2A, metric1B, metric2B
 
 
