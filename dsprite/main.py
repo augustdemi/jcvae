@@ -314,7 +314,7 @@ def test(data, encA, decA, encB, decB, epoch):
 
 
 def get_paired_data(paired_cnt, seed):
-    data = torch.utils.data.DataLoader(Position(train=True), batch_size=args.batch_size, shuffle=True)
+    data = torch.utils.data.DataLoader(Position(), batch_size=args.batch_size, shuffle=True)
     tr_labels = data.dataset.targets
 
     cnt = int(paired_cnt / 10)
@@ -399,7 +399,7 @@ mask = {}
 fixed_imgs=None
 fixed_labels=None
 
-train_data = torch.utils.data.DataLoader(Position(train=True), batch_size=args.batch_size, shuffle=True)
+train_data = torch.utils.data.DataLoader(Position(), batch_size=args.batch_size, shuffle=True)
 test_data = train_data
 
 if args.label_frac > 1:
