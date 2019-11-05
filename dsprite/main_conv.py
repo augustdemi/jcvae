@@ -216,6 +216,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     torch.autograd.set_detect_anomaly(True)
     for b, (imagesA, imagesB, _) in enumerate(data):
         N += args.batch_size
+
         if CUDA:
             imagesA = imagesA.cuda()
             imagesB = imagesB.cuda()

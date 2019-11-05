@@ -43,7 +43,6 @@ class EncoderA(nn.Module):
         if q is None:
             q = probtorch.Trace()
 
-        x = x.unsqueeze(1)
         out = F.relu(self.conv1(x))
         out = F.relu(self.conv2(out))
         out = F.relu(self.conv3(out))

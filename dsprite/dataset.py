@@ -45,7 +45,7 @@ class Position(Dataset):
             tuple: (image, target) where target is index of the target class.
         """
         a_img, b_img, pair_label = self.input_a['imgs'][self.a_idx[index]], self.input_b['imgs'][self.b_idx[index]], self.pair_label[index]
-        a_img = torch.tensor(a_img, dtype=torch.float32)
+        a_img = torch.tensor(a_img, dtype=torch.float32).unsqueeze(0)
         return a_img, b_img, pair_label
 
     def __len__(self):
