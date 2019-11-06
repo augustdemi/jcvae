@@ -191,15 +191,15 @@ def train(data, encA, decA, encB, decB, optimizer,
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += args.batch_size
-            # shuffled_idx = list(range(int(args.label_frac)))
-            # random.shuffle(shuffled_idx)
-            # shuffled_idx = shuffled_idx[:args.batch_size]
+            shuffled_idx = list(range(int(args.label_frac)))
+            random.shuffle(shuffled_idx)
+            shuffled_idx = shuffled_idx[:args.batch_size]
             # print(shuffled_idx[:10])
-            # fixed_imgs_batch = fixed_imgs[shuffled_idx]
-            # fixed_labels_batch = fixed_labels[shuffled_idx]
+            fixed_imgs_batch = fixed_imgs[shuffled_idx]
+            fixed_labels_batch = fixed_labels[shuffled_idx]
             # print(fixed_imgs_batch.sum())
-            fixed_imgs_batch = fixed_imgs
-            fixed_labels_batch = fixed_labels
+            # fixed_imgs_batch = fixed_imgs
+            # fixed_labels_batch = fixed_labels
 
             images = fixed_imgs_batch.view(-1, NUM_PIXELS)
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
