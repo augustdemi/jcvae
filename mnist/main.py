@@ -17,7 +17,7 @@ import util
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=21, metavar='N',
+    parser.add_argument('--run_id', type=int, default=25, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -27,9 +27,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -38,14 +38,14 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=400.,
+    parser.add_argument('--lambda_text', type=float, default=500.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta', type=float, default=10.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/',
                         help='save and load path for ckpt')
 
     args = parser.parse_args()
@@ -307,12 +307,12 @@ def test(data, encA, decA, encB, decB, infer=True):
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+            pA = decA(images, {'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+            pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
-            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
@@ -403,8 +403,9 @@ torch.save(encB.state_dict(),
 torch.save(decB.state_dict(),
            '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
 
+if args.ckpt_epochs == args.epochs:
+    util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
-# util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
-# util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 18, 4, 15, 11, 17, 61, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 # print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=False))
 # print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=True))
