@@ -23,7 +23,7 @@ from util.solver_test import Solver
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=4, metavar='N',
                         help='run_id')
     parser.add_argument('--dataset', type=str, default='dsprites')
     parser.add_argument('--dset_dir', type=str, default='../../data/')
@@ -35,9 +35,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=200, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -48,14 +48,14 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/1',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/conv/',
                         help='save and load path for ckpt')
     parser.add_argument( '--cuda',
       default=False, type=probtorch.util.str2bool, help='enable visdom visualization' )
@@ -197,6 +197,17 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
 
     return loss
 
+def test_elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+    # from each of modality
+    reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
+                                        beta=beta1, bias=bias)
+    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['privateB', 'sharedB'], sample_dim=0, batch_dim=1,
+                                        beta=beta2, bias=bias)
+    # by POE
+    loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+    return loss
+
+
 def train(data, encA, decA, encB, decB, optimizer):
     epoch_elbo = 0.0
     encA.train()
@@ -232,7 +243,7 @@ def train(data, encA, decA, encB, decB, optimizer):
         for param in decB.parameters():
             param.requires_grad = True
         # loss
-        loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+        loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2)
 
         loss.backward()
         optimizer.step()
@@ -262,10 +273,10 @@ def test(data, encA, decA, encB, decB, epoch):
             # decode
             pA = decA(imagesA, {'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(imagesB, {'sharedB': q['sharedB']}, q=q,
+            pB = decB(imagesB, {'sharedB': q['sharedB']},q=q,
                       num_samples=NUM_SAMPLES)
 
-            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+            batch_elbo = test_elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
