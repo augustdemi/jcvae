@@ -307,9 +307,9 @@ def test(data, encA, decA, encB, decB, infer=True):
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images, {'sharedA': q['sharedA']}, q=q,
+            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+            pB = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
             batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
