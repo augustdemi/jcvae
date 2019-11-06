@@ -135,12 +135,11 @@ class DecoderA(nn.Module):
         z = torch.cat([zPrivate, zShared], -1)
         out = F.relu(self.fc1(z))
         out = F.relu(self.fc2(out))
-        out = out.view(out.size(0), 64, 4, 4)
+        out = out.view(-1, 64, 4, 4)
         out = F.relu(self.deconv3(out))
         out = F.relu(self.deconv4(out))
         out = F.relu(self.deconv5(out))
         images_mean = F.sigmoid(self.deconv6(out))
-        images_mean = images_mean.view(images_mean.size(0), -1)
         return images_mean
 
 class EncoderB(nn.Module):
@@ -266,10 +265,9 @@ class DecoderB(nn.Module):
         z = torch.cat([zPrivate, zShared], -1)
         out = F.relu(self.fc1(z))
         out = F.relu(self.fc2(out))
-        out = out.view(out.size(0), 64, 4, 4)
+        out = out.view(-1, 64, 4, 4)
         out = F.relu(self.deconv3(out))
         out = F.relu(self.deconv4(out))
         out = F.relu(self.deconv5(out))
         images_mean = F.sigmoid(self.deconv6(out))
-        images_mean = images_mean.view(images_mean.size(0), -1)
         return images_mean
