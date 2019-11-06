@@ -95,7 +95,7 @@ def save_traverse(iters, data_loader, enc, dec, cuda, fixed_idxs, output_dir_trv
         out_dir, str(os.path.join(out_dir, 'traverse' + '.gif')), delay=10
     )
 
-def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, fixed_idxs, output_dir_trvsl, flatten_pixel=None):
+def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None):
 
     output_dir_trvsl = '../output/' + output_dir_trvsl
     tr_range = 2
