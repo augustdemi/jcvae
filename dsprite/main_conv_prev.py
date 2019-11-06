@@ -6,7 +6,7 @@ import torch
 import os
 import visdom
 from model_conv import EncoderA, EncoderB, DecoderA, DecoderB
-from dataset import Position
+from dataset_prev import Position
 
 import sys
 sys.path.append('../')
