@@ -89,8 +89,8 @@ if not os.path.isdir(args.ckpt_path):
 # path parameters
 
 # path parameters
-MODEL_NAME = '%s-run_id%d-privA%02ddim-privB%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1_%s-beta2_%s-seed%s-bs%s' %\
-             (args.dataset, args.run_id, args.n_privateA, args.n_privateB, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
+MODEL_NAME = '%s-run_id%d-privA%02ddim-privB%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1_%s-beta2_%s-seed%s-bs%s' %\
+             (args.dataset, args.run_id, args.n_privateA, args.n_privateB, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
 
 DATA_PATH = '../data'
 
