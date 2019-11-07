@@ -97,9 +97,8 @@ def save_traverse(iters, data_loader, enc, dec, cuda, fixed_idxs, output_dir_trv
 
 def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None):
 
-    output_dir_trvsl = '../output/' + output_dir_trvsl
     tr_range = 2
-    out_dir = os.path.join(output_dir_trvsl, str(iters) +'_'+ str(-tr_range) + '~' + str(tr_range))
+    out_dir = os.path.join('../output/' + output_dir_trvsl, str(iters) +'_'+ str(-tr_range) + '~' + str(tr_range))
 
 
     fixed_idxs = [3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121]
@@ -209,7 +208,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
             pad_value=1)
         # make animated gif
     grid2gif(
-        out_dir, str(os.path.join(out_dir, 'traverse' + '.gif')), delay=10
+        out_dir, str(os.path.join(out_dir, output_dir_trvsl + '.gif')), delay=10
     )
 
 
