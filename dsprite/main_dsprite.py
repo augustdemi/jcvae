@@ -31,7 +31,9 @@ if __name__ == "__main__":
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=2,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=5,
+    parser.add_argument('--n_privateA', type=int, default=5,
+                        help='size of the latent embedding of private')
+    parser.add_argument('--n_privateB', type=int, default=5,
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=200, metavar='N',
                         help='input batch size for training [default: 100]')
@@ -87,8 +89,8 @@ if not os.path.isdir(args.ckpt_path):
 # path parameters
 
 # path parameters
-MODEL_NAME = '%s-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1_%s-beta2_%s-seed%s-bs%s' %\
-             (args.dataset, args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
+MODEL_NAME = '%s-run_id%d-privA%02ddim-privB%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1_%s-beta2_%s-seed%s-bs%s' %\
+             (args.dataset, args.run_id, args.n_privateA, args.n_privateB, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
 
 DATA_PATH = '../data'
 
@@ -151,10 +153,10 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-encA = EncoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
-decA = DecoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
-encB = EncoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
-decB = DecoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
+encA = EncoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_privateA, zShared_dim=args.n_shared)
+decA = DecoderA(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_privateA, zShared_dim=args.n_shared)
+encB = EncoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_privateB, zShared_dim=args.n_shared)
+decB = DecoderB(num_pixels=4096, num_hidden=512, zPrivate_dim=args.n_privateB, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
