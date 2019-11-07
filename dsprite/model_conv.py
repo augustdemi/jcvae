@@ -191,9 +191,10 @@ class EncoderB(nn.Module):
         logvarShared = stats[:, :, (2 * self.zPrivate_dim + self.zShared_dim):]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
-        q.normal(loc=muPrivate,
-                 scale=stdPrivate,
-                 name='privateB')
+        if self.zPrivate_dim > 0:
+            q.normal(loc=muPrivate,
+                     scale=stdPrivate,
+                     name='privateB')
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedB')
@@ -231,10 +232,11 @@ class DecoderB(nn.Module):
         p = probtorch.Trace()
 
         # prior for z_private
-        zPrivate = p.normal(priv_mean,
-                            priv_std,
-                        value=q['privateB'],
-                        name='privateB')
+        if self.zPrivate_dim > 0:
+            zPrivate = p.normal(priv_mean,
+                                priv_std,
+                            value=q['privateB'],
+                            name='privateB')
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared
