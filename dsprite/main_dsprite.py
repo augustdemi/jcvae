@@ -307,7 +307,7 @@ def test(data, encA, decA, encB, decB, epoch):
     metric1B, _ = solverB.eval_disentangle_metric1()
     metric2B, _ = solverB.eval_disentangle_metric2()
     if (epoch+1) % 5 ==  0:
-        util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB, CUDA,
+        util.evaluation.save_traverse_both(epoch, test_data, encA, decA, encB, decB, CUDA,
                                            output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
         save_ckpt(e+1)
     return epoch_elbo / N, metric1A, metric2A, metric1B, metric2B
