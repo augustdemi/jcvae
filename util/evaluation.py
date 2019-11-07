@@ -204,7 +204,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         save_image(
             tensor=I.cpu(),
             filename=os.path.join(out_dir, '%03d.jpg' % (j)),
-            nrow=1 + zA_dim + 1 + 1 + 1 + zB_dim,
+            nrow=zA_dim + 2*zS_dim + zB_dim,
             pad_value=1)
         # make animated gif
     grid2gif(
