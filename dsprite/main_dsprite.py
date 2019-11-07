@@ -329,11 +329,13 @@ args.num_pixels = NUM_PIXELS
 
 args.dataset='dsprites'
 args.enc = encA
+args.n_private = args.n_privateA
 args.latents={'private': 'privateA', 'shared':'sharedA'}
 solverA = Solver(args)
 
 args.dataset='oval_dsprites'
 args.enc = encB
+args.n_private = args.n_privateB
 args.latents={'private': 'privateB', 'shared':'sharedB'}
 solverB = Solver(args)
 
