@@ -222,7 +222,7 @@ def one_modal_elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0,
                                         beta=beta2, bias=bias)
     else:
         reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['sharedB'], sample_dim=0, batch_dim=1,
-                                        beta=beta, bias=bias)
+                                                                   beta=beta2, bias=bias)
     # by POE
     loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
     return loss
