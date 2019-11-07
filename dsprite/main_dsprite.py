@@ -332,7 +332,7 @@ args.enc = encA
 args.latents={'private': 'privateA', 'shared':'sharedA'}
 solverA = Solver(args)
 
-args.dataset='3dfaces'
+args.dataset='oval_dsprites'
 args.enc = encB
 args.latents={'private': 'privateB', 'shared':'sharedB'}
 solverB = Solver(args)
