@@ -176,22 +176,35 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                         beta=beta1, bias=bias)
-    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['privateB', 'sharedB'], sample_dim=0, batch_dim=1,
-                                        beta=beta2, bias=bias)
+    if args.n_privateB > 0:
+        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['privateB', 'sharedB'], sample_dim=0, batch_dim=1,
+                                            beta=beta2, bias=bias)
+    else:
+        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'],
+                                                                   latents=['sharedB'], sample_dim=0,
+                                                                   batch_dim=1,
+                                                                   beta=beta2, bias=bias)
     # by POE
     # 기대하는바:sharedA가 sharedB를 따르길. 즉 sharedA에만 digit정보가 있으며, 그 permutataion이 GT에서처럼 identity이기를
     reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
                                                 beta=beta1, bias=bias)
     # 의미 없음. rec 은 항상 0. 인풋이 항상 GT고 poe결과도 GT를 따라갈 확률이 크기 때문(학습 초반엔 A가 unif이라서, 학습 될수록 A가 B label을 잘 따를테니)
     #loss 값 변화 자체로는 의미 없지만, 이 일정한 loss(GT)가 나오도록하는 sharedA의 back pg에는 의미가짐
-    reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_poe'], latents=['privateB', 'poe'], sample_dim=0, batch_dim=1,
-                                                beta=beta2, bias=bias)
-
+    if args.n_privateB > 0:
+        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_poe'], latents=['privateB', 'poe'], sample_dim=0, batch_dim=1,
+                                                    beta=beta2, bias=bias)
+    else:
+        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
+                                                    beta=beta2, bias=bias)
     # # by cross
     reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_sharedB'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
                                                 beta=beta1, bias=bias)
-    reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedA'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
-                                                beta=beta2, bias=bias)
+    if args.n_privateB > 0:
+        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedA'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
+                                                    beta=beta2, bias=bias)
+    else:
+        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedA'], latents=['sharedB'], sample_dim=0, batch_dim=1,
+                                                    beta=beta2, bias=bias)
 
     loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
            (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
@@ -201,10 +214,15 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
 
 def one_modal_elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
+
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['imagesA_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                         beta=beta1, bias=bias)
-    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['privateB', 'sharedB'], sample_dim=0, batch_dim=1,
+    if args.n_privateB > 0:
+        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['privateB', 'sharedB'], sample_dim=0, batch_dim=1,
                                         beta=beta2, bias=bias)
+    else:
+        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['imagesB_sharedB'], latents=['sharedB'], sample_dim=0, batch_dim=1,
+                                        beta=beta, bias=bias)
     # by POE
     loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
     return loss
