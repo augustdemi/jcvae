@@ -59,7 +59,7 @@ def load_dsprite():
     imgsB = list(imgs[one_shape:2*one_shape])
     imgsB.extend(imgsB)
 
-    imgsA = torch.from_numpy(imgsA).unsqueeze(1).float()
+    imgsA = torch.from_numpy(np.array(imgsA)).unsqueeze(1).float()
     imgsB = torch.from_numpy(np.array(imgsB)).unsqueeze(1).float()
 
     return imgsA, imgsB
