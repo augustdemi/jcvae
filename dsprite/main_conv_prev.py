@@ -23,7 +23,7 @@ from util.solver_test import Solver
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=4, metavar='N',
+    parser.add_argument('--run_id', type=int, default=7, metavar='N',
                         help='run_id')
     parser.add_argument('--dataset', type=str, default='dsprites')
     parser.add_argument('--dset_dir', type=str, default='../../data/')
@@ -33,11 +33,11 @@ if __name__ == "__main__":
                         help='size of the latent embedding of shared')
     parser.add_argument('--n_private', type=int, default=5,
                         help='size of the latent embedding of private')
-    parser.add_argument('--batch_size', type=int, default=200, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=25, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=25, metavar='N',
+    parser.add_argument('--epochs', type=int, default=150, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/conv2/',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/conv/',
                         help='save and load path for ckpt')
     parser.add_argument( '--cuda',
       default=False, type=probtorch.util.str2bool, help='enable visdom visualization' )
@@ -105,44 +105,6 @@ BIAS_TEST = 1.0
 NUM_PIXELS = None
 TEMP = 0.66
 NUM_SAMPLES = 1
-
-# visdom setup
-def viz_init():
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
-    # if self.eval_metrics:
-    #     self.viz.close(env=self.name+'/lines', win=WIN_ID['metrics'])
-
-
-####
-def visualize_line():
-    # prepare data to plot
-    data = LINE_GATHER.data
-    iters = torch.Tensor(data['iter'])
-    recon_A = torch.Tensor(data['recon_A'])
-    recon_B = torch.Tensor(data['recon_B'])
-    recons = torch.stack(
-        [recon_A.detach(), recon_B.detach()], -1
-    )
-    VIZ.line(
-        X=iters, Y=recons, env=MODEL_NAME + '/lines',
-        win=WIN_ID['recon'], update='append',
-        opts=dict(xlabel='iter', ylabel='recon losses',
-                  title='Recon Losses', legend=['A', 'B'])
-    )
-
-if args.viz_on:
-    WIN_ID = dict(
-        recon='win_recon'
-    )
-    LINE_GATHER = probtorch.util.DataGather(
-        'iter', 'recon_A', 'recon_B'
-    )
-
-    viz_port = args.viz_port  # port number, eg, 8097
-    VIZ = visdom.Visdom(port=args.viz_port)
-    viz_init()
-    viz_ll_iter = args.viz_ll_iter
-    viz_la_iter = args.viz_la_iter
 
 
 def cuda_tensors(obj):
@@ -356,30 +318,22 @@ for e in range(args.ckpt_epochs, args.epochs):
             test_elbo, metric1A, metric2A, metric1B, metric2B, test_end - test_start))
 
 
-    # (visdom) visualize line stats (then flush out)
-    if args.viz_on and (e % args.viz_la_iter == 0):
-        visualize_line()
-        LINE_GATHER.flush()
-
-
 save_ckpt(args.epochs)
 
+
 if args.ckpt_epochs == args.epochs:
+    # latent factor = (id, azimuth, elevation, lighting)
+    #   id = {0,1,...,49} (50)
+    #   azimuth = {-1.0,-0.9,...,0.9,1.0} (21)
+    #   elevation = {-1.0,0.8,...,0.8,1.0} (11)
+    #   lighting = {-1.0,0.8,...,0.8,1.0} (11)
+    # (number of variations = 50*21*11*11 = 127050)
+
+    # 3dface:[50, 21, 11, 11]=id, azumith, yaxis, light
+    # dsprite: latent_size [3, 6, 40, 32, 32] = shape, scale, rotation, x, y
+
+    # solverA.mutal_info()
+    solverB.mutal_info(factors = ['id', 'azumith', 'elevation', 'light'])
     util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB,  CUDA, output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
 
-####
-def visualize_line_metrics(iters, metric1, metric2):
-    # prepare data to plot
-    iters = torch.tensor([iters], dtype=torch.int64).detach()
-    metric1 = torch.tensor([metric1])
-    metric2 = torch.tensor([metric2])
-    metrics = torch.stack([metric1.detach(), metric2.detach()], -1)
-
-    VIZ.line(
-        X=iters, Y=metrics, env=MODEL_NAME + '/lines',
-        win=WIN_ID['metrics'], update='append',
-        opts=dict(xlabel='iter', ylabel='metrics',
-                  title='Disentanglement metrics',
-                  legend=['metric1', 'metric2'])
-    )
