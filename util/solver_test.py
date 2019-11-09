@@ -6,6 +6,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
+import numpy as np
+import matplotlib.pyplot as plt
 
 #-----------------------------------------------------------------------------#
 
@@ -593,8 +595,73 @@ class Solver(object):
     
         metric2 = (num_pairs - num_errs) / num_pairs  # metric = accuracy    
         return metric2, C
-    
 
+    def mutal_info(self, factors = ['shape', 'scale', 'rotation', 'x', 'y']):
+        nsamps_per_factor = 100
+        per_class_cnt = {}
+        n_factors = len(self.latent_sizes)
+
+        fig = plt.figure(figsize=(5, 2*n_factors))
+        # fig.tight_layout()
+        plt.subplots_adjust(hspace=.5)
+
+        for fac_id in range(n_factors):
+            n_fac_classes = self.latent_sizes[fac_id]
+            for i in range(n_fac_classes):
+                per_class_cnt.update({i: 0})
+
+            dl = DataLoader(
+                self.data_loader.dataset, batch_size=100,
+                shuffle=True, pin_memory=True)
+
+            # randomly select images (with 100 different samples per class for the fixed factor)
+            fixed_XA = []
+            for fac_class in range(n_fac_classes):
+                indices = np.where(self.latent_classes[:, fac_id] == fac_class)[0]
+                np.random.shuffle(indices)
+                per_class_idx = indices[:nsamps_per_factor]
+                for i in per_class_idx:
+                    img, _ = dl.dataset.__getitem__(i)
+                    if self.cuda:
+                        img = img.cuda()
+                    # img = img.squeeze(0)
+                    fixed_XA.append(img)
+
+            fixed_XA = torch.stack(fixed_XA, dim=0)
+            q = self.enc(fixed_XA, num_samples=1)
+            batch_dim = 1
+
+            # for my model
+            batch_size = q[self.latents['private']].value.shape[1]
+            z_private = q[self.latents['private']].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+            z_shared = q[self.latents['shared']].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+            q_ziCx_private = torch.exp(q[self.latents['private']].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
+            q_ziCx_shared = torch.exp(q[self.latents['shared']].dist.log_prob(z_shared).transpose(1, batch_dim + 1).squeeze(2))
+            q_ziCx = torch.cat((q_ziCx_private, q_ziCx_shared), dim=2)
+
+            latent_dim = q_ziCx.shape[-1]
+            mi_zi_y = torch.tensor([.0] * latent_dim)
+            for k in range(n_fac_classes):
+                q_ziCxk = q_ziCx[k * nsamps_per_factor:(k + 1) * nsamps_per_factor,
+                          k * nsamps_per_factor:(k + 1) * nsamps_per_factor, :]
+                marg_q_ziCxk = q_ziCxk.sum(1)
+                mi_zi_y += (marg_q_ziCxk * (np.log(batch_size / nsamps_per_factor) + torch.log(marg_q_ziCxk)
+                                            - torch.log(
+                    q_ziCx[k * nsamps_per_factor:(k + 1) * nsamps_per_factor, :, :].sum(1)))).mean(0)
+            mi_zi_y = mi_zi_y / batch_size
+            print(mi_zi_y)
+
+
+            my_xticks = []
+            for i in range(latent_dim):
+                my_xticks.append('z' + str(i+1))
+
+            ax = fig.add_subplot(n_factors, 1, fac_id + 1)
+            ax.bar(range(latent_dim), mi_zi_y.detach().cpu().numpy())
+            ax.set_title(factors[fac_id])
+            plt.xticks(range(latent_dim), my_xticks)
+
+        plt.show()
     ####
     def save_recon(self, iters, true_images, recon_images):
         
