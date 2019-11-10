@@ -10,7 +10,7 @@ sys.path.append('../')
 from probtorch.util import grid2gif, mkdirs, apply_poe, transform
 
 
-def save_traverse(iters, data_loader, enc, dec, cuda, fixed_idxs, output_dir_trvsl, flatten_pixel=None):
+def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_pixel=None, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99]):
 
     output_dir_trvsl = '../output/' + output_dir_trvsl
     tr_range = 2
@@ -364,7 +364,7 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
     # ax.set_xticks(range(latent_dim))
     my_xticks = []
     for i in range(50):
-        my_xticks.append('z' + str(i))
+        my_xticks.append('z' + str(i+1))
     my_xticks.append('c')
     plt.xticks(range(latent_dim), my_xticks)
     # ax.set_title('poeA')
