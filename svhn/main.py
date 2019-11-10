@@ -72,7 +72,8 @@ BETA = (1., args.beta, 1.)
 BIAS_TRAIN = 1.0
 BIAS_TEST = 1.0
 # model parameters
-NUM_PIXELS = 3*32*32
+# NUM_PIXELS = 3*32*32
+NUM_PIXELS = None
 TEMP = 0.66
 
 NUM_SAMPLES = 1
