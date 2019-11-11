@@ -69,10 +69,13 @@ if len(args.run_desc) > 1:
         outfile.write(args.run_desc)
 
 BETA = (1., args.beta, 1.)
-BIAS_TRAIN = 1.0
-BIAS_TEST = 1.0
+# BIAS_TRAIN = 1.0
+# BIAS_TEST = 1.0
 # model parameters
 # NUM_PIXELS = 3*32*32
+BIAS_TRAIN = (70000 - 1) / (args.batch_size - 1)
+BIAS_TEST = (26000 - 1) / (args.batch_size - 1)
+
 NUM_PIXELS = None
 TEMP = 0.66
 
