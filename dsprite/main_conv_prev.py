@@ -173,9 +173,9 @@ def one_modal_elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0,
 def train(data, encA, decA, encB, decB, optimizer):
     epoch_elbo = 0.0
     encA.train()
-    encA.train()
+    encB.train()
     decA.train()
-    decA.train()
+    decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (imagesA, imagesB, _) in enumerate(data):

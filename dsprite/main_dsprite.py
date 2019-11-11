@@ -23,21 +23,21 @@ from util.solver_test import Solver
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=4, metavar='N',
+    parser.add_argument('--run_id', type=int, default=10, metavar='N',
                         help='run_id')
     parser.add_argument('--dataset', type=str, default='dsprites')
     parser.add_argument('--dset_dir', type=str, default='../../data/')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=2,
+    parser.add_argument('--n_shared', type=int, default=4,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_privateA', type=int, default=5,
+    parser.add_argument('--n_privateA', type=int, default=1,
                         help='size of the latent embedding of private')
-    parser.add_argument('--n_privateB', type=int, default=5,
+    parser.add_argument('--n_privateB', type=int, default=0,
                         help='size of the latent embedding of private')
-    parser.add_argument('--batch_size', type=int, default=200, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=25, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=25, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -50,14 +50,14 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=5.,
+    parser.add_argument('--beta1', type=float, default=3.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--beta2', type=float, default=5.,
+    parser.add_argument('--beta2', type=float, default=4.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/conv2/',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/dsprites/conv/',
                         help='save and load path for ckpt')
     parser.add_argument( '--cuda',
       default=False, type=probtorch.util.str2bool, help='enable visdom visualization' )
@@ -231,9 +231,9 @@ def one_modal_elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0,
 def train(data, encA, decA, encB, decB, optimizer):
     epoch_elbo = 0.0
     encA.train()
-    encA.train()
+    encB.train()
     decA.train()
-    decA.train()
+    decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (imagesA, imagesB) in enumerate(data):
@@ -377,31 +377,7 @@ for e in range(args.ckpt_epochs, args.epochs):
             e, train_elbo, train_end - train_start,
             test_elbo, metric1A, metric2A, metric1B, metric2B, test_end - test_start))
 
-
-    # (visdom) visualize line stats (then flush out)
-    if args.viz_on and (e % args.viz_la_iter == 0):
-        visualize_line()
-        LINE_GATHER.flush()
-
-
 save_ckpt(args.epochs)
 
 if args.ckpt_epochs == args.epochs:
     util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB,  CUDA, output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
-
-
-####
-def visualize_line_metrics(iters, metric1, metric2):
-    # prepare data to plot
-    iters = torch.tensor([iters], dtype=torch.int64).detach()
-    metric1 = torch.tensor([metric1])
-    metric2 = torch.tensor([metric2])
-    metrics = torch.stack([metric1.detach(), metric2.detach()], -1)
-
-    VIZ.line(
-        X=iters, Y=metrics, env=MODEL_NAME + '/lines',
-        win=WIN_ID['metrics'], update='append',
-        opts=dict(xlabel='iter', ylabel='metrics',
-                  title='Disentanglement metrics',
-                  legend=['metric1', 'metric2'])
-    )
