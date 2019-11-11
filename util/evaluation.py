@@ -422,7 +422,8 @@ def save_reconst(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_tr
     labels_onehot = torch.zeros(batch_size, 10)
     labels_onehot.scatter_(1, label.unsqueeze(1), 1)
     labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-
+    if cuda:
+        labels_onehot = labels_onehot.cuda()
 
     # encode
     q = encA(images, num_samples=1)
