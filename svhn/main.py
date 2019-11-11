@@ -249,13 +249,30 @@ def train(data, encA, decA, encB, decB, optimizer,
 
                     print('--------------------------------iter ', b, '---------------------------------------')
                     print('sharedA')
-                    print(q['sharedA'].value.argmax(dim=2)[0][:20])
+                    cnt = [0] * 10
+                    for elt in q['sharedA'].value.argmax(dim=2)[0]:
+                        cnt[elt] +=1
+                    print(cnt)
+
                     print('poe')
                     print(q['poe'].value.argmax(dim=2)[0][:20])
+                    cnt = [0] * 10
+                    for elt in q['poe'].value.argmax(dim=2)[0]:
+                        cnt[elt] +=1
+                    print(cnt)
+
                     print('sharedB')
                     print(q['sharedB'].value.argmax(dim=2)[0][:20])
+                    cnt = [0] * 10
+                    for elt in q['sharedB'].value.argmax(dim=2)[0]:
+                        cnt[elt] +=1
+                    print(cnt)
+
                     print('labels')
-                    print(labels[:20])
+                    cnt = [0] * 10
+                    for elt in labels:
+                        cnt[elt] +=1
+                    print(cnt)
 
                     for param in encB.parameters():
                         param.requires_grad = True
