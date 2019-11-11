@@ -99,8 +99,6 @@ if len(args.run_desc) > 1:
 
 BETA1 = (1., args.beta1, 1.)
 BETA2 = (1., args.beta2, 1.)
-BIAS_TRAIN = 1.0
-BIAS_TEST = 1.0
 # model parameters
 NUM_PIXELS = None
 TEMP = 0.66
@@ -130,6 +128,14 @@ if CUDA:
 
 optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+list(encA.parameters())+list(decA.parameters()),
                               lr=args.lr)
+
+
+
+train_data = torch.utils.data.DataLoader(Position(), batch_size=args.batch_size, shuffle=True)
+test_data = train_data
+
+BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
+BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 
 def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
@@ -297,12 +303,6 @@ args.enc = encB
 args.latents={'private': 'privateB', 'shared':'sharedB'}
 solverB = Solver(args)
 
-
-train_data = torch.utils.data.DataLoader(Position(), batch_size=args.batch_size, shuffle=True)
-test_data = train_data
-
-BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
-BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 
 

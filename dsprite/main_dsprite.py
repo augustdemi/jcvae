@@ -37,9 +37,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=65, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=70, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=65, metavar='N',
+    parser.add_argument('--epochs', type=int, default=70, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -101,50 +101,11 @@ if len(args.run_desc) > 1:
 
 BETA1 = (1., args.beta1, 1.)
 BETA2 = (1., args.beta2, 1.)
-BIAS_TRAIN = 1.0
-BIAS_TEST = 1.0
+
 # model parameters
 NUM_PIXELS = None
 TEMP = 0.66
 NUM_SAMPLES = 1
-
-# visdom setup
-def viz_init():
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
-    # if self.eval_metrics:
-    #     self.viz.close(env=self.name+'/lines', win=WIN_ID['metrics'])
-
-
-####
-def visualize_line():
-    # prepare data to plot
-    data = LINE_GATHER.data
-    iters = torch.Tensor(data['iter'])
-    recon_A = torch.Tensor(data['recon_A'])
-    recon_B = torch.Tensor(data['recon_B'])
-    recons = torch.stack(
-        [recon_A.detach(), recon_B.detach()], -1
-    )
-    VIZ.line(
-        X=iters, Y=recons, env=MODEL_NAME + '/lines',
-        win=WIN_ID['recon'], update='append',
-        opts=dict(xlabel='iter', ylabel='recon losses',
-                  title='Recon Losses', legend=['A', 'B'])
-    )
-
-if args.viz_on:
-    WIN_ID = dict(
-        recon='win_recon'
-    )
-    LINE_GATHER = probtorch.util.DataGather(
-        'iter', 'recon_A', 'recon_B'
-    )
-
-    viz_port = args.viz_port  # port number, eg, 8097
-    VIZ = visdom.Visdom(port=args.viz_port)
-    viz_init()
-    viz_ll_iter = args.viz_ll_iter
-    viz_la_iter = args.viz_la_iter
 
 
 def cuda_tensors(obj):
@@ -170,6 +131,12 @@ if CUDA:
 
 optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+list(encA.parameters())+list(decA.parameters()),
                               lr=args.lr)
+
+train_data = torch.utils.data.DataLoader(Position(), batch_size=args.batch_size, shuffle=True)
+test_data = train_data
+
+BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
+BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 
 def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
@@ -263,7 +230,7 @@ def train(data, encA, decA, encB, decB, optimizer):
         for param in decB.parameters():
             param.requires_grad = True
         # loss
-        loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2)
+        loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
@@ -296,7 +263,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(imagesB, {'sharedB': q['sharedB']},q=q,
                       num_samples=NUM_SAMPLES)
 
-            batch_elbo = one_modal_elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2)
+            batch_elbo = one_modal_elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
@@ -358,11 +325,6 @@ args.latents={'private': 'privateB', 'shared':'sharedB'}
 solverB = Solver(args)
 
 
-train_data = torch.utils.data.DataLoader(Position(), batch_size=args.batch_size, shuffle=True)
-test_data = train_data
-
-
-
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
 
@@ -380,4 +342,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 save_ckpt(args.epochs)
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB,  CUDA, output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs = [3246, 19000, 27444, 39000, 51000, 245760+3246, 245760+19000, 245760+27444, 245760+39000, 245760+51000])
+    # solverA.mutal_info()
+    solverB.mutal_info(factors = ['scale', 'rotation', 'x', 'y'])
+
+    # util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB,  CUDA, output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs = [3246, 19000, 27444, 39000, 51000, 245760+3246, 245760+19000, 245760+27444, 245760+39000, 245760+51000])
