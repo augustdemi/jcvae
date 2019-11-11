@@ -23,7 +23,7 @@ from util.solver_test import Solver
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=10, metavar='N',
+    parser.add_argument('--run_id', type=int, default=11, metavar='N',
                         help='run_id')
     parser.add_argument('--dataset', type=str, default='dsprites')
     parser.add_argument('--dset_dir', type=str, default='../../data/')
@@ -35,11 +35,11 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--n_privateB', type=int, default=0,
                         help='size of the latent embedding of private')
-    parser.add_argument('--batch_size', type=int, default=64, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=25, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=65, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=25, metavar='N',
+    parser.add_argument('--epochs', type=int, default=65, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -50,7 +50,7 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=4.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=4.,
                         help='multipler for TC [default: 10]')
@@ -308,7 +308,7 @@ def test(data, encA, decA, encB, decB, epoch):
     metric2B, _ = solverB.eval_disentangle_metric2()
     if (epoch+1) % 5 ==  0:
         util.evaluation.save_traverse_both(epoch, test_data, encA, decA, encB, decB, CUDA,
-                                           output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+                                           output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs = [3246, 19000, 27444, 39000, 51000, 245760+3246, 245760+19000, 245760+27444, 245760+39000, 245760+51000])
         save_ckpt(e+1)
     return epoch_elbo / N, metric1A, metric2A, metric1B, metric2B
 
