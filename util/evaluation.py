@@ -150,7 +150,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zA[:, :, row] = val
-            sampleA = decA.forward2(zA, zS_ori, cuda)
+            sampleA = decA.forward2(zA, zS_ori)
             if flatten_pixel is not None:
                 sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
                 sampleA = torch.transpose(sampleA, 0,1)
@@ -165,7 +165,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zS[:, :, row] = val
-            sampleA = decA.forward2(zA_ori, zS, cuda)
+            sampleA = decA.forward2(zA_ori, zS)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
     # shared B
@@ -177,7 +177,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zS[:, :, row] = val
-            sampleB = decB.forward2(zB_ori, zS, cuda)
+            sampleB = decB.forward2(zB_ori, zS)
             temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
 
@@ -190,7 +190,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zB[:, :, row] = val
-            sampleB = decB.forward2(zB, zS_ori, cuda)
+            sampleB = decB.forward2(zB, zS_ori)
             if flatten_pixel is not None:
                 sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
                 sampleB = torch.transpose(sampleB, 0,1)
@@ -254,7 +254,7 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
         temp = []
         for val in interpolation:
             zA[:, :, row] = val
-            sampleA = dec.forward2(q['digits'].value, zA)
+            sampleA = dec.forward2(q['digits'].value, zA, cuda)
             if flatten_pixel is not None:
                 sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
                 sampleA = torch.transpose(sampleA, 0,1)
@@ -270,7 +270,7 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
         zS = torch.cat([zS] * len(fixed_idxs), dim=1)
         if cuda:
             zS = zS.cuda()
-        sampleA = dec.forward2(zS, zA_ori)
+        sampleA = dec.forward2(zS, zA_ori, cuda)
         if flatten_pixel is not None:
             sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
             sampleA = torch.transpose(sampleA, 0, 1)
