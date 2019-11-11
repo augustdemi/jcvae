@@ -30,7 +30,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=30, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=30, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -190,6 +190,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 # print(b)
                 N += args.batch_size
                 # images = fixed_imgs.view(-1, NUM_PIXELS)
+                images = fixed_imgs
                 labels_onehot = torch.zeros(args.batch_size, args.n_shared)
                 labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
@@ -245,6 +246,17 @@ def train(data, encA, decA, encB, decB, optimizer,
                             num_samples=NUM_SAMPLES)
                     pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
                             num_samples=NUM_SAMPLES)
+
+                    print('--------------------------------iter ', b, '---------------------------------------')
+                    print('sharedA')
+                    print(q['sharedA'].value.argmax(dim=2)[0][:20])
+                    print('poe')
+                    print(q['poe'].value.argmax(dim=2)[0][:20])
+                    print('sharedB')
+                    print(q['sharedB'].value.argmax(dim=2)[0][:20])
+                    print('labels')
+                    print(labels[:20])
+
                     for param in encB.parameters():
                         param.requires_grad = True
                     for param in decB.parameters():
