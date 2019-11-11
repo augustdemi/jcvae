@@ -105,10 +105,19 @@ class DecoderA(nn.Module):
                    images_mean, images, name= 'images_' + shared_name)
         return p
 
-    def forward2(self, zPrivate, zShared):
-            hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
-            images_mean = self.dec_image(hiddens)
-            return images_mean
+    def make_one_hot(self, alpha, cuda):
+        _, max_alpha = torch.max(alpha, dim=1)
+        one_hot_samples = torch.zeros(alpha.size())
+        one_hot_samples.scatter_(1, max_alpha.view(-1, 1).data.cpu(), 1)
+        if cuda:
+            one_hot_samples = one_hot_samples.cuda()
+        return  one_hot_samples
+
+    def forward2(self, zPrivate, zShared, cuda):
+        zShared = self.make_one_hot(zShared.squeeze(0), cuda).unsqueeze(0)
+        hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
+        images_mean = self.dec_image(hiddens)
+        return images_mean
 
 
 
