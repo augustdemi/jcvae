@@ -380,4 +380,4 @@ for e in range(args.ckpt_epochs, args.epochs):
 save_ckpt(args.epochs)
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB,  CUDA, output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB,  CUDA, output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs = [3246, 19000, 27444, 39000, 51000, 245760+3246, 245760+19000, 245760+27444, 245760+39000, 245760+51000])
