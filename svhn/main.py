@@ -307,7 +307,7 @@ def test(data, encA, decA, encB, decB, epoch):
     if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
         util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
                                            output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50])
-        util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA,
+        util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
                                      fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
                                      flatten_pixel=NUM_PIXELS)
 
