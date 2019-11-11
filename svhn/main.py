@@ -30,9 +30,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=30, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--epochs', type=int, default=30, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -41,7 +41,7 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.0,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=20000.,
+    parser.add_argument('--lambda_text', type=float, default=10000.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -145,13 +145,13 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
-        if iter % 100 == 0:
-            print('=========================================')
-            print('reconst_loss_poeA: ', reconst_loss_poeA)
-            print('kl_poeA: ', kl_poeA)
-            print('-----------------------------------------')
-            print('reconst_loss_poeB: ', reconst_loss_poeB)
-            print('kl_poeB: ', kl_poeB)
+        # if iter % 100 == 0:
+        #     print('=========================================')
+        #     print('reconst_loss_poeA: ', reconst_loss_poeA)
+        #     print('kl_poeA: ', kl_poeA)
+        #     print('-----------------------------------------')
+        #     print('reconst_loss_poeB: ', reconst_loss_poeB)
+        #     print('kl_poeB: ', kl_poeB)
         #     print('-----------------------------------------')
         #     print('reconst_loss_crA: ', reconst_loss_crA)
         #     print('kl_crA: ', kl_crA)
@@ -304,9 +304,13 @@ def test(data, encA, decA, encB, decB, epoch):
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             epoch_correct += pB['labels_sharedA'].loss.sum().item()
-    if (epoch+1) % 5 ==  0:
+    if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
         util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
-                                           output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+                                           output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50])
+        util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA,
+                                     fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
+                                     flatten_pixel=NUM_PIXELS)
+
         save_ckpt(e+1)
     return epoch_elbo / N, 1 + epoch_correct / N
 
@@ -399,7 +403,8 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+    # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)

@@ -17,9 +17,10 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
     out_dir = os.path.join(output_dir_trvsl, str(iters) +'_'+ str(-tr_range) + '~' + str(tr_range))
 
     fixed_XA = [0] * len(fixed_idxs)
+    label = [0] * len(fixed_idxs)
 
     for i, idx in enumerate(fixed_idxs):
-        fixed_XA[i] = data_loader.dataset.__getitem__(idx)[0]
+        fixed_XA[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
         if flatten_pixel is not None:
             fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
         if cuda:
@@ -52,7 +53,7 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
         temp = []
         for val in interpolation:
             zA[:, :, row] = val
-            sampleA = dec.forward2(zA, zS_ori)
+            sampleA = dec.forward2(zA, zS_ori, cuda)
             if flatten_pixel is not None:
                 sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
                 sampleA = torch.transpose(sampleA, 0,1)
@@ -60,7 +61,7 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
 
         tempA.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
-    temp = []
+    tempS = []
     for i in range(zS_dim):
         zS = np.zeros((1, 1, zS_dim))
         zS[0, 0, i % zS_dim] = 1.
@@ -68,13 +69,13 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
         zS = torch.cat([zS] * len(fixed_idxs), dim=1)
         if cuda:
             zS = zS.cuda()
-        sampleA = dec.forward2(zA_ori, zS)
+        sampleA = dec.forward2(zA_ori, zS, cuda)
         if flatten_pixel is not None:
             sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
             sampleA = torch.transpose(sampleA, 0, 1)
-        temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempS.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
 
-    tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
+    tempA.append(torch.cat(tempS, dim=0).unsqueeze(0))
     gifs = torch.cat(tempA, dim=0)  # torch.Size([11, 10, 1, 384, 32])
 
     # save the generated files, also the animated gifs
@@ -94,6 +95,14 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
     grid2gif(
         out_dir, str(os.path.join(out_dir, 'traverse' + '.gif')), delay=10
     )
+
+    # digit trv imgs
+    mkdirs(out_dir + '/digit/')
+    save_image(
+        tensor=(torch.cat(tempS, dim=0)).cpu(),
+        filename=os.path.join(out_dir + '/digit/', 'digit.jpg'),
+        nrow=1 + zS_dim,
+        pad_value=1)
 
 def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None, fixed_idxs = [3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121]):
 
@@ -141,7 +150,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zA[:, :, row] = val
-            sampleA = decA.forward2(zA, zS_ori)
+            sampleA = decA.forward2(zA, zS_ori, cuda)
             if flatten_pixel is not None:
                 sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
                 sampleA = torch.transpose(sampleA, 0,1)
@@ -156,7 +165,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zS[:, :, row] = val
-            sampleA = decA.forward2(zA_ori, zS)
+            sampleA = decA.forward2(zA_ori, zS, cuda)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
     # shared B
@@ -168,7 +177,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zS[:, :, row] = val
-            sampleB = decB.forward2(zB_ori, zS)
+            sampleB = decB.forward2(zB_ori, zS, cuda)
             temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
 
@@ -181,7 +190,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zB[:, :, row] = val
-            sampleB = decB.forward2(zB, zS_ori)
+            sampleB = decB.forward2(zB, zS_ori, cuda)
             if flatten_pixel is not None:
                 sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
                 sampleB = torch.transpose(sampleB, 0,1)
@@ -253,7 +262,7 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
 
         tempA.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
-    temp = []
+    tempS = []
     for i in range(zS_dim):
         zS = np.zeros((1, 1, zS_dim))
         zS[0, 0, i % zS_dim] = 1.
@@ -265,13 +274,12 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
         if flatten_pixel is not None:
             sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
             sampleA = torch.transpose(sampleA, 0, 1)
-        temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempS.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
 
-    tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
+    tempA.append(torch.cat(tempS, dim=0).unsqueeze(0))
     gifs = torch.cat(tempA, dim=0)  # torch.Size([11, 10, 1, 384, 32])
 
     # save the generated files, also the animated gifs
-
     mkdirs(output_dir_trvsl)
     mkdirs(out_dir)
 
@@ -288,9 +296,17 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
         out_dir, str(os.path.join(out_dir, 'traverse' + '.gif')), delay=10
     )
 
+    # digit trv imgs
+    mkdirs(out_dir + '/digit/')
+    save_image(
+        tensor=(torch.cat(tempS, dim=0)).cpu(),
+        filename=os.path.join(out_dir + '/digit/', 'digit.jpg'),
+        nrow=1 + zS_dim,
+        pad_value=1)
 
 
-def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
+
+def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False):
     # fixed_idxs = [3, 2, 1, 18, 4, 15, 11, 17, 61, 99]
 
     num_labels = 10
@@ -323,29 +339,22 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
     q = enc(fixed_XA, num_samples=1)
     batch_dim= 1
 
-    # for my model
-    # batch_size = q['privateA'].value.shape[1]
-    # z_private= q['privateA'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
-    # z_shared= q['sharedA'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
-    # q_ziCx_private = torch.exp(q['privateA'].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
-    # q_ziCx_shared = torch.exp(q['sharedA'].dist.log_pmf(z_shared).transpose(1, batch_dim + 1))
-    # q_ziCx = torch.cat((q_ziCx_private,q_ziCx_shared), dim=2)
+    if baseline:
+        batch_size = q['styles'].value.shape[1]
+        z_private= q['styles'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+        z_shared= q['digits'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+        q_ziCx_private = torch.exp(q['styles'].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
+        q_ziCx_shared = torch.exp(q['digits'].dist.log_pmf(z_shared).transpose(1, batch_dim + 1))
+        q_ziCx = torch.cat((q_ziCx_private,q_ziCx_shared), dim=2)
+    else:
+        # for my model
+        batch_size = q['privateA'].value.shape[1]
+        z_private= q['privateA'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+        z_shared= q['sharedA'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
+        q_ziCx_private = torch.exp(q['privateA'].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
+        q_ziCx_shared = torch.exp(q['sharedA'].dist.log_pmf(z_shared).transpose(1, batch_dim + 1))
+        q_ziCx = torch.cat((q_ziCx_private,q_ziCx_shared), dim=2)
 
-
-    # for baseline
-    # batch_size = q['styles'].value.shape[1]
-    # z_private= q['styles'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
-    # q_ziCx_private = torch.exp(q['styles'].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
-    # q_ziCx = q_ziCx_private
-
-
-    # for baseline2
-    batch_size = q['styles'].value.shape[1]
-    z_private= q['styles'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
-    z_shared= q['digits'].value.unsqueeze(batch_dim + 1).transpose(batch_dim, 0)
-    q_ziCx_private = torch.exp(q['styles'].dist.log_prob(z_private).transpose(1, batch_dim + 1).squeeze(2))
-    q_ziCx_shared = torch.exp(q['digits'].dist.log_pmf(z_shared).transpose(1, batch_dim + 1))
-    q_ziCx = torch.cat((q_ziCx_private,q_ziCx_shared), dim=2)
 
     latent_dim = q_ziCx.shape[-1]
     mi_zi_y = torch.tensor([.0] * latent_dim)
@@ -363,7 +372,7 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
     ax.bar(range(latent_dim), mi_zi_y.detach().cpu().numpy())
     # ax.set_xticks(range(latent_dim))
     my_xticks = []
-    for i in range(50):
+    for i in range(latent_dim-1):
         my_xticks.append('z' + str(i+1))
     my_xticks.append('c')
     plt.xticks(range(latent_dim), my_xticks)
@@ -386,4 +395,82 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None):
     # ax.set_title('infB')
 
 
+
+
+def save_reconst(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99]):
+    EPS = 1e-9
+    output_dir_trvsl = '../output/' + output_dir_trvsl
+    tr_range = 2
+    out_dir = os.path.join(output_dir_trvsl, str(iters) +'_'+ str(-tr_range) + '~' + str(tr_range), 'reconst')
+    batch_size = len(fixed_idxs)
+
+    images = [0] * len(fixed_idxs)
+    label = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        images[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
+        if flatten_pixel is not None:
+            images[i] = images[i].view(-1, flatten_pixel)
+        # images = fixed_imgs.view(-1, NUM_PIXELS)
+
+        if cuda:
+            images[i] = images[i].cuda()
+            images[i] = images[i].squeeze(0)
+
+    images = torch.stack(images, dim=0)
+    label = torch.LongTensor(label)
+    labels_onehot = torch.zeros(batch_size, 10)
+    labels_onehot.scatter_(1, label.unsqueeze(1), 1)
+    labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+
+
+    # encode
+    q = encA(images, num_samples=1)
+    q = encB(labels_onehot, num_samples=1, q=q)
+    ## poe ##
+    prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+    poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
+    q.concrete(logits=poe_logit,
+               temperature=0.66,
+               name='poe')
+
+    XA_infA_recon = decA.forward2(q['privateA'].dist.loc, q['sharedA'].value, cuda)
+    print('sharedA')
+    print(q['sharedA'].value.argmax(dim=2))
+    XA_POE_recon = decA.forward2(q['privateA'].dist.loc, q['poe'].value, cuda)
+    print('poe')
+    print(q['poe'].value.argmax(dim=2))
+    XA_sinfB_recon = decA.forward2(q['privateA'].dist.loc, q['sharedB'].value, cuda)
+    print('sharedB')
+    print(q['sharedB'].value.argmax(dim=2))
+
+    if flatten_pixel is not None:
+        XA_infA_recon = XA_infA_recon.view(XA_infA_recon.shape[0], -1, 28, 28)
+        XA_infA_recon = torch.transpose(XA_infA_recon, 0, 1)
+        XA_POE_recon = XA_POE_recon.view(XA_POE_recon.shape[0], -1, 28, 28)
+        XA_POE_recon = torch.transpose(XA_POE_recon, 0, 1)
+        XA_sinfB_recon = XA_sinfB_recon.view(XA_sinfB_recon.shape[0], -1, 28, 28)
+        XA_sinfB_recon = torch.transpose(XA_sinfB_recon, 0, 1)
+
+
+    WS = torch.ones(images.shape)
+    if cuda:
+        WS = WS.cuda()
+
+    imgs = [images, XA_infA_recon, XA_POE_recon, XA_sinfB_recon, WS]
+    merged = torch.cat(
+        imgs, dim=0
+    )
+
+    perm = torch.arange(0, len(imgs) * batch_size).view(len(imgs), batch_size).transpose(1, 0)
+    perm = perm.contiguous().view(-1)
+    merged = merged[perm, :].cpu()
+
+    # save the results as image
+    fname = os.path.join(out_dir, 'reconA_%s.jpg' % iters)
+    mkdirs(out_dir)
+    save_image(
+        tensor=merged, filename=fname, nrow=len(imgs) * int(np.sqrt(batch_size)),
+        pad_value=1
+    )
 

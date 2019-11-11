@@ -111,7 +111,7 @@ class DecoderA(nn.Module):
                                 name=shared_name)
 
             if 'poe' in shared_name:
-                hiddens = self.dec_hidden(torch.cat([zPrivate, torch.pow(zShared + EPS, 1/3)], -1))
+                hiddens = self.dec_hidden(torch.cat([zPrivate, torch.pow(zShared + EPS, 1/3)], -1)) # zShared.shape = 1,100,10
             else:
                 hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
@@ -125,12 +125,21 @@ class DecoderA(nn.Module):
                                       torch.log(1 - x_hat + EPS) * (1-x)).sum(-1),
                    images_mean, images, name= 'images_' + shared_name)
         return p
-    def forward2(self, zPrivate, zShared):
+
+    def make_one_hot(self, alpha, cuda):
+        _, max_alpha = torch.max(alpha, dim=1)
+        one_hot_samples = torch.zeros(alpha.size())
+        one_hot_samples.scatter_(1, max_alpha.view(-1, 1).data.cpu(), 1)
+        if cuda:
+            one_hot_samples = one_hot_samples.cuda()
+        return  one_hot_samples
+
+    def forward2(self, zPrivate, zShared, cuda):
+        zShared = self.make_one_hot(zShared.squeeze(0), cuda).unsqueeze(0)
         hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
         hiddens = hiddens.view(-1, 128, 4, 4)
         images_mean = self.dec_image(hiddens)
         return images_mean
-
 
 class EncoderB(nn.Module):
     def __init__(self, num_digis=10,
@@ -199,7 +208,7 @@ class DecoderB(nn.Module):
             else:
                 hiddens = self.dec_hidden(zShared)
 
-            pred_labels = self.dec_label(hiddens)
+            pred_labels = self.dec_label(hiddens) # 1, 100,10
             # define reconstruction loss (log prob of bernoulli dist)
             pred_labels = F.log_softmax(pred_labels + EPS, dim=2)
             if train:
