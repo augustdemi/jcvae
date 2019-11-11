@@ -256,14 +256,14 @@ def train(data, encA, decA, encB, decB, optimizer,
                         print(cnt)
 
                         print('poe')
-                        print(q['poe'].value.argmax(dim=2)[0][:20])
+                        # print(q['poe'].value.argmax(dim=2)[0][:20])
                         cnt = [0] * 10
                         for elt in q['poe'].value.argmax(dim=2)[0]:
                             cnt[elt] +=1
                         print(cnt)
 
                         print('sharedB')
-                        print(q['sharedB'].value.argmax(dim=2)[0][:20])
+                        # print(q['sharedB'].value.argmax(dim=2)[0][:20])
                         cnt = [0] * 10
                         for elt in q['sharedB'].value.argmax(dim=2)[0]:
                             cnt[elt] +=1
