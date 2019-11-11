@@ -34,13 +34,13 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=100.,
+    parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.4,
+    parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=500.,
+    parser.add_argument('--lambda_text', type=float, default=10000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=10.,
+    parser.add_argument('--beta', type=float, default=1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -182,9 +182,9 @@ def train(data, encA, decA, encB, decB, optimizer,
           label_mask={}, fixed_imgs=None, fixed_labels=None):
     epoch_elbo = 0.0
     encA.train()
-    encA.train()
+    encB.train()
     decA.train()
-    decA.train()
+    decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
