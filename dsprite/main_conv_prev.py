@@ -35,9 +35,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=150, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -205,7 +205,7 @@ def train(data, encA, decA, encB, decB, optimizer):
         for param in decB.parameters():
             param.requires_grad = True
         # loss
-        loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2)
+        loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
@@ -238,7 +238,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(imagesB, {'sharedB': q['sharedB']},q=q,
                       num_samples=NUM_SAMPLES)
 
-            batch_elbo = one_modal_elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2)
+            batch_elbo = one_modal_elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
@@ -301,6 +301,9 @@ solverB = Solver(args)
 train_data = torch.utils.data.DataLoader(Position(), batch_size=args.batch_size, shuffle=True)
 test_data = train_data
 
+BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
+BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
+
 
 
 for e in range(args.ckpt_epochs, args.epochs):
@@ -333,7 +336,7 @@ if args.ckpt_epochs == args.epochs:
     # dsprite: latent_size [3, 6, 40, 32, 32] = shape, scale, rotation, x, y
 
     # solverA.mutal_info()
-    solverB.mutal_info(factors = ['id', 'azumith', 'elevation', 'light'])
+    # solverB.mutal_info(factors = ['id', 'azumith', 'elevation', 'light'])
     util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB,  CUDA, output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
 
