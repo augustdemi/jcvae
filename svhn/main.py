@@ -20,30 +20,30 @@ import util
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=4, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=10,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=10,
+    parser.add_argument('--n_private', type=int, default=50,
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=30, metavar='N',
+    parser.add_argument('--epochs', type=int, default=155, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
     parser.add_argument('--label_frac', type=float, default=1.0,
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.0,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=10000.,
+    parser.add_argument('--lambda_text', type=float, default=5.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=1.,
+    parser.add_argument('--beta', type=float, default=3.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -60,7 +60,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'svhn-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s-seed%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta, args.seed)
+MODEL_NAME = 'svhn-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s-seed%s-lr%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta, args.seed, args.lr)
 DATA_PATH = '../data'
 
 if len(args.run_desc) > 1:
@@ -73,8 +73,7 @@ BETA = (1., args.beta, 1.)
 # BIAS_TEST = 1.0
 # model parameters
 # NUM_PIXELS = 3*32*32
-BIAS_TRAIN = (70000 - 1) / (args.batch_size - 1)
-BIAS_TEST = (26000 - 1) / (args.batch_size - 1)
+
 
 NUM_PIXELS = None
 TEMP = 0.66
@@ -91,6 +90,10 @@ test_data = torch.utils.data.DataLoader(
                 datasets.SVHN(DATA_PATH, split='test', download=True,
                                transform=transforms.ToTensor()),
                 batch_size=args.batch_size, shuffle=True)
+
+BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
+BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
+
 
 
 def cuda_tensors(obj):
@@ -436,8 +439,8 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 
 if args.ckpt_epochs == args.epochs:
-    # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
