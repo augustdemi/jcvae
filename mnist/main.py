@@ -287,7 +287,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                     cnt[elt] += 1
                 print(cnt)
 
-                if args.label_frac > 1 and random.random() < args.sup_frac:
+                if q['poe'] is not None:
                     print('poe')
                     # print(q['poe'].value.argmax(dim=2)[0][:20])
                     cnt = [0] * 10
