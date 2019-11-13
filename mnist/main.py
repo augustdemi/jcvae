@@ -29,18 +29,18 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--epochs', type=int, default=301, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=100.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=10000.,
+    parser.add_argument('--lambda_text', type=float, default=500.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=1.,
+    parser.add_argument('--beta', type=float, default=10.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -231,6 +231,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 param.requires_grad = True
             # loss
             loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+
         else:
             N += args.batch_size
             images = images.view(-1, NUM_PIXELS)
@@ -278,6 +279,34 @@ def train(data, encA, decA, encB, decB, optimizer,
                     param.requires_grad = False
                 loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
 
+            if b % 10 == 0:
+                print('--------------------------------iter ', b, '---------------------------------------')
+                print('sharedA')
+                cnt = [0] * 10
+                for elt in q['sharedA'].value.argmax(dim=2)[0]:
+                    cnt[elt] += 1
+                print(cnt)
+
+                if args.label_frac > 1 and random.random() < args.sup_frac:
+                    print('poe')
+                    # print(q['poe'].value.argmax(dim=2)[0][:20])
+                    cnt = [0] * 10
+                    for elt in q['poe'].value.argmax(dim=2)[0]:
+                        cnt[elt] += 1
+                    print(cnt)
+
+                print('sharedB')
+                # print(q['sharedB'].value.argmax(dim=2)[0][:20])
+                cnt = [0] * 10
+                for elt in q['sharedB'].value.argmax(dim=2)[0]:
+                    cnt[elt] += 1
+                print(cnt)
+
+                print('labels')
+                cnt = [0] * 10
+                for elt in labels:
+                    cnt[elt] += 1
+                print(cnt)
         loss.backward()
         optimizer.step()
         if CUDA:
