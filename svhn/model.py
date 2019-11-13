@@ -24,15 +24,18 @@ class EncoderA(nn.Module):
             nn.ReLU(),
             nn.Conv2d(32, 64, 4, 2, 1, bias=False),
             nn.ReLU(),
-            nn.Conv2d(64, 64, 4, 2, 1, bias=False),
-            nn.ReLU())
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, 4, 2, 1, bias=False),
+            nn.ReLU()
+        )
 
         self.fc = nn.Sequential(
-            nn.Linear(64 * 4 * 4, 512),
+            nn.Linear(256 * 5 * 5, 512),
             nn.ReLU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.1),
             nn.Linear(512, 2*zPrivate_dim + zShared_dim))
-        self.weight_init()
+        # self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
@@ -74,18 +77,18 @@ class DecoderA(nn.Module):
         self.num_digits = zShared_dim
 
         self.dec_hidden = nn.Sequential(
-                            nn.Linear(zPrivate_dim + zShared_dim, 512),
-                            nn.ReLU(),
-                            nn.Linear(512, 64 * 4 * 4),
+                            nn.Linear(zPrivate_dim + zShared_dim, 256*5*5),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-                            nn.ConvTranspose2d(64, 64, 4, 2, 1, bias=False),
+                            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
+                            nn.ReLU(),
+                            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
                             nn.ReLU(),
                            nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
                            nn.ReLU(),
                            nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=False),
                            nn.Sigmoid())
-        self.weight_init()
+        # self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
@@ -116,7 +119,7 @@ class DecoderA(nn.Module):
             else:
                 hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
-            hiddens = hiddens.view(-1, 64, 4, 4)
+            hiddens = hiddens.view(-1, 256, 5, 5)
             images_mean = self.dec_image(hiddens)
 
             images_mean = images_mean.view(images_mean.size(0), -1)
@@ -138,7 +141,7 @@ class DecoderA(nn.Module):
     def forward2(self, zPrivate, zShared, cuda):
         zShared = self.make_one_hot(zShared.squeeze(0), cuda).unsqueeze(0)
         hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
-        hiddens = hiddens.view(-1, 64, 4, 4)
+        hiddens = hiddens.view(-1, 256, 5, 5)
         images_mean = self.dec_image(hiddens)
         return images_mean
 
@@ -152,6 +155,8 @@ class EncoderB(nn.Module):
 
         self.enc_hidden = nn.Sequential(
             nn.Linear(num_digis, num_hidden),
+            nn.ReLU(),
+            nn.Linear(num_hidden, num_hidden),
             nn.ReLU())
 
         self.fc  = nn.Linear(num_hidden, zShared_dim)
@@ -177,7 +182,7 @@ class EncoderB(nn.Module):
 
 class DecoderB(nn.Module):
     def __init__(self, num_digits=10,
-                       num_hidden=256,
+                       num_hidden=512,
                     zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
@@ -185,6 +190,10 @@ class DecoderB(nn.Module):
 
         self.dec_hidden = nn.Sequential(
                             nn.Linear(zShared_dim, num_hidden),
+                            nn.ReLU(),
+                            nn.Linear(num_hidden, num_hidden),
+                            nn.ReLU(),
+                            nn.Linear(num_hidden, num_hidden),
                             nn.ReLU())
         self.dec_label = nn.Sequential(
                            nn.Linear(num_hidden, num_digits))
