@@ -30,14 +30,14 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=65, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=65, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.0,
+    parser.add_argument('--label_frac', type=float, default=1000.,
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.0,
                         help='supervision ratio')
@@ -395,10 +395,10 @@ def save_ckpt(e):
 
 def get_paired_data(paired_cnt, seed):
     data = torch.utils.data.DataLoader(
-        datasets.MNIST(DATA_PATH, train=True, download=True,
-                       transform=transforms.ToTensor()),
+        datasets.SVHN(DATA_PATH, split='train', download=True,
+                      transform=transforms.ToTensor()),
         batch_size=args.batch_size, shuffle=False)
-    tr_labels = data.dataset.targets
+    tr_labels = data.dataset.labels
 
     cnt = int(paired_cnt / 10)
     assert cnt == paired_cnt / 10
@@ -407,7 +407,7 @@ def get_paired_data(paired_cnt, seed):
     for i in range(10):
         label_idx.update({i:[]})
     for idx in  range(len(tr_labels)):
-        label = int(tr_labels[idx].data.detach().cpu().numpy())
+        label = tr_labels[idx]
         label_idx[label].append(idx)
 
     total_random_idx = []
