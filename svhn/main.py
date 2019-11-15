@@ -20,7 +20,7 @@ import util
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=4, metavar='N',
+    parser.add_argument('--run_id', type=int, default=10, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -30,18 +30,18 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=65, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=155, metavar='N',
+    parser.add_argument('--epochs', type=int, default=65, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
+    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
     parser.add_argument('--label_frac', type=float, default=1.0,
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.0,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=5.,
+    parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta', type=float, default=3.,
                         help='multipler for TC [default: 10]')
@@ -193,12 +193,15 @@ def train(data, encA, decA, encB, decB, optimizer,
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             if args.label_frac > 1 and random.random() < args.sup_frac:
-                # print(b)
                 N += args.batch_size
-                # images = fixed_imgs.view(-1, NUM_PIXELS)
-                images = fixed_imgs
+                shuffled_idx = list(range(int(args.label_frac)))
+                random.shuffle(shuffled_idx)
+                shuffled_idx = shuffled_idx[:args.batch_size]
+                images = fixed_imgs[shuffled_idx]
+                fixed_labels_batch = fixed_labels[shuffled_idx]
+
                 labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-                labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
+                labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
                 optimizer.zero_grad()
                 if CUDA:
@@ -253,33 +256,33 @@ def train(data, encA, decA, encB, decB, optimizer,
                     pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
                             num_samples=NUM_SAMPLES)
 
-                    if b % 10 ==0:
-                        print('--------------------------------iter ', b, '---------------------------------------')
-                        print('sharedA')
-                        cnt = [0] * 10
-                        for elt in q['sharedA'].value.argmax(dim=2)[0]:
-                            cnt[elt] +=1
-                        print(cnt)
-
-                        print('poe')
-                        # print(q['poe'].value.argmax(dim=2)[0][:20])
-                        cnt = [0] * 10
-                        for elt in q['poe'].value.argmax(dim=2)[0]:
-                            cnt[elt] +=1
-                        print(cnt)
-
-                        print('sharedB')
-                        # print(q['sharedB'].value.argmax(dim=2)[0][:20])
-                        cnt = [0] * 10
-                        for elt in q['sharedB'].value.argmax(dim=2)[0]:
-                            cnt[elt] +=1
-                        print(cnt)
-
-                        print('labels')
-                        cnt = [0] * 10
-                        for elt in labels:
-                            cnt[elt] +=1
-                        print(cnt)
+                    # if b % 10 ==0:
+                    #     print('--------------------------------iter ', b, '---------------------------------------')
+                    #     print('sharedA')
+                    #     cnt = [0] * 10
+                    #     for elt in q['sharedA'].value.argmax(dim=2)[0]:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
+                    #
+                    #     print('poe')
+                    #     # print(q['poe'].value.argmax(dim=2)[0][:20])
+                    #     cnt = [0] * 10
+                    #     for elt in q['poe'].value.argmax(dim=2)[0]:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
+                    #
+                    #     print('sharedB')
+                    #     # print(q['sharedB'].value.argmax(dim=2)[0][:20])
+                    #     cnt = [0] * 10
+                    #     for elt in q['sharedB'].value.argmax(dim=2)[0]:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
+                    #
+                    #     print('labels')
+                    #     cnt = [0] * 10
+                    #     for elt in labels:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
 
                     for param in encB.parameters():
                         param.requires_grad = True
@@ -340,6 +343,31 @@ def test(data, encA, decA, encB, decB, epoch):
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             epoch_correct += pB['labels_sharedA'].loss.sum().item()
+            # print('--------------------------------iter ', b, '---------------------------------------')
+            # print('sharedA')
+            # cnt = [0] * 10
+            # for elt in q['sharedA'].value.argmax(dim=2)[0]:
+            #     cnt[elt] += 1
+            # print(cnt)
+            #
+            # print('sharedB')
+            # # print(q['sharedB'].value.argmax(dim=2)[0][:20])
+            # cnt = [0] * 10
+            # for elt in q['sharedB'].value.argmax(dim=2)[0]:
+            #     cnt[elt] += 1
+            # print(cnt)
+            #
+            # print('labels')
+            # cnt = [0] * 10
+            # for elt in labels:
+            #     cnt[elt] += 1
+            # print(cnt)
+            #
+            # print('loss')
+            # print(pB['labels_sharedA'].loss.sum().item())
+            # print(1 + pB['labels_sharedA'].loss.sum().item() / 100)
+
+
     if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
         util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
                                            output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50])
@@ -365,14 +393,12 @@ def save_ckpt(e):
                '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
 
 
-
-
 def get_paired_data(paired_cnt, seed):
     data = torch.utils.data.DataLoader(
-        datasets.SVHN(DATA_PATH, split='train', download=True,
+        datasets.MNIST(DATA_PATH, train=True, download=True,
                        transform=transforms.ToTensor()),
         batch_size=args.batch_size, shuffle=False)
-    tr_labels = data.dataset.labels
+    tr_labels = data.dataset.targets
 
     cnt = int(paired_cnt / 10)
     assert cnt == paired_cnt / 10
@@ -381,7 +407,7 @@ def get_paired_data(paired_cnt, seed):
     for i in range(10):
         label_idx.update({i:[]})
     for idx in  range(len(tr_labels)):
-        label = int(tr_labels[idx])
+        label = int(tr_labels[idx].data.detach().cpu().numpy())
         label_idx[label].append(idx)
 
     total_random_idx = []
@@ -400,8 +426,9 @@ def get_paired_data(paired_cnt, seed):
         labels.append(torch.tensor(label))
     imgs = torch.stack(imgs, dim=0)
     labels = torch.stack(labels, dim=0)
-
     return imgs, labels
+
+
 
 if args.ckpt_epochs > 0:
     if CUDA:
