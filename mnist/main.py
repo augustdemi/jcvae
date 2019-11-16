@@ -286,7 +286,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
     return epoch_elbo / N, label_mask
 
-def test(data, encA, decA, encB, decB, infer=True):
+def test(data, encA, decA, encB, decB, epoch):
     encA.eval()
     decA.eval()
     encB.eval()
@@ -318,7 +318,29 @@ def test(data, encA, decA, encB, decB, infer=True):
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             epoch_correct += pB['labels_sharedA'].loss.sum().item()
+
+    if (epoch + 1) % 20 == 0 or epoch + 1 == args.epochs:
+        util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
+                                      output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
+        util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
+                                     output_dir_trvsl=MODEL_NAME,
+                                     flatten_pixel=NUM_PIXELS, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
+        save_ckpt(e + 1)
     return epoch_elbo / N, 1 + epoch_correct / N
+
+def save_ckpt(e):
+    if not os.path.isdir(args.ckpt_path):
+        os.mkdir(args.ckpt_path)
+    torch.save(encA.state_dict(),
+               '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decA.state_dict(),
+               '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(encB.state_dict(),
+               '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decB.state_dict(),
+               '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+
+
 
 
 def get_paired_data(paired_cnt, seed):
@@ -386,26 +408,17 @@ for e in range(args.ckpt_epochs, args.epochs):
                              optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
     train_end = time.time()
     test_start = time.time()
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB,)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
     test_end = time.time()
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
             test_elbo, test_accuracy, test_end - test_start))
 
-if not os.path.isdir(args.ckpt_path):
-    os.mkdir(args.ckpt_path)
-torch.save(encA.state_dict(),
-           '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
-torch.save(decA.state_dict(),
-           '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
-torch.save(encB.state_dict(),
-           '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
-torch.save(decB.state_dict(),
-           '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+    # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
-# print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=False))
-# print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=True))
+else:
+    save_ckpt(args.epochs)
