@@ -27,16 +27,16 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=0.01,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.5,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=10000.,
                         help='multipler for text reconstruction [default: 10]')
@@ -188,6 +188,9 @@ def train(data, encA, decA, encB, decB, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
+        if b ==1:
+            print(images.sum())
+            print(label_mask)
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += args.batch_size
@@ -245,6 +248,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 label_mask[b] = (random.random() < args.label_frac)
             if (label_mask[b] and args.label_frac == args.sup_frac):
                 # encode
+                # print(images.sum())
                 q = encA(images, num_samples=NUM_SAMPLES)
                 q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
                 ## poe ##
@@ -322,9 +326,6 @@ def test(data, encA, decA, encB, decB, epoch):
     if (epoch + 1) % 20 == 0 or epoch + 1 == args.epochs:
         util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
                                       output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
-        util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
-                                     output_dir_trvsl=MODEL_NAME,
-                                     flatten_pixel=NUM_PIXELS, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
         save_ckpt(e + 1)
     return epoch_elbo / N, 1 + epoch_correct / N
 
