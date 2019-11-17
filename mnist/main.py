@@ -188,9 +188,6 @@ def train(data, encA, decA, encB, decB, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if b ==1:
-            print(images.sum())
-            print(label_mask)
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += args.batch_size
