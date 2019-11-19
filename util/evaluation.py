@@ -104,6 +104,19 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
         nrow=1 + zS_dim,
         pad_value=1)
 
+
+def resize(h,w,img):
+    from torchvision import transforms
+    import torchvision
+    resized_imgs = []
+    for i in range(img.shape[0]):
+        img_PIL = transforms.ToPILImage()(img[i])
+        img_PIL = torchvision.transforms.Resize([h,w])(img_PIL)
+        resized_imgs.append(torch.transpose(torchvision.transforms.ToTensor()(img_PIL),1,2))
+    resized_imgs = torch.stack(resized_imgs)
+    return resized_imgs
+
+
 def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None, fixed_idxs = [3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121]):
 
     tr_range = 2
@@ -120,6 +133,8 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         if cuda:
             fixed_XA[i] = fixed_XA[i].cuda()
             fixed_XB[i] = fixed_XB[i].cuda()
+        fixed_XB[i] = fixed_XB[i].squeeze(0)
+
 
     fixed_XA = torch.stack(fixed_XA, dim=0)
     fixed_XB = torch.stack(fixed_XB, dim=0)
@@ -127,21 +142,30 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
     # do traversal and collect generated images
 
     q = encA(fixed_XA, num_samples=1)
-    zA_ori = q['privateA'].dist.loc
     q = encB(fixed_XB, num_samples=1, q=q)
-    zB_ori = q['privateB'].dist.loc
 
-    zS_ori, _ = apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                    q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+    zA_ori, zSA_ori = q['privateA'].dist.loc, q['sharedA'].value
+    zB_ori, zSB_ori = q['privateB'].dist.loc, q['sharedB'].value
 
+    # making poe dist
+    prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+    poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
+    q.concrete(logits=poe_logit,
+               temperature=0.66,
+               name='poe')
+    # sampling poe
+    zS_ori = q['poe'].value
 
     zA_dim = zA_ori.shape[2]
     zB_dim = zB_ori.shape[2]
     zS_dim = zS_ori.shape[2]
     interpolation = torch.tensor(np.linspace(-tr_range, tr_range, 10))
 
+
+
     #### A private
     tempAll = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
+
     loc=-1
     for row in range(zA_dim):
         if loc != -1 and row != loc:
@@ -151,7 +175,8 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zA[:, :, row] = val
-            sampleA = decA.forward2(zA, zS_ori)
+            sampleA = decA.forward2(zA, zS_ori, cuda)
+            sampleA = resize(28,28,sampleA)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
@@ -163,23 +188,12 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zS[:, :, row] = val
-            sampleA = decA.forward2(zA_ori, zS)
+            sampleA = decA.forward2(zA_ori, zS, cuda)
+            sampleA = resize(28, 28, sampleA)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
-    # shared B
-    for row in range(zS_dim):
-        if loc != -1 and row != loc:
-            continue
-        zS = zS_ori.clone()
 
-        temp = []
-        for val in interpolation:
-            zS[:, :, row] = val
-            sampleB = decB.forward2(zB_ori, zS)
-            sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
-            temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
-        tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
-
+    tempAll2 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
     ###### B_private
     for row in range(zB_dim):
         if loc != -1 and row != loc:
@@ -189,13 +203,41 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         temp = []
         for val in interpolation:
             zB[:, :, row] = val
-            sampleB = decB.forward2(zB, zS_ori)
+            sampleB = decB.forward2(zB, zS_ori, cuda)
             sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
-            sampleB = torch.transpose(sampleB, 0,1)
-            temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
-        tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+            sampleB = torch.transpose(sampleB, 0, 1)
+            sampleB_3ch = []
+            for i in range(sampleB.size(0)):
+                each_XB = sampleB[i].clone().squeeze(0)
+                sampleB_3ch.append(torch.stack([each_XB, each_XB, each_XB]))
+            sampleB_3ch = torch.stack(sampleB_3ch)
+            temp.append((torch.cat([sampleB_3ch[i] for i in range(sampleB_3ch.shape[0])], dim=1)).unsqueeze(0))
+        tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
-    gifs = torch.cat(tempAll, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+    # shared B
+    for row in range(zS_dim):
+        if loc != -1 and row != loc:
+            continue
+        zS = zS_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zS[:, :, row] = val
+            sampleB = decB.forward2(zB_ori, zS, cuda)
+            sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
+            sampleB = torch.transpose(sampleB, 0, 1)
+            sampleB_3ch = []
+            for i in range(sampleB.size(0)):
+                each_XB = sampleB[i].clone().squeeze(0)
+                sampleB_3ch.append(torch.stack([each_XB, each_XB, each_XB]))
+            sampleB_3ch = torch.stack(sampleB_3ch)
+            temp.append((torch.cat([sampleB_3ch[i] for i in range(sampleB_3ch.shape[0])], dim=1)).unsqueeze(0))
+        tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    gifs1 = torch.cat(tempAll, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+    gifs2 = torch.cat(tempAll2, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+    gifs = torch.cat([gifs1, gifs2], dim=3)
 
     # save the generated files, also the animated gifs
 
@@ -208,7 +250,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         save_image(
             tensor=I.cpu(),
             filename=os.path.join(out_dir, '%03d.jpg' % (j)),
-            nrow=zA_dim + 2*zS_dim + zB_dim,
+            nrow=zA_dim + zS_dim,
             pad_value=1)
         # make animated gif
     grid2gif(
