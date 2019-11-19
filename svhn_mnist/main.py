@@ -335,11 +335,12 @@ def test(data, encA, decA, encB, decB, epoch):
 
     if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
         util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
-                                           output_dir_trvsl=MODEL_NAME, fixed_idxs=[0,6000,26000,36000,40000,50000,55000,60000,68000,70000])
+                                           output_dir_trvsl=MODEL_NAME, fixed_idxs=[0,600,10000,12000,16000,18000,19000,21000,23000,25000])
+                                           # output_dir_trvsl=MODEL_NAME, fixed_idxs=[0,6000,26000,36000,40000,50000,55000,60000,68000,70000])
         # util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
         #                              fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME)
         util.evaluation.save_traverse(epoch, test_data, encB, decB, CUDA,
-                                      output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[0,6000,26000,36000,40000,50000,55000,60000,68000,70000])
+                                      output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[0,600,10000,12000,16000,18000,19000,21000,23000,25000])
 
         save_ckpt(e+1)
     return epoch_elbo / N, 1 + epoch_correct / N
@@ -433,7 +434,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME)
+    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[0,600,10000,12000,16000,18000,19000,21000,23000,25000], output_dir_trvsl=MODEL_NAME)
     # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME)
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
