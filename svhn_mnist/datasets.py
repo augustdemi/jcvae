@@ -137,13 +137,38 @@ def match_label(modalA, modalB):
         class_idxA = modalA['class_idx'][i]
         class_idxB = modalB['class_idx'][i]
         print('label {} len A, B: {}, {}'.format(i, len(class_idxA), len(class_idxB)))
-        a_idx.extend(class_idxA)
-        b_idx.extend(class_idxB)
 
-        np.random.seed(0)
-        np.random.shuffle(class_idxA)
-        a_idx.extend(class_idxA[:len(class_idxB)-len(class_idxA)])
-        labels.extend([i] * len(class_idxB))
+        diff = len(class_idxA) - len(class_idxB)
+        if diff > 0:
+            a_idx.extend(class_idxA)
+            b_idx.extend(class_idxB)
+            while diff > 0:
+                if diff > len(class_idxB):
+                    np.random.seed(0)
+                    np.random.shuffle(class_idxB)
+                    b_idx.extend(class_idxB)
+                else:
+                    np.random.seed(0)
+                    np.random.shuffle(class_idxB)
+                    b_idx.extend(class_idxB[:diff])
+                diff -= len(class_idxB)
+        else:
+            diff = -diff
+            a_idx.extend(class_idxA)
+            b_idx.extend(class_idxB)
+
+            while diff > 0:
+                if diff > len(class_idxA):
+                    np.random.seed(0)
+                    np.random.shuffle(class_idxA)
+                    a_idx.extend(class_idxA)
+                else:
+                    np.random.seed(0)
+                    np.random.shuffle(class_idxA)
+                    a_idx.extend(class_idxA[:diff])
+                diff -= len(class_idxA)
+
+        labels.extend([i] * max(len(class_idxA), len(class_idxB)))
     return a_idx, b_idx, labels
 
 
