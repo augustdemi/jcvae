@@ -31,9 +31,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -337,8 +337,8 @@ def test(data, encA, decA, encB, decB, epoch):
 
 
     if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
-        # util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB, CUDA,
-        #                                    output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[0,600,10000,12000,16000,18000,19000,21000,23000,25000])
+        util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB, CUDA,
+                                           output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[0,600,10000,12000,16000,18000,19000,21000,23000,25000])
 
         save_ckpt(e+1)
     return epoch_elbo / N, 1 + epoch_correct / N
