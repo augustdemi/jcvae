@@ -21,7 +21,7 @@ import util
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=10, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -31,20 +31,22 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=10, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
+    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
     parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.0,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=100.,
+    parser.add_argument('--lambda_text', type=float, default=50.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=5.,
+                        help='multipler for TC [default: 10]')
+    parser.add_argument('--beta2', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -61,7 +63,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'svhn_mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s-seed%s-lr%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta, args.seed, args.lr, args.batch_size)
+MODEL_NAME = 'svhn_mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-lr%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.lr, args.batch_size)
 DATA_PATH = '../data'
 
 if len(args.run_desc) > 1:
@@ -69,7 +71,8 @@ if len(args.run_desc) > 1:
     with open(desc_file, 'w') as outfile:
         outfile.write(args.run_desc)
 
-BETA = (1., args.beta, 1.)
+BETA1 = (1., args.beta1, 1.)
+BETA2 = (1., args.beta2, 1.)
 # BIAS_TRAIN = 1.0
 # BIAS_TEST = 1.0
 # model parameters
@@ -118,31 +121,31 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0),  bias=1.0):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
-                                        beta=beta, bias=bias)
+                                        beta=beta1, bias=bias)
     reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images_sharedB'], latents=['privateB', 'sharedB'], sample_dim=0, batch_dim=1,
-                                        beta=beta, bias=bias)
+                                        beta=beta2, bias=bias)
 
     if q['poe'] is not None:
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta1, bias=bias)
         reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images_poe'], latents=['privateB', 'poe'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta2, bias=bias)
 
         # # by cross
         reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedB'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta1, bias=bias)
         reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images_sharedA'], latents=['privateB', 'sharedA'], sample_dim=0, batch_dim=1,
-                                                    beta=beta, bias=bias)
+                                                    beta=beta2, bias=bias)
 
         # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
         #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A - kl_A) + lamb * (reconst_loss_B - kl_B) + \
+               (reconst_loss_poeA - kl_poeA) + lamb * (reconst_loss_poeB - kl_poeB) + \
+               (reconst_loss_crA - kl_crA) + lamb * (reconst_loss_crB - kl_crB)
 
         # if iter % 100 == 0:
         #     print('=========================================')
@@ -220,7 +223,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 for param in decB.parameters():
                     param.requires_grad = True
                 # loss
-                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
                 N += args.batch_size
                 mnist = mnist.view(-1, NUM_PIXELS)
@@ -279,7 +282,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                     for param in decB.parameters():
                         param.requires_grad = True
                     # loss
-                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
                 else:
                     # labels_onehot = labels_onehot[:, torch.randperm(10)]
                     q = encA(images, num_samples=NUM_SAMPLES)
@@ -292,7 +295,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                         param.requires_grad = False
                     for param in decB.parameters():
                         param.requires_grad = False
-                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
             loss.backward()
             optimizer.step()
@@ -325,7 +328,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(mnist, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
 
-            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
+            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
@@ -391,9 +394,6 @@ def get_paired_data(paired_cnt, seed):
     return imgs, labels
 
 
-util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB, CUDA,
-                                   output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
-                                   fixed_idxs=[0, 600, 10000, 12000, 16000, 18000, 19000, 21000, 23000, 25000])
 
 if args.ckpt_epochs > 0:
     if CUDA:
@@ -432,7 +432,10 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[0,600,10000,12000,16000,18000,19000,21000,23000,25000], output_dir_trvsl=MODEL_NAME)
+
+    util.evaluation.save_traverse_both(args.epochs, test_data, encA, decA, encB, decB, CUDA,
+                                       output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
+                                       fixed_idxs=[0, 6000, 10000, 12000, 16000, 18000, 19000, 21000, 23000, 25000])
     # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME)
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
