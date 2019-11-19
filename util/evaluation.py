@@ -116,6 +116,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
 
         fixed_XA[i], fixed_XB[i] = \
             data_loader.dataset.__getitem__(idx)[0:2]
+        fixed_XB[i] = fixed_XB[i].view(-1, flatten_pixel)
         if cuda:
             fixed_XA[i] = fixed_XA[i].cuda()
             fixed_XB[i] = fixed_XB[i].cuda()
@@ -151,9 +152,6 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         for val in interpolation:
             zA[:, :, row] = val
             sampleA = decA.forward2(zA, zS_ori)
-            if flatten_pixel is not None:
-                sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
-                sampleA = torch.transpose(sampleA, 0,1)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
@@ -178,6 +176,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         for val in interpolation:
             zS[:, :, row] = val
             sampleB = decB.forward2(zB_ori, zS)
+            sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
             temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
 
@@ -191,9 +190,8 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         for val in interpolation:
             zB[:, :, row] = val
             sampleB = decB.forward2(zB, zS_ori)
-            if flatten_pixel is not None:
-                sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
-                sampleB = torch.transpose(sampleB, 0,1)
+            sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
+            sampleB = torch.transpose(sampleB, 0,1)
             temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
