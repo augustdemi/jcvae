@@ -62,7 +62,7 @@ class DIGIT(Dataset):
         # a_img = transform(a_img, resize=32)
         # b_img = transform(b_img, resize=32)
 
-        return svhn_img, mnist_img
+        return svhn_img, mnist_img, label
 
     def __len__(self):
         # return self.input_a.size(0)

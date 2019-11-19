@@ -33,7 +33,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=65, metavar='N',
+    parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=5e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -183,7 +183,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     decA.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
-    for b, (svhn, mnist) in enumerate(data):
+    for b, (svhn, mnist, label) in enumerate(data):
         if svhn.size()[0] == args.batch_size:
             if args.label_frac > 1 and random.random() < args.sup_frac:
                 N += args.batch_size
@@ -310,39 +310,36 @@ def test(data, encA, decA, encB, decB, epoch):
     epoch_elbo = 0.0
     epoch_correct = 0
     N = 0
-    for b, (images, labels) in enumerate(data):
-        if images.size()[0] == args.batch_size:
+    for b, (svhn, mnist, label) in enumerate(data):
+        if svhn.size()[0] == args.batch_size:
             N += args.batch_size
-            # images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
+            mnist = mnist.view(-1, NUM_PIXELS)
             if CUDA:
-                images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
+                svhn = svhn.cuda()
+                mnist = mnist.cuda()
             # encode
-            q = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+            q = encA(svhn, num_samples=NUM_SAMPLES)
+            q = encB(mnist, num_samples=NUM_SAMPLES, q=q)
+            pA = decA(svhn, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
-                      num_samples=NUM_SAMPLES, train=False)
+            pB = decB(mnist, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+                      num_samples=NUM_SAMPLES)
 
             batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += pB['labels_sharedA'].loss.sum().item()
+            epoch_correct += 0
 
 
 
     if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
         util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
-                                           output_dir_trvsl=MODEL_NAME, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50])
-        util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
-                                     fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME)
+                                           output_dir_trvsl=MODEL_NAME, fixed_idxs=[0,6000,26000,36000,40000,50000,55000,60000,68000,70000])
+        # util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
+        #                              fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME)
         util.evaluation.save_traverse(epoch, test_data, encB, decB, CUDA,
-                                      output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
+                                      output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[0,6000,26000,36000,40000,50000,55000,60000,68000,70000])
 
         save_ckpt(e+1)
     return epoch_elbo / N, 1 + epoch_correct / N
@@ -421,6 +418,7 @@ fixed_labels=None
 if args.label_frac > 1:
     fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
 
+
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_elbo, mask = train(train_data, encA, decA, encB, decB,
@@ -436,7 +434,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 if args.ckpt_epochs == args.epochs:
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME)
-    util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME)
+    # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME)
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
