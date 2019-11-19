@@ -105,7 +105,7 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
         pad_value=1)
 
 
-def resize(h,w,img):
+def resize(h,w,img, cuda):
     from torchvision import transforms
     import torchvision
     resized_imgs = []
@@ -114,6 +114,8 @@ def resize(h,w,img):
         img_PIL = torchvision.transforms.Resize([h,w])(img_PIL)
         resized_imgs.append(torch.transpose(torchvision.transforms.ToTensor()(img_PIL),1,2))
     resized_imgs = torch.stack(resized_imgs)
+    if cuda:
+        resized_imgs = resized_imgs.cuda()
     return resized_imgs
 
 
@@ -189,7 +191,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         for val in interpolation:
             zS[:, :, row] = val
             sampleA = decA.forward2(zA_ori, zS, cuda)
-            sampleA = resize(28, 28, sampleA)
+            sampleA = resize(28, 28, sampleA, cuda)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
 
