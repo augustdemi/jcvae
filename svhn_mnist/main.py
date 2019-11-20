@@ -27,13 +27,13 @@ if __name__ == "__main__":
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=10,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=50,
+    parser.add_argument('--n_private', type=int, default=10,
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=15, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=15, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -42,11 +42,11 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.0,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=50.,
+    parser.add_argument('--lambda_text', type=float, default=10.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=5.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--beta2', type=float, default=5.,
+    parser.add_argument('--beta2', type=float, default=10.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -63,7 +63,10 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'svhn_mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-lr%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.lr, args.batch_size)
+# MODEL_NAME = 'svhn_mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s-seed%s-lr%s-bs%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.seed, args.lr, args.batch_size)
+MODEL_NAME = 'svhn_mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1_%s-beta2_%s-seed%s-lr%s-bs%s' % (
+args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
+args.lr, args.batch_size)
 DATA_PATH = '../data'
 
 if len(args.run_desc) > 1:
@@ -105,8 +108,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(zPrivate_dim=args.n_private)
 decA = DecoderA(zPrivate_dim=args.n_private)
-encB = EncoderB()
-decB = DecoderB()
+encB = EncoderB(zPrivate_dim=args.n_private)
+decB = DecoderB(zPrivate_dim=args.n_private)
 if CUDA:
     encA.cuda()
     decA.cuda()
