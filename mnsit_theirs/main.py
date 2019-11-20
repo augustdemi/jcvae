@@ -8,39 +8,40 @@ from model import Encoder, Decoder
 import sys
 sys.path.append('../')
 import probtorch
+import util
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=8, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=10,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=10,
+    parser.add_argument('--n_private', type=int, default=50,
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
     parser.add_argument('--label_frac', type=float, default=100,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.4,
+    parser.add_argument('--sup_frac', type=float, default=0.02,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=100.,
+    parser.add_argument('--lambda_text', type=float, default=-1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=50.,
+    parser.add_argument('--beta', type=float, default=-1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/theirs',
                         help='save and load path for ckpt')
 
     args = parser.parse_args()
@@ -75,11 +76,11 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=False)
+    batch_size=args.batch_size, shuffle=True)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=True)
+    batch_size=args.batch_size, shuffle=False)
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -145,7 +146,7 @@ def train(data, enc, dec, optimizer,
                 optimizer.zero_grad()
                 if b not in label_mask:
                     label_mask[b] = (random.random() < label_fraction)
-                if (label_mask[b] and args.label_frac == args.sup_frac):
+                if (label_mask[b] and args.label_frac < 1):
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                 else:
                     q = enc(images, num_samples=NUM_SAMPLES)
@@ -246,6 +247,12 @@ if args.ckpt_epochs > 0:
                                         map_location=torch.device('cpu')))
         dec.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
+        # enc.load_state_dict(torch.load(args.ckpt_path + '/mnist-semisupervised-50dim-0.0+5a2c637-1.2.0-enc.rar',
+        #                                 map_location=torch.device('cpu')))
+        # dec.load_state_dict(torch.load(args.ckpt_path+'/mnist-semisupervised-50dim-0.0+5a2c637-1.2.0-dec.rar',
+        #                                 map_location=torch.device('cpu')))
+
+
 mask = {}
 fixed_imgs=None
 fixed_labels=None
@@ -270,5 +277,9 @@ torch.save(enc.state_dict(),
            '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
 torch.save(dec.state_dict(),
            '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
-print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, enc, dec, infer=False))
-print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, enc, dec, infer=True))
+
+if args.ckpt_epochs == args.epochs:
+    # util.evaluation.mutual_info(test_data, enc, CUDA, flatten_pixel=NUM_PIXELS, baseline=True)
+    util.evaluation.save_traverse_base(args.epochs, test_data, enc, dec, CUDA,
+                                       fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME,
+                                       flatten_pixel=NUM_PIXELS)
