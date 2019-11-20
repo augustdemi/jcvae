@@ -178,7 +178,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         for val in interpolation:
             zA[:, :, row] = val
             sampleA = decA.forward2(zA, zS_ori, cuda)
-            sampleA = resize(28,28,sampleA)
+            sampleA = resize(28,28,sampleA,cuda)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
