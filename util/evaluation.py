@@ -183,17 +183,18 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
     # shared A
-    for row in range(zS_dim):
-        if loc != -1 and row != loc:
-            continue
-        zS = zS_ori.clone()
-        temp = []
-        for val in interpolation:
-            zS[:, :, row] = val
-            sampleA = decA.forward2(zA_ori, zS, cuda)
-            sampleA = resize(28, 28, sampleA, cuda)
-            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
-        tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
+    tempS = []
+    for i in range(zS_dim):
+        zS = np.zeros((1, 1, zS_dim))
+        zS[0, 0, i % zS_dim] = 1.
+        zS = torch.Tensor(zS)
+        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+        if cuda:
+            zS = zS.cuda()
+        sampleA = decA.forward2(zA_ori, zS, cuda)
+        sampleA = resize(28, 28, sampleA, cuda)
+        tempS.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+    tempAll.append(torch.cat(tempS, dim=0).unsqueeze(0))
 
     tempAll2 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
     ###### B_private
@@ -217,24 +218,24 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
         tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
     # shared B
-    for row in range(zS_dim):
-        if loc != -1 and row != loc:
-            continue
-        zS = zS_ori.clone()
-
-        temp = []
-        for val in interpolation:
-            zS[:, :, row] = val
-            sampleB = decB.forward2(zB_ori, zS, cuda)
-            sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
-            sampleB = torch.transpose(sampleB, 0, 1)
-            sampleB_3ch = []
-            for i in range(sampleB.size(0)):
-                each_XB = sampleB[i].clone().squeeze(0)
-                sampleB_3ch.append(torch.stack([each_XB, each_XB, each_XB]))
-            sampleB_3ch = torch.stack(sampleB_3ch)
-            temp.append((torch.cat([sampleB_3ch[i] for i in range(sampleB_3ch.shape[0])], dim=1)).unsqueeze(0))
-        tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))
+    tempS = []
+    for i in range(zS_dim):
+        zS = np.zeros((1, 1, zS_dim))
+        zS[0, 0, i % zS_dim] = 1.
+        zS = torch.Tensor(zS)
+        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+        if cuda:
+            zS = zS.cuda()
+        sampleB = decB.forward2(zB_ori, zS, cuda)
+        sampleB = sampleB.view(sampleB.shape[0], -1, 28, 28)
+        sampleB = torch.transpose(sampleB, 0, 1)
+        sampleB_3ch = []
+        for i in range(sampleB.size(0)):
+            each_XB = sampleB[i].clone().squeeze(0)
+            sampleB_3ch.append(torch.stack([each_XB, each_XB, each_XB]))
+        sampleB_3ch = torch.stack(sampleB_3ch)
+        tempS.append((torch.cat([sampleB_3ch[i] for i in range(sampleB_3ch.shape[0])], dim=1)).unsqueeze(0))
+    tempAll2.append(torch.cat(tempS, dim=0).unsqueeze(0))
 
     gifs1 = torch.cat(tempAll, dim=0)  # torch.Size([11, 10, 1, 384, 32])
     gifs2 = torch.cat(tempAll2, dim=0)  # torch.Size([11, 10, 1, 384, 32])
