@@ -110,7 +110,7 @@ def resize(h,w,img, cuda):
     import torchvision
     resized_imgs = []
     for i in range(img.shape[0]):
-        img_PIL = transforms.ToPILImage()(img[i])
+        img_PIL = transforms.ToPILImage()(img[i].data.detach().cpu())
         img_PIL = torchvision.transforms.Resize([h,w])(img_PIL)
         resized_imgs.append(torch.transpose(torchvision.transforms.ToTensor()(img_PIL),1,2))
     resized_imgs = torch.stack(resized_imgs)
