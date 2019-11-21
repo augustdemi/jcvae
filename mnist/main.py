@@ -124,9 +124,7 @@ def visualize_line():
     recons = torch.stack(
         [recon_A.detach(), recon_B.detach()], -1
     )
-    recons2 = torch.stack(
-        [recon_poeA.detach(), recon_poeB.detach(), recon_crA.detach(), recon_crB.detach()], -1
-    )
+
     total_losses = torch.stack(
         [torch.tensor(total_loss), torch.tensor(test_total_loss)], -1
     )
@@ -138,12 +136,15 @@ def visualize_line():
                   title='Train Losses', legend=['recon_A', 'recon_B'])
     )
 
-    VIZ.line(
-        X=full_modal_iter, Y=recons2, env=MODEL_NAME + '/lines',
-        win=WIN_ID['recon2'], update='append',
-        opts=dict(xlabel='iter', ylabel='recon losses',
-                  title='Train Losses - with full modal', legend=['recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB'])
-    )
+    # recons2 = torch.stack(
+    #     [recon_poeA.detach(), recon_poeB.detach(), recon_crA.detach(), recon_crB.detach()], -1
+    # )
+    # VIZ.line(
+    #     X=full_modal_iter, Y=recons2, env=MODEL_NAME + '/lines',
+    #     win=WIN_ID['recon2'], update='append',
+    #     opts=dict(xlabel='iter', ylabel='recon losses',
+    #               title='Train Losses - with full modal', legend=['recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB'])
+    # )
 
     VIZ.line(
         X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
@@ -207,6 +208,9 @@ if CUDA:
 optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+list(encA.parameters())+list(decA.parameters()),
                               lr=args.lr)
 
+
+# print(encA._modules['enc_hidden'][0].weight.sum())
+# print(decB._modules['dec_hidden'][0].weight.sum())
 
 def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0, train=True):
     # from each of modality
