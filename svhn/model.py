@@ -5,7 +5,7 @@ import torch.nn as nn
 import sys
 sys.path.append('../')
 import probtorch
-from probtorch.util import expand_inputs, normal_init
+from probtorch.util import expand_inputs, normal_init, kaiming_init
 from torch.nn import functional as F
 
 EPS = 1e-9
@@ -41,9 +41,9 @@ class EncoderA(nn.Module):
         for m in self._modules:
             if isinstance(self._modules[m], nn.Sequential):
                 for one_module in self._modules[m]:
-                    normal_init(one_module)
+                    kaiming_init(one_module)
             else:
-                normal_init(self._modules[m])
+                kaiming_init(self._modules[m])
     # @expand_inputs
     def forward(self, x, num_samples=None, q=None):
         if q is None:
@@ -97,9 +97,9 @@ class DecoderA(nn.Module):
         for m in self._modules:
             if isinstance(self._modules[m], nn.Sequential):
                 for one_module in self._modules[m]:
-                    normal_init(one_module)
+                    kaiming_init(one_module)
             else:
-                normal_init(self._modules[m])
+                kaiming_init(self._modules[m])
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
         digit_log_weights = torch.zeros_like(q['sharedA'].dist.logits) # prior is the concrete dist for uniform dist. with all params=1
@@ -173,9 +173,9 @@ class EncoderB(nn.Module):
         for m in self._modules:
             if isinstance(self._modules[m], nn.Sequential):
                 for one_module in self._modules[m]:
-                    normal_init(one_module)
+                    kaiming_init(one_module)
             else:
-                normal_init(self._modules[m])
+                kaiming_init(self._modules[m])
     @expand_inputs
     def forward(self, labels, num_samples=None, q=None):
         if q is None:
@@ -213,9 +213,9 @@ class DecoderB(nn.Module):
         for m in self._modules:
             if isinstance(self._modules[m], nn.Sequential):
                 for one_module in self._modules[m]:
-                    normal_init(one_module)
+                    kaiming_init(one_module)
             else:
-                normal_init(self._modules[m])
+                kaiming_init(self._modules[m])
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True):
         p = probtorch.Trace()
