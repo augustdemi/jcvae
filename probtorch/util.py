@@ -190,6 +190,13 @@ def normal_init(m):
 
 
 def kaiming_init(m):
+    import random
+    SEED = 12139
+    random.seed(SEED)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed(SEED)
+
     if isinstance(m, (nn.Linear, nn.Conv2d)):
         init.kaiming_normal_(m.weight)
         if m.bias is not None:
