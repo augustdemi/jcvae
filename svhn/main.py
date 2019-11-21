@@ -11,6 +11,7 @@ import sys
 sys.path.append('../')
 import probtorch
 import util
+import visdom
 
 
 
@@ -52,7 +53,15 @@ if __name__ == "__main__":
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/svhn',
                         help='save and load path for ckpt')
-
+    # visdom
+    parser.add_argument('--viz_on',
+                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+    parser.add_argument('--viz_port',
+                        default=8002, type=int, help='visdom port number')
+    parser.add_argument('--viz_ll_iter',
+                        default=100, type=int, help='visdom line data logging iter')
+    parser.add_argument('--viz_la_iter',
+                        default=100, type=int, help='visdom line data applying iter')
     args = parser.parse_args()
 
 #------------------------------------------------
@@ -87,6 +96,87 @@ TEMP = 0.66
 NUM_SAMPLES = 1
 if not os.path.isdir(DATA_PATH):
     os.makedirs(DATA_PATH)
+
+
+# visdom setup
+def viz_init():
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
+    # if self.eval_metrics:
+    #     self.viz.close(env=self.name+'/lines', win=WIN_ID['metrics'])
+
+
+####
+def visualize_line():
+    # prepare data to plot
+    data = LINE_GATHER.data
+    iters = torch.Tensor(data['iter'])
+    recon_A = torch.Tensor(data['recon_A'])
+    recon_B = torch.Tensor(data['recon_B'])
+
+    full_modal_iter = torch.Tensor(data['full_modal_iter'])
+    recon_poeA = torch.Tensor(data['recon_poeA'])
+    recon_poeB = torch.Tensor(data['recon_poeB'])
+    recon_crA = torch.Tensor(data['recon_crA'])
+    recon_crB = torch.Tensor(data['recon_crB'])
+    total_loss = torch.Tensor(data['total_loss'])
+
+    epoch = torch.Tensor(data['epoch'])
+    test_acc = torch.Tensor(data['test_acc'])
+    test_total_loss = torch.Tensor(data['test_total_loss'])
+
+    recons = torch.stack(
+        [recon_A.detach(), recon_B.detach()], -1
+    )
+
+    total_losses = torch.stack(
+        [torch.tensor(total_loss), torch.tensor(test_total_loss)], -1
+    )
+
+    VIZ.line(
+        X=iters, Y=recons, env=MODEL_NAME + '/lines',
+        win=WIN_ID['recon'], update='append',
+        opts=dict(xlabel='iter', ylabel='recon losses',
+                  title='Train Losses', legend=['recon_A', 'recon_B'])
+    )
+
+    recons2 = torch.stack(
+        [recon_poeA.detach(), recon_poeB.detach(), recon_crA.detach(), recon_crB.detach()], -1
+    )
+    VIZ.line(
+        X=full_modal_iter, Y=recons2, env=MODEL_NAME + '/lines',
+        win=WIN_ID['recon2'], update='append',
+        opts=dict(xlabel='iter', ylabel='recon losses',
+                  title='Train Losses - with full modal', legend=['recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
+        win=WIN_ID['test_acc'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Test Accuracy', legend=['acc'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
+        win=WIN_ID['total_losses'], update='append',
+        opts=dict(xlabel='epoch', ylabel='total loss',
+                  title='Total Loss', legend=['train_loss', 'test_loss'])
+    )
+
+
+if args.viz_on:
+    WIN_ID = dict(
+        recon='win_recon', recon2='win_recon2', test_acc='win_test_acc', total_losses='win_total_losses'
+    )
+    LINE_GATHER = probtorch.util.DataGather(
+        'iter', 'epoch', 'full_modal_iter', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
+        'total_loss', 'test_total_loss', 'test_acc'
+    )
+    VIZ = visdom.Visdom(port=args.viz_port)
+    viz_init()
+
 
 train_data = torch.utils.data.DataLoader(
                 datasets.SVHN(DATA_PATH, split='train', download=True,
@@ -157,34 +247,21 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
                (reconst_loss_poeA - kl_poeA) + lamb * (reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + lamb * (reconst_loss_crB - kl_crB)
 
-        # if iter % 100 == 0:
-        #     print('=========================================')
-        #     print('reconst_loss_poeA: ', reconst_loss_poeA)
-        #     print('kl_poeA: ', kl_poeA)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_poeB: ', reconst_loss_poeB)
-        #     print('kl_poeB: ', kl_poeB)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_crA: ', reconst_loss_crA)
-        #     print('kl_crA: ', kl_crA)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_crB: ', reconst_loss_crB)
-        #     print('kl_crB: ', kl_crB)
-        #     print('-----------------------------------------')
+        if args.viz_on:
+            LINE_GATHER.insert(full_modal_iter=iter,
+                               recon_poeA=reconst_loss_poeA.item(),
+                               recon_poeB=reconst_loss_poeB.item(),
+                               recon_crA=reconst_loss_crA.item(),
+                               recon_crB=reconst_loss_crB.item()
+                               )
     else:
         loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
 
-    # if iter % 100 == 0:
-    #     print('reconst_loss_A: ', reconst_loss_A)
-    #     print('kl_A: ', kl_A)
-    #     print('-----------------------------------------')
-    #     print('reconst_loss_B: ', reconst_loss_B)
-    #     print('kl_B: ', kl_B)
-    #     print('-----------------------------------------')
-    #     print('loss: ', loss)
-    #     print(iter)
-    #     print('=========================================')
-
+    if args.viz_on and (iter % args.viz_ll_iter == 0):
+        LINE_GATHER.insert(iter=iter,
+                           recon_A=reconst_loss_A.item(),
+                           recon_B=reconst_loss_B.item()
+                           )
     return loss
 
 def train(data, encA, decA, encB, decB, optimizer,
@@ -349,30 +426,6 @@ def test(data, encA, decA, encB, decB, epoch):
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             epoch_correct += pB['labels_sharedA'].loss.sum().item()
-            # print('--------------------------------iter ', b, '---------------------------------------')
-            # print('sharedA')
-            # cnt = [0] * 10
-            # for elt in q['sharedA'].value.argmax(dim=2)[0]:
-            #     cnt[elt] += 1
-            # print(cnt)
-            #
-            # print('sharedB')
-            # # print(q['sharedB'].value.argmax(dim=2)[0][:20])
-            # cnt = [0] * 10
-            # for elt in q['sharedB'].value.argmax(dim=2)[0]:
-            #     cnt[elt] += 1
-            # print(cnt)
-            #
-            # print('labels')
-            # cnt = [0] * 10
-            # for elt in labels:
-            #     cnt[elt] += 1
-            # print(cnt)
-            #
-            # print('loss')
-            # print(pB['labels_sharedA'].loss.sum().item())
-            # print(1 + pB['labels_sharedA'].loss.sum().item() / 100)
-
 
     if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
         util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
@@ -465,6 +518,15 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
+    if args.viz_on:
+        LINE_GATHER.insert(epoch=e,
+                           test_acc=test_accuracy,
+                           test_total_loss=test_elbo,
+                           total_loss=train_elbo
+                           )
+        visualize_line()
+        LINE_GATHER.flush()
+
     test_end = time.time()
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
