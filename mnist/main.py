@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
     # visdom
     parser.add_argument( '--viz_on',
-                         default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
+                         default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument( '--viz_port',
                          default=8002, type=int, help='visdom port number')
     parser.add_argument( '--viz_ll_iter',
