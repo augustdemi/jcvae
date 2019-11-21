@@ -26,7 +26,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of shared')
     parser.add_argument('--n_private', type=int, default=10,
                         help='size of the latent embedding of private')
-    parser.add_argument('--batch_size', type=int, default=100, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=200, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -35,9 +35,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=0.01,
+    parser.add_argument('--label_frac', type=float, default=1000,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.5,
+    parser.add_argument('--sup_frac', type=float, default=0.01,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=10000.,
                         help='multipler for text reconstruction [default: 10]')
@@ -53,13 +53,13 @@ if __name__ == "__main__":
 
     # visdom
     parser.add_argument( '--viz_on',
-      default=False, type=probtorch.util.str2bool, help='enable visdom visualization' )
+                         default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument( '--viz_port',
-      default=8097, type=int, help='visdom port number' )
+                         default=8002, type=int, help='visdom port number')
     parser.add_argument( '--viz_ll_iter',
-      default=1000, type=int, help='visdom line data logging iter' )
+                         default=100, type=int, help='visdom line data logging iter')
     parser.add_argument( '--viz_la_iter',
-      default=5000, type=int, help='visdom line data applying iter' )
+                         default=100, type=int, help='visdom line data applying iter')
     #parser.add_argument( '--viz_ra_iter',
 
     args = parser.parse_args()
@@ -109,29 +109,66 @@ def visualize_line():
     iters = torch.Tensor(data['iter'])
     recon_A = torch.Tensor(data['recon_A'])
     recon_B = torch.Tensor(data['recon_B'])
+
+    full_modal_iter = torch.Tensor(data['full_modal_iter'])
+    recon_poeA = torch.Tensor(data['recon_poeA'])
+    recon_poeB = torch.Tensor(data['recon_poeB'])
+    recon_crA = torch.Tensor(data['recon_crA'])
+    recon_crB = torch.Tensor(data['recon_crB'])
+    total_loss = torch.Tensor(data['total_loss'])
+
+    epoch = torch.Tensor(data['epoch'])
+    test_acc = torch.Tensor(data['test_acc'])
+    test_total_loss = torch.Tensor(data['test_total_loss'])
+
     recons = torch.stack(
         [recon_A.detach(), recon_B.detach()], -1
     )
+    recons2 = torch.stack(
+        [recon_poeA.detach(), recon_poeB.detach(), recon_crA.detach(), recon_crB.detach()], -1
+    )
+    total_losses = torch.stack(
+        [torch.tensor(total_loss), torch.tensor(test_total_loss)], -1
+    )
+
     VIZ.line(
         X=iters, Y=recons, env=MODEL_NAME + '/lines',
         win=WIN_ID['recon'], update='append',
         opts=dict(xlabel='iter', ylabel='recon losses',
-                  title='Recon Losses', legend=['A', 'B'])
+                  title='Train Losses', legend=['recon_A', 'recon_B'])
+    )
+
+    VIZ.line(
+        X=full_modal_iter, Y=recons2, env=MODEL_NAME + '/lines',
+        win=WIN_ID['recon2'], update='append',
+        opts=dict(xlabel='iter', ylabel='recon losses',
+                  title='Train Losses - with full modal', legend=['recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
+        win=WIN_ID['test_acc'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Test Accuracy', legend=['acc'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
+        win=WIN_ID['total_losses'], update='append',
+        opts=dict(xlabel='epoch', ylabel='total loss',
+                  title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
 if args.viz_on:
     WIN_ID = dict(
-        recon='win_recon'
+        recon='win_recon', recon2='win_recon2', test_acc='win_test_acc', total_losses='win_total_losses'
     )
     LINE_GATHER = probtorch.util.DataGather(
-        'iter', 'recon_A', 'recon_B'
+        'iter', 'epoch', 'full_modal_iter', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
+        'total_loss', 'test_total_loss', 'test_acc'
     )
-
-    viz_port = args.viz_port  # port number, eg, 8097
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
-    viz_ll_iter = args.viz_ll_iter
-    viz_la_iter = args.viz_la_iter
 
 
 train_data = torch.utils.data.DataLoader(
@@ -171,7 +208,7 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0, train=True):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                         beta=beta1, bias=bias)
@@ -194,9 +231,20 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
         loss = (reconst_loss_A - kl_A) + lamb * (reconst_loss_B - kl_B) + \
                (reconst_loss_poeA - kl_poeA) + lamb * (reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + lamb * (reconst_loss_crB - kl_crB)
+        viz_flag = False
+        if iter % args.viz_ll_iter == 0:
+            viz_flag = True
+        elif args.sup_frac < 0.1:
+            viz_flag = True
+        if args.viz_on and viz_flag:
+            LINE_GATHER.insert(full_modal_iter=iter,
+                               recon_poeA=reconst_loss_poeA.item(),
+                               recon_poeB=reconst_loss_poeB.item(),
+                               recon_crA=reconst_loss_crA.item(),
+                               recon_crB=reconst_loss_crB.item()
+                               )
     else:
         loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
-
     if args.viz_on and (iter % args.viz_ll_iter == 0):
         LINE_GATHER.insert(iter=iter,
                            recon_A=reconst_loss_A.item(),
@@ -306,7 +354,6 @@ def train(data, encA, decA, encB, decB, optimizer,
         if CUDA:
             loss = loss.cpu()
         epoch_elbo -= loss.item()
-
     return epoch_elbo / N, label_mask
 
 def test(data, encA, decA, encB, decB, epoch):
@@ -347,10 +394,8 @@ def test(data, encA, decA, encB, decB, epoch):
                                       output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
         save_ckpt(e + 1)
 
-        # (visdom) visualize line stats (then flush out)
-        if args.viz_on and (e % args.viz_la_iter == 0):
-            visualize_line()
-            LINE_GATHER.flush()
+        # (visdom) visualize line stats (then   out)
+
 
     return epoch_elbo / N, 1 + epoch_correct / N
 
@@ -435,6 +480,18 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
+
+    if args.viz_on:
+        LINE_GATHER.insert(epoch=e,
+                           test_acc=test_accuracy,
+                           test_total_loss=test_elbo,
+                           total_loss=train_elbo
+                           )
+        visualize_line()
+        LINE_GATHER.flush()
+
+
+
     test_end = time.time()
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
@@ -457,7 +514,7 @@ def visualize_line_metrics(self, iters, metric1, metric2):
     metric2 = torch.tensor([metric2])
     metrics = torch.stack([metric1.detach(), metric2.detach()], -1)
 
-    viz.line(
+    VIZ.line(
         X=iters, Y=metrics, env=MODEL_NAME + '/lines',
         win=WIN_ID['metrics'], update='append',
         opts=dict(xlabel='iter', ylabel='metrics',
