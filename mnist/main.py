@@ -47,6 +47,8 @@ if __name__ == "__main__":
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
+    parser.add_argument('--wseed', type=int, default=0, metavar='N',
+                        help='random seed for weight')
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/',
                         help='save and load path for ckpt')
@@ -71,8 +73,9 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s' % (
-args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed, args.batch_size)
+MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
+    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
+    args.batch_size, args.wseed)
 DATA_PATH = '../data'
 
 
@@ -193,10 +196,11 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-encA = EncoderA(zPrivate_dim=args.n_private)
-decA = DecoderA(zPrivate_dim=args.n_private)
-encB = EncoderB()
-decB = DecoderB()
+
+encA = EncoderA(args.wseed, zPrivate_dim=args.n_private)
+decA = DecoderA(args.wseed, zPrivate_dim=args.n_private)
+encB = EncoderB(args.wseed)
+decB = DecoderB(args.wseed)
 if CUDA:
     encA.cuda()
     decA.cuda()
