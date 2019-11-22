@@ -31,7 +31,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -57,13 +57,13 @@ if __name__ == "__main__":
                         help='save and load path for ckpt')
     # visdom
     parser.add_argument('--viz_on',
-                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+                        default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument('--viz_port',
                         default=8002, type=int, help='visdom port number')
     parser.add_argument('--viz_ll_iter',
-                        default=100, type=int, help='visdom line data logging iter')
+                        default=500, type=int, help='visdom line data logging iter')
     parser.add_argument('--viz_la_iter',
-                        default=100, type=int, help='visdom line data applying iter')
+                        default=500, type=int, help='visdom line data applying iter')
     args = parser.parse_args()
 
 #------------------------------------------------
@@ -127,7 +127,7 @@ def visualize_line():
     epoch = torch.Tensor(data['epoch'])
     test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
-    # test_mi_given_y = torch.Tensor(data['test_mi'])
+    test_mi_given_y = torch.Tensor(data['test_mi'])
 
     recons = torch.stack(
         [recon_A.detach(), recon_B.detach()], -1
@@ -168,12 +168,12 @@ def visualize_line():
                   title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
-    # VIZ.line(
-    #     X=epoch, Y=test_mi_given_y, env=MODEL_NAME + '/lines',
-    #     win=WIN_ID['test_mi_given_y'], update='append',
-    #     opts=dict(xlabel='epoch', ylabel='accuracy',
-    #               title='Test MI of concrete var given label', legend=['mi'])
-    # )
+    VIZ.line(
+        X=epoch, Y=test_mi_given_y, env=MODEL_NAME + '/lines',
+        win=WIN_ID['test_mi_given_y'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Test MI of concrete var given label', legend=['mi'])
+    )
 
 if args.viz_on:
     WIN_ID = dict(
@@ -498,15 +498,15 @@ for e in range(args.ckpt_epochs, args.epochs):
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
 
-    # mi = util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
-    # mi = mi / np.linalg.norm(mi)
+    mi = util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+    mi = mi / np.linalg.norm(mi)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_acc=test_accuracy,
                            test_total_loss=test_elbo,
                            total_loss=train_elbo,
-                           # test_mi=mi[args.n_private]
+                           test_mi=mi[args.n_private]
                            )
         visualize_line()
         LINE_GATHER.flush()
