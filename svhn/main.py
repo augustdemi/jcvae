@@ -254,7 +254,7 @@ def elbo(epoch, iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
         if args.viz_on and iter % args.viz_ll_iter == 0:
-            LINE_GATHER.insert(full_modal_iter=(epoch * TRAIN_ITER_PER_EPO + iter),
+            LINE_GATHER.insert(full_modal_iter=iter,
                                recon_poeA=reconst_loss_poeA.item(),
                                recon_poeB=reconst_loss_poeB.item(),
                                recon_crA=reconst_loss_crA.item(),
@@ -345,34 +345,6 @@ def train(data, encA, decA, encB, decB, optimizer, epoch,
                             num_samples=NUM_SAMPLES)
                     pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
                             num_samples=NUM_SAMPLES)
-
-                    # if b % 10 ==0:
-                    #     print('--------------------------------iter ', b, '---------------------------------------')
-                    #     print('sharedA')
-                    #     cnt = [0] * 10
-                    #     for elt in q['sharedA'].value.argmax(dim=2)[0]:
-                    #         cnt[elt] +=1
-                    #     print(cnt)
-                    #
-                    #     print('poe')
-                    #     # print(q['poe'].value.argmax(dim=2)[0][:20])
-                    #     cnt = [0] * 10
-                    #     for elt in q['poe'].value.argmax(dim=2)[0]:
-                    #         cnt[elt] +=1
-                    #     print(cnt)
-                    #
-                    #     print('sharedB')
-                    #     # print(q['sharedB'].value.argmax(dim=2)[0][:20])
-                    #     cnt = [0] * 10
-                    #     for elt in q['sharedB'].value.argmax(dim=2)[0]:
-                    #         cnt[elt] +=1
-                    #     print(cnt)
-                    #
-                    #     print('labels')
-                    #     cnt = [0] * 10
-                    #     for elt in labels:
-                    #         cnt[elt] +=1
-                    #     print(cnt)
 
                     for param in encB.parameters():
                         param.requires_grad = True
