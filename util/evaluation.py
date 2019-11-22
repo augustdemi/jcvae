@@ -348,8 +348,7 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
         pad_value=1)
 
 
-
-def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False):
+def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False, plot=False):
     # fixed_idxs = [3, 2, 1, 18, 4, 15, 11, 17, 61, 99]
 
     num_labels = 10
@@ -358,8 +357,6 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False):
     for i in range(num_labels):
         per_label_cnt.update({i: 0})
 
-    # fixed_XA = [0] * (num_labels * per_label_samples)
-    # fixed_XB = [0] * (num_labels * per_label_samples)
     fixed_XA = []
     fixed_XB = []
     for i in range(num_labels):
@@ -376,7 +373,6 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False):
                 fixed_XB.append(label)
                 per_label_cnt[i] += 1
             j+=1
-
 
     fixed_XA = torch.stack(fixed_XA, dim=0)
     q = enc(fixed_XA, num_samples=1)
@@ -408,35 +404,20 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False):
     mi_zi_y = mi_zi_y / batch_size
     print(mi_zi_y)
 
-
-    import matplotlib.pyplot as plt
-    fig = plt.figure(figsize=(3,2))
-    ax = fig.add_subplot(111)
-    ax.bar(range(latent_dim), mi_zi_y.detach().cpu().numpy())
-    # ax.set_xticks(range(latent_dim))
-    my_xticks = []
-    for i in range(latent_dim-1):
-        my_xticks.append('z' + str(i+1))
-    my_xticks.append('c')
-    plt.xticks(range(latent_dim), my_xticks)
-    # ax.set_title('poeA')
-    plt.show()
-
-    # ax = fig.add_subplot(222)
-    # ax.bar(range(11),poeB)
-    # ax.set_xticks(range(11))
-    # ax.set_title('poeB')
-    #
-    # ax = fig.add_subplot(223)
-    # ax.bar(range(11),a)
-    # ax.set_xticks(range(11))
-    # ax.set_title('infA')
-    #
-    # ax = fig.add_subplot(224)
-    # ax.bar(range(11),b)
-    # ax.set_xticks(range(11))
-    # ax.set_title('infB')
-
+    if plot:
+        import matplotlib.pyplot as plt
+        fig = plt.figure(figsize=(3, 2))
+        ax = fig.add_subplot(111)
+        ax.bar(range(latent_dim), mi_zi_y.detach().cpu().numpy())
+        # ax.set_xticks(range(latent_dim))
+        my_xticks = []
+        for i in range(latent_dim - 1):
+            my_xticks.append('z' + str(i + 1))
+        my_xticks.append('c')
+        plt.xticks(range(latent_dim), my_xticks)
+        # ax.set_title('poeA')
+        plt.show()
+    return mi_zi_y
 
 
 

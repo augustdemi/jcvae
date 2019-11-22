@@ -4,7 +4,7 @@ import time
 import random
 import torch
 import os
-
+import numpy as np
 from model import EncoderA, EncoderB, DecoderA, DecoderB
 
 import sys
@@ -127,6 +127,7 @@ def visualize_line():
     epoch = torch.Tensor(data['epoch'])
     test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
+    test_mi_given_y = torch.Tensor(data['test_mi'])
 
     recons = torch.stack(
         [recon_A.detach(), recon_B.detach()], -1
@@ -167,14 +168,21 @@ def visualize_line():
                   title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
+    VIZ.line(
+        X=epoch, Y=test_mi_given_y, env=MODEL_NAME + '/lines',
+        win=WIN_ID['test_mi_given_y'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Test MI of concrete var given label', legend=['mi'])
+    )
 
 if args.viz_on:
     WIN_ID = dict(
-        recon='win_recon', recon2='win_recon2', test_acc='win_test_acc', total_losses='win_total_losses'
+        recon='win_recon', recon2='win_recon2', test_acc='win_test_acc', total_losses='win_total_losses',
+        test_mi_given_y='test_mi_given_y'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'iter', 'epoch', 'full_modal_iter', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
-        'total_loss', 'test_total_loss', 'test_acc'
+        'total_loss', 'test_total_loss', 'test_acc', 'test_mi'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -192,7 +200,7 @@ test_data = torch.utils.data.DataLoader(
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
-
+TRAIN_ITER_PER_EPO = train_data.dataset.__len__() / args.batch_size
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -219,7 +227,8 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(epoch, iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+    iter += epoch * TRAIN_ITER_PER_EPO
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                                                beta=beta1, bias=bias)
@@ -229,11 +238,8 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
 
     if q['poe'] is not None:
         # by POE
-        # 기대하는바:sharedA가 sharedB를 따르길. 즉 sharedA에만 digit정보가 있으며, 그 permutataion이 GT에서처럼 identity이기를
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
                                                                          beta=beta1, bias=bias)
-        # 의미 없음. rec 은 항상 0. 인풋이 항상 GT고 poe결과도 GT를 따라갈 확률이 크기 때문(학습 초반엔 A가 unif이라서, 학습 될수록 A가 B label을 잘 따를테니)
-        #loss 값 변화 자체로는 의미 없지만, 이 일정한 loss(GT)가 나오도록하는 sharedA의 back pg에는 의미가짐
         reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
                                                                          beta=beta2, bias=bias)
 
@@ -243,15 +249,12 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
         reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
                                                                        beta=beta2, bias=bias)
 
-        # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-        #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
-        #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
         loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
-        if args.viz_on:
-            LINE_GATHER.insert(full_modal_iter=iter,
+        if args.viz_on and iter % args.viz_ll_iter == 0:
+            LINE_GATHER.insert(full_modal_iter=(epoch * TRAIN_ITER_PER_EPO + iter),
                                recon_poeA=reconst_loss_poeA.item(),
                                recon_poeB=reconst_loss_poeB.item(),
                                recon_crA=reconst_loss_crA.item(),
@@ -260,14 +263,15 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
     else:
         loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
 
-    if args.viz_on and (iter % args.viz_ll_iter == 0):
+    if args.viz_on and iter % args.viz_ll_iter == 0:
         LINE_GATHER.insert(iter=iter,
                            recon_A=reconst_loss_A.item(),
                            recon_B=reconst_loss_B.item()
                            )
     return loss
 
-def train(data, encA, decA, encB, decB, optimizer,
+
+def train(data, encA, decA, encB, decB, optimizer, epoch,
           label_mask={}, fixed_imgs=None, fixed_labels=None):
     epoch_elbo = 0.0
     encA.train()
@@ -313,7 +317,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 for param in decB.parameters():
                     param.requires_grad = True
                 # loss
-                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                loss = -elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
                 N += args.batch_size
                 # images = images.view(-1, NUM_PIXELS)
@@ -375,7 +379,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                     for param in decB.parameters():
                         param.requires_grad = True
                     # loss
-                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                    loss = -elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
                 else:
                     # labels_onehot = labels_onehot[:, torch.randperm(10)]
                     q = encA(images, num_samples=NUM_SAMPLES)
@@ -388,7 +392,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                         param.requires_grad = False
                     for param in decB.parameters():
                         param.requires_grad = False
-                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                    loss = -elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
             loss.backward()
             optimizer.step()
@@ -424,7 +428,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
-            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+            batch_elbo = elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
@@ -517,15 +521,20 @@ if args.label_frac > 1:
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_elbo, mask = train(train_data, encA, decA, encB, decB,
-                             optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
+                             optimizer, e, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
+
+    mi = util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+    mi = mi / np.linalg.norm(mi)
+
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_acc=test_accuracy,
                            test_total_loss=test_elbo,
-                           total_loss=train_elbo
+                           total_loss=train_elbo,
+                           test_mi=mi[args.n_private]
                            )
         visualize_line()
         LINE_GATHER.flush()
