@@ -129,30 +129,29 @@ def visualize_line():
     test_total_loss = torch.Tensor(data['test_total_loss'])
     test_mi_given_y = torch.Tensor(data['test_mi'])
 
-    recons = torch.stack(
-        [recon_A.detach(), recon_B.detach()], -1
-    )
+    # recons = torch.stack(
+    #     [recon_A.detach(), recon_B.detach()], -1
+    # )
 
     total_losses = torch.stack(
         [torch.tensor(total_loss), torch.tensor(test_total_loss)], -1
     )
 
-    VIZ.line(
-        X=iters, Y=recons, env=MODEL_NAME + '/lines',
-        win=WIN_ID['recon'], update='append',
-        opts=dict(xlabel='iter', ylabel='recon losses',
-                  title='Train Losses', legend=['recon_A', 'recon_B'])
-    )
-
-    recons2 = torch.stack(
-        [recon_poeA.detach(), recon_poeB.detach(), recon_crA.detach(), recon_crB.detach()], -1
-    )
-    VIZ.line(
-        X=full_modal_iter, Y=recons2, env=MODEL_NAME + '/lines',
-        win=WIN_ID['recon2'], update='append',
-        opts=dict(xlabel='iter', ylabel='recon losses',
-                  title='Train Losses - with full modal', legend=['recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB'])
-    )
+    # VIZ.line(
+    #     X=iters, Y=recons, env=MODEL_NAME + '/lines',
+    #     win=WIN_ID['recon'], update='append',
+    #     opts=dict(xlabel='iter', ylabel='recon losses',
+    #               title='Train Losses', legend=['recon_A', 'recon_B'])
+    # )
+    # recons2 = torch.stack(
+    #     [recon_poeA.detach(), recon_poeB.detach(), recon_crA.detach(), recon_crB.detach()], -1
+    # )
+    # VIZ.line(
+    #     X=full_modal_iter, Y=recons2, env=MODEL_NAME + '/lines',
+    #     win=WIN_ID['recon2'], update='append',
+    #     opts=dict(xlabel='iter', ylabel='recon losses',
+    #               title='Train Losses - with full modal', legend=['recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB'])
+    # )
 
     VIZ.line(
         X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
@@ -253,21 +252,21 @@ def elbo(epoch, iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
-        if args.viz_on and iter % args.viz_ll_iter == 0:
-            LINE_GATHER.insert(full_modal_iter=iter,
-                               recon_poeA=reconst_loss_poeA.item(),
-                               recon_poeB=reconst_loss_poeB.item(),
-                               recon_crA=reconst_loss_crA.item(),
-                               recon_crB=reconst_loss_crB.item()
-                               )
+        # if args.viz_on and iter % args.viz_ll_iter == 0:
+        #     LINE_GATHER.insert(full_modal_iter=iter,
+        #                        recon_poeA=reconst_loss_poeA.item(),
+        #                        recon_poeB=reconst_loss_poeB.item(),
+        #                        recon_crA=reconst_loss_crA.item(),
+        #                        recon_crB=reconst_loss_crB.item()
+        #                        )
     else:
         loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
 
-    if args.viz_on and iter % args.viz_ll_iter == 0:
-        LINE_GATHER.insert(iter=iter,
-                           recon_A=reconst_loss_A.item(),
-                           recon_B=reconst_loss_B.item()
-                           )
+    # if args.viz_on and iter % args.viz_ll_iter == 0:
+    #     LINE_GATHER.insert(iter=iter,
+    #                        recon_A=reconst_loss_A.item(),
+    #                        recon_B=reconst_loss_B.item()
+    #                        )
     return loss
 
 
