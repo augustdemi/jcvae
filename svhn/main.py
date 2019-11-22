@@ -127,7 +127,7 @@ def visualize_line():
     epoch = torch.Tensor(data['epoch'])
     test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
-    test_mi_given_y = torch.Tensor(data['test_mi'])
+    # test_mi_given_y = torch.Tensor(data['test_mi'])
 
     recons = torch.stack(
         [recon_A.detach(), recon_B.detach()], -1
@@ -168,12 +168,12 @@ def visualize_line():
                   title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
-    VIZ.line(
-        X=epoch, Y=test_mi_given_y, env=MODEL_NAME + '/lines',
-        win=WIN_ID['test_mi_given_y'], update='append',
-        opts=dict(xlabel='epoch', ylabel='accuracy',
-                  title='Test MI of concrete var given label', legend=['mi'])
-    )
+    # VIZ.line(
+    #     X=epoch, Y=test_mi_given_y, env=MODEL_NAME + '/lines',
+    #     win=WIN_ID['test_mi_given_y'], update='append',
+    #     opts=dict(xlabel='epoch', ylabel='accuracy',
+    #               title='Test MI of concrete var given label', legend=['mi'])
+    # )
 
 if args.viz_on:
     WIN_ID = dict(
@@ -526,15 +526,15 @@ for e in range(args.ckpt_epochs, args.epochs):
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
 
-    mi = util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
-    mi = mi / np.linalg.norm(mi)
+    # mi = util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+    # mi = mi / np.linalg.norm(mi)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_acc=test_accuracy,
                            test_total_loss=test_elbo,
                            total_loss=train_elbo,
-                           test_mi=mi[args.n_private]
+                           # test_mi=mi[args.n_private]
                            )
         visualize_line()
         LINE_GATHER.flush()
