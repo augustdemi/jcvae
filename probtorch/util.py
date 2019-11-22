@@ -197,7 +197,24 @@ def kaiming_init(m, seed):
     torch.cuda.manual_seed(seed)
 
     if isinstance(m, (nn.Linear, nn.Conv2d)):
-        init.kaiming_normal_(m.weight)
+        init.kaiming_uniform_(m.weight)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+    elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
+        m.weight.data.fill_(1)
+        if m.bias is not None:
+            m.bias.data.fill_(0)
+
+
+def xavier_init(m, seed):
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        init.xavier_uniform_(m.weight)
         if m.bias is not None:
             m.bias.data.fill_(0)
     elif isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d)):
