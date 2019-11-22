@@ -246,9 +246,9 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
         # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
         #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
         #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
-        loss = (reconst_loss_A - kl_A) + lamb * (reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + lamb * (reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + lamb * (reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
+               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
         if args.viz_on:
             LINE_GATHER.insert(full_modal_iter=iter,
