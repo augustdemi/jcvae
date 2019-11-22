@@ -217,9 +217,9 @@ class DecoderB(nn.Module):
         for m in self._modules:
             if isinstance(self._modules[m], nn.Sequential):
                 for one_module in self._modules[m]:
-                    kaiming_init(one_module, seed)
+                    kaiming_init(one_module, self.seed)
             else:
-                kaiming_init(self._modules[m], seeed)
+                kaiming_init(self._modules[m], self.seed)
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True):
         p = probtorch.Trace()
