@@ -419,7 +419,7 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False, plot
         plt.xticks(range(latent_dim), my_xticks)
         # ax.set_title('poeA')
         plt.show()
-    return mi_zi_y
+    return mi_zi_y.detach().cpu().numpy()
 
 
 
