@@ -238,9 +238,9 @@ def elbo(iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0)
         reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
                                                      beta=beta2, bias=bias)
 
-        loss = (reconst_loss_A - kl_A) + lamb * (reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + lamb * (reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + lamb * (reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
+               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
         viz_flag = False
         if iter % args.viz_ll_iter == 0:
             viz_flag = True
