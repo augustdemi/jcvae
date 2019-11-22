@@ -397,6 +397,8 @@ def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False, plot
 
     latent_dim = q_ziCx.shape[-1]
     mi_zi_y = torch.tensor([.0] * latent_dim)
+    if cuda:
+        mi_zi_y = mi_zi_y.cuda()
     for k in range(num_labels):
         q_ziCxk = q_ziCx[k * per_label_samples:(k + 1) * per_label_samples, k * per_label_samples:(k + 1) * per_label_samples, :]
         marg_q_ziCxk = q_ziCxk.sum(1)
