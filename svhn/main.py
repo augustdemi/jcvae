@@ -200,8 +200,9 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-encA = EncoderA(zPrivate_dim=args.n_private)
-decA = DecoderA(zPrivate_dim=args.n_private)
+
+encA = EncoderA(args.wseed, zPrivate_dim=args.n_private)
+decA = DecoderA(args.wseed, zPrivate_dim=args.n_private)
 encB = EncoderB(args.wseed)
 decB = DecoderB(args.wseed)
 if CUDA:
