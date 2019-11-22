@@ -154,6 +154,7 @@ class DecoderA(nn.Module):
         images_mean = self.dec_image(hiddens)
         return images_mean
 
+
 class EncoderB(nn.Module):
     def __init__(self, seed, num_digis=10,
                  num_hidden=256,
@@ -162,11 +163,8 @@ class EncoderB(nn.Module):
         self.digit_temp = torch.tensor(TEMP)
         self.zShared_dim = zShared_dim
         self.seed = seed
-        
         self.enc_hidden = nn.Sequential(
             nn.Linear(num_digis, num_hidden),
-            nn.ReLU(),
-            nn.Linear(num_hidden, num_hidden),
             nn.ReLU())
 
         self.fc  = nn.Linear(num_hidden, zShared_dim)
@@ -179,6 +177,7 @@ class EncoderB(nn.Module):
                     kaiming_init(one_module, self.seed)
             else:
                 kaiming_init(self._modules[m], self.seed)
+
     @expand_inputs
     def forward(self, labels, num_samples=None, q=None):
         if q is None:
@@ -195,7 +194,7 @@ class EncoderB(nn.Module):
 
 class DecoderB(nn.Module):
     def __init__(self, seed, num_digits=10,
-                 num_hidden=512,
+                 num_hidden=256,
                  zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
@@ -204,10 +203,6 @@ class DecoderB(nn.Module):
 
         self.dec_hidden = nn.Sequential(
                             nn.Linear(zShared_dim, num_hidden),
-            nn.ReLU(),
-            nn.Linear(num_hidden, num_hidden),
-            nn.ReLU(),
-            nn.Linear(num_hidden, num_hidden),
                             nn.ReLU())
         self.dec_label = nn.Sequential(
                            nn.Linear(num_hidden, num_digits))
@@ -236,7 +231,7 @@ class DecoderB(nn.Module):
             else:
                 hiddens = self.dec_hidden(zShared)
 
-            pred_labels = self.dec_label(hiddens)  # 1, 100,10
+            pred_labels = self.dec_label(hiddens)
             # define reconstruction loss (log prob of bernoulli dist)
             pred_labels = F.log_softmax(pred_labels + EPS, dim=2)
             if train:
@@ -245,5 +240,6 @@ class DecoderB(nn.Module):
             else:
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
                        pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)
+
         return p
 
