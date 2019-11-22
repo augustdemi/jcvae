@@ -189,13 +189,12 @@ def normal_init(m):
             m.bias.data.fill_(0)
 
 
-def kaiming_init(m):
+def kaiming_init(m, seed):
     import random
-    SEED = 12139
-    random.seed(SEED)
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed(SEED)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
 
     if isinstance(m, (nn.Linear, nn.Conv2d)):
         init.kaiming_normal_(m.weight)
