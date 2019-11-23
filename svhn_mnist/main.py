@@ -33,7 +33,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=75, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=75, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -413,7 +413,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 recA[0] = recA[0].cpu()
                 recB[0] = recB[0].cpu()
 
-            epoch_elbo -= loss.item()
+            epoch_elbo += loss.item()
             epoch_recA += recA[0].item()
             epoch_recB += recB[0].item()
 
@@ -464,7 +464,7 @@ def test(data, encA, decA, encB, decB, epoch):
     if (epoch+1) % 5 ==  0 or epoch+1 == args.epochs:
         util.evaluation.save_traverse_both(epoch, test_data, encA, decA, encB, decB, CUDA,
                                            output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
-                                           fixed_idxs=[0, 600, 10000, 12000, 16001, 18000, 19000, 21000, 23000, 25000])
+                                           fixed_idxs=[0, 6000, 10000, 12000, 16001, 18000, 19000, 21000, 23000, 25000])
         save_ckpt(e+1)
     return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
 
@@ -539,7 +539,6 @@ fixed_labels=None
 if args.label_frac > 1:
     fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
 
-
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB,
@@ -557,8 +556,8 @@ for e in range(args.ckpt_epochs, args.epochs):
                            test_miA=miA,
                            test_miB=miB,
                            test_acc=test_accuracy,
-                           test_total_loss=-test_elbo,
-                           total_loss=-train_elbo,
+                           test_total_loss=test_elbo,
+                           total_loss=train_elbo,
                            recon_A=rec_lossA[0],
                            recon_poeA=rec_lossA[1],
                            recon_crA=rec_lossA[2],
