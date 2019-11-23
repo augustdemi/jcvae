@@ -406,27 +406,27 @@ def train(data, encA, decA, encB, decB, optimizer,
                         param.requires_grad = False
                     loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
-        loss.backward()
-        optimizer.step()
-        if CUDA:
-            loss = loss.cpu()
-            recA[0] = recA[0].cpu()
-            recB[0] = recB[0].cpu()
-
-        epoch_elbo -= loss.item()
-        epoch_recA += recA[0].item()
-        epoch_recB += recB[0].item()
-
-        if recA[1] is not None:
+            loss.backward()
+            optimizer.step()
             if CUDA:
-                for i in range(2):
-                    recA[i] = recA[i].cpu()
-                    recB[i] = recB[i].cpu()
-            epoch_rec_poeA += recA[1].item()
-            epoch_rec_crA += recA[2].item()
-            epoch_rec_poeB += recB[1].item()
-            epoch_rec_crB += recB[2].item()
-            pair_cnt += 1
+                loss = loss.cpu()
+                recA[0] = recA[0].cpu()
+                recB[0] = recB[0].cpu()
+
+            epoch_elbo -= loss.item()
+            epoch_recA += recA[0].item()
+            epoch_recB += recB[0].item()
+
+            if recA[1] is not None:
+                if CUDA:
+                    for i in range(2):
+                        recA[i] = recA[i].cpu()
+                        recB[i] = recB[i].cpu()
+                epoch_rec_poeA += recA[1].item()
+                epoch_rec_crA += recA[2].item()
+                epoch_rec_poeB += recB[1].item()
+                epoch_rec_crB += recB[2].item()
+                pair_cnt += 1
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
