@@ -335,7 +335,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             recA[0] = recA[0].cpu()
             recB[0] = recB[0].cpu()
 
-        epoch_elbo -= loss.item()
+        epoch_elbo += loss.item()
         epoch_recA += recA[0].item()
         epoch_recB += recB[0].item()
 
@@ -478,8 +478,8 @@ for e in range(args.ckpt_epochs, args.epochs):
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_acc=test_accuracy,
-                           test_total_loss=-test_elbo,
-                           total_loss=-train_elbo,
+                           test_total_loss=test_elbo,
+                           total_loss=train_elbo,
                            recon_A=rec_lossA[0],
                            recon_poeA=rec_lossA[1],
                            recon_crA=rec_lossA[2],
