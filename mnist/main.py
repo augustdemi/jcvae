@@ -333,8 +333,8 @@ def train(data, encA, decA, encB, decB, optimizer,
         if CUDA:
             loss = loss.cpu()
             for i in range(3):
-                recA[i] = recA[i].cpu
-                recB[i] = recB[i].cpu
+                recA[i] = recA[i].cpu()
+                recB[i] = recB[i].cpu()
         epoch_elbo -= loss.item()
         epoch_recA += recA[0].item()
         epoch_recB += recB[0].item()
