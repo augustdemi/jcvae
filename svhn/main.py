@@ -173,8 +173,6 @@ test_data = torch.utils.data.DataLoader(
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
-TRAIN_ITER_PER_EPO = train_data.dataset.__len__() / args.batch_size
-
 def cuda_tensors(obj):
     for attr in dir(obj):
         value = getattr(obj, attr)
@@ -240,28 +238,60 @@ def train(data, encA, decA, encB, decB, optimizer,
     pair_cnt = 0
     encA.train()
     encB.train()
-    decB.train()
     decA.train()
+    decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if images.size()[0] == args.batch_size:
-            if args.label_frac > 1 and random.random() < args.sup_frac:
-                N += 1
-                shuffled_idx = list(range(int(args.label_frac)))
-                random.shuffle(shuffled_idx)
-                shuffled_idx = shuffled_idx[:args.batch_size]
-                images = fixed_imgs[shuffled_idx]
-                fixed_labels_batch = fixed_labels[shuffled_idx]
+        if args.label_frac > 1 and random.random() < args.sup_frac:
+            N += 1
+            shuffled_idx = list(range(int(args.label_frac)))
+            random.shuffle(shuffled_idx)
+            shuffled_idx = shuffled_idx[:args.batch_size]
+            images = fixed_imgs[shuffled_idx]
+            fixed_labels_batch = fixed_labels[shuffled_idx]
 
-                labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-                labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
-                labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-                optimizer.zero_grad()
-                if CUDA:
-                    images = images.cuda()
-                    labels_onehot = labels_onehot.cuda()
+            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
+            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+            optimizer.zero_grad()
+            if CUDA:
+                images = images.cuda()
+                labels_onehot = labels_onehot.cuda()
 
+            # encode
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            ## poe ##
+            prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+            poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
+            q.concrete(logits=poe_logit,
+                       temperature=TEMP,
+                       name='poe')
+            # decode
+            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            for param in encB.parameters():
+                param.requires_grad = True
+            for param in decB.parameters():
+                param.requires_grad = True
+            # loss
+            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+        else:
+            N += 1
+            # images = images.view(-1, NUM_PIXELS)
+            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+            if CUDA:
+                images = images.cuda()
+                labels_onehot = labels_onehot.cuda()
+            optimizer.zero_grad()
+            if b not in label_mask:
+                label_mask[b] = (random.random() < args.label_frac)
+            if (label_mask[b] and args.label_frac == args.sup_frac):
                 # encode
                 q = encA(images, num_samples=NUM_SAMPLES)
                 q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
@@ -276,6 +306,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                           num_samples=NUM_SAMPLES)
                 pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                           num_samples=NUM_SAMPLES)
+
                 for param in encB.parameters():
                     param.requires_grad = True
                 for param in decB.parameters():
@@ -283,80 +314,46 @@ def train(data, encA, decA, encB, decB, optimizer,
                 # loss
                 loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
-                N += 1
-                # images = images.view(-1, NUM_PIXELS)
-                labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-                labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-                labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
-                if CUDA:
-                    images = images.cuda()
-                    labels_onehot = labels_onehot.cuda()
-                optimizer.zero_grad()
-                if b not in label_mask:
-                    label_mask[b] = (random.random() < args.label_frac)
-                if (label_mask[b] and args.label_frac == args.sup_frac):
-                    # encode
-                    q = encA(images, num_samples=NUM_SAMPLES)
-                    q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                    ## poe ##
-                    prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-                    poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-                    q.concrete(logits=poe_logit,
-                               temperature=TEMP,
-                               name='poe')
-                    # decode
-                    pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                            num_samples=NUM_SAMPLES)
-                    pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                            num_samples=NUM_SAMPLES)
+                shuffled_idx = list(range(args.batch_size))
+                random.shuffle(shuffled_idx)
+                labels_onehot = labels_onehot[shuffled_idx]
+                q = encA(images, num_samples=NUM_SAMPLES)
+                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+                pA = decA(images, {'sharedA': q['sharedA']}, q=q,
+                          num_samples=NUM_SAMPLES)
+                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+                          num_samples=NUM_SAMPLES)
+                for param in encB.parameters():
+                    param.requires_grad = False
+                for param in decB.parameters():
+                    param.requires_grad = False
+                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
-                    for param in encB.parameters():
-                        param.requires_grad = True
-                    for param in decB.parameters():
-                        param.requires_grad = True
-                    # loss
-                    loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
-                else:
-                    shuffled_idx = list(range(args.batch_size))
-                    random.shuffle(shuffled_idx)
-                    labels_onehot = labels_onehot[shuffled_idx]
-                    q = encA(images, num_samples=NUM_SAMPLES)
-                    q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                    pA = decA(images, {'sharedA': q['sharedA']}, q=q,
-                              num_samples=NUM_SAMPLES)
-                    pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
-                              num_samples=NUM_SAMPLES)
-                    for param in encB.parameters():
-                        param.requires_grad = False
-                    for param in decB.parameters():
-                        param.requires_grad = False
-                    loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+        loss.backward()
+        optimizer.step()
+        if CUDA:
+            loss = loss.cpu()
+            recA[0] = recA[0].cpu()
+            recB[0] = recB[0].cpu()
 
-            loss.backward()
-            optimizer.step()
+        epoch_elbo -= loss.item()
+        epoch_recA += recA[0].item()
+        epoch_recB += recB[0].item()
+
+        if recA[1] is not None:
             if CUDA:
-                loss = loss.cpu()
-                recA[0] = recA[0].cpu()
-                recB[0] = recB[0].cpu()
+                for i in range(2):
+                    recA[i] = recA[i].cpu()
+                    recB[i] = recB[i].cpu()
+            epoch_rec_poeA += recA[1].item()
+            epoch_rec_crA += recA[2].item()
+            epoch_rec_poeB += recB[1].item()
+            epoch_rec_crB += recB[2].item()
+            pair_cnt += 1
 
-            epoch_elbo -= loss.item()
-            epoch_recA += recA[0].item()
-            epoch_recB += recB[0].item()
-
-            if recA[1] is not None:
-                if CUDA:
-                    for i in range(2):
-                        recA[i] = recA[i].cpu()
-                        recB[i] = recB[i].cpu()
-                epoch_rec_poeA += recA[1].item()
-                epoch_rec_crA += recA[2].item()
-                epoch_rec_poeB += recB[1].item()
-                epoch_rec_crB += recB[2].item()
-                pair_cnt += 1
-
-        return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
-                                                                                                       epoch_rec_poeB / pair_cnt,
-                                                                                                       epoch_rec_crB / pair_cnt], label_mask
+    return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
+                                                                                                   epoch_rec_poeB / pair_cnt,
+                                                                                                   epoch_rec_crB / pair_cnt], label_mask
 
 def test(data, encA, decA, encB, decB, epoch):
     encA.eval()
