@@ -101,6 +101,7 @@ def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_mi'])
 
 def visualize_line():
     data = LINE_GATHER.data
@@ -117,9 +118,13 @@ def visualize_line():
     test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
 
+    test_miA = torch.Tensor(data['test_miA'])
+    test_miB = torch.Tensor(data['test_miB'])
+
     llA = torch.tensor(np.stack([recon_A, recon_poeA, recon_crA], -1))
     llB = torch.tensor(np.stack([recon_B, recon_poeB, recon_crB], -1))
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
+    test_mi = torch.tensor(np.stack([test_miA, test_miB], -1))
 
     VIZ.line(
         X=epoch, Y=llA, env=MODEL_NAME + '/lines',
@@ -148,13 +153,20 @@ def visualize_line():
                   title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
+    VIZ.line(
+        X=epoch, Y=test_mi, env=MODEL_NAME + '/lines',
+        win=WIN_ID['test_mi'], update='append',
+        opts=dict(xlabel='epoch', ylabel='mi',
+                  title='Test normalized MI(c,y)', legend=['svhn', 'mnist'])
+    )
+
 if args.viz_on:
     WIN_ID = dict(
         llA='win_llA', llB='win_llB', test_acc='win_test_acc', total_losses='win_total_losses'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
-        'total_loss', 'test_total_loss', 'test_acc'
+        'total_loss', 'test_total_loss', 'test_acc', 'test_miA', 'test_miB'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -394,31 +406,31 @@ def train(data, encA, decA, encB, decB, optimizer,
                         param.requires_grad = False
                     loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
-            loss.backward()
-            optimizer.step()
+        loss.backward()
+        optimizer.step()
+        if CUDA:
+            loss = loss.cpu()
+            recA[0] = recA[0].cpu()
+            recB[0] = recB[0].cpu()
+
+        epoch_elbo -= loss.item()
+        epoch_recA += recA[0].item()
+        epoch_recB += recB[0].item()
+
+        if recA[1] is not None:
             if CUDA:
-                loss = loss.cpu()
-                recA[0] = recA[0].cpu()
-                recB[0] = recB[0].cpu()
+                for i in range(2):
+                    recA[i] = recA[i].cpu()
+                    recB[i] = recB[i].cpu()
+            epoch_rec_poeA += recA[1].item()
+            epoch_rec_crA += recA[2].item()
+            epoch_rec_poeB += recB[1].item()
+            epoch_rec_crB += recB[2].item()
+            pair_cnt += 1
 
-            epoch_elbo -= loss.item()
-            epoch_recA += recA[0].item()
-            epoch_recB += recB[0].item()
-
-            if recA[1] is not None:
-                if CUDA:
-                    for i in range(2):
-                        recA[i] = recA[i].cpu()
-                        recB[i] = recB[i].cpu()
-                epoch_rec_poeA += recA[1].item()
-                epoch_rec_crA += recA[2].item()
-                epoch_rec_poeB += recB[1].item()
-                epoch_rec_crB += recB[2].item()
-                pair_cnt += 1
-
-        return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
-                                                                                                       epoch_rec_poeB / pair_cnt,
-                                                                                                       epoch_rec_crB / pair_cnt], label_mask
+    return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
+                                                                                                   epoch_rec_poeB / pair_cnt,
+                                                                                                   epoch_rec_crB / pair_cnt], label_mask
 
 def test(data, encA, decA, encB, decB, epoch):
     encA.eval()
