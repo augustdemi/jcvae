@@ -102,22 +102,16 @@ if not os.path.isdir(DATA_PATH):
 
 # visdom setup
 def viz_init():
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['recon'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
-    # if self.eval_metrics:
-    #     self.viz.close(env=self.name+'/lines', win=WIN_ID['metrics'])
 
-
-####
 def visualize_line():
-    # prepare data to plot
     data = LINE_GATHER.data
-    iters = torch.Tensor(data['iter'])
     recon_A = torch.Tensor(data['recon_A'])
     recon_B = torch.Tensor(data['recon_B'])
 
-    full_modal_iter = torch.Tensor(data['full_modal_iter'])
     recon_poeA = torch.Tensor(data['recon_poeA'])
     recon_poeB = torch.Tensor(data['recon_poeB'])
     recon_crA = torch.Tensor(data['recon_crA'])
@@ -127,31 +121,23 @@ def visualize_line():
     epoch = torch.Tensor(data['epoch'])
     test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
-    test_mi_given_y = torch.Tensor(data['test_mi'])
 
-    # recons = torch.stack(
-    #     [recon_A.detach(), recon_B.detach()], -1
-    # )
+    llA = torch.tensor(np.stack([recon_A, recon_poeA, recon_crA], -1))
+    llB = torch.tensor(np.stack([recon_B, recon_poeB, recon_crB], -1))
+    total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
 
-    total_losses = torch.stack(
-        [torch.tensor(total_loss), torch.tensor(test_total_loss)], -1
+    VIZ.line(
+        X=epoch, Y=llA, env=MODEL_NAME + '/lines',
+        win=WIN_ID['llA'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loglike',
+                  title='LL of modalA', legend=['A', 'poeA', 'crA'])
     )
-
-    # VIZ.line(
-    #     X=iters, Y=recons, env=MODEL_NAME + '/lines',
-    #     win=WIN_ID['recon'], update='append',
-    #     opts=dict(xlabel='iter', ylabel='recon losses',
-    #               title='Train Losses', legend=['recon_A', 'recon_B'])
-    # )
-    # recons2 = torch.stack(
-    #     [recon_poeA.detach(), recon_poeB.detach(), recon_crA.detach(), recon_crB.detach()], -1
-    # )
-    # VIZ.line(
-    #     X=full_modal_iter, Y=recons2, env=MODEL_NAME + '/lines',
-    #     win=WIN_ID['recon2'], update='append',
-    #     opts=dict(xlabel='iter', ylabel='recon losses',
-    #               title='Train Losses - with full modal', legend=['recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB'])
-    # )
+    VIZ.line(
+        X=epoch, Y=llB, env=MODEL_NAME + '/lines',
+        win=WIN_ID['llB'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loglike',
+                  title='LL of modalB', legend=['B', 'poeB', 'crB'])
+    )
 
     VIZ.line(
         X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
@@ -163,25 +149,17 @@ def visualize_line():
     VIZ.line(
         X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
         win=WIN_ID['total_losses'], update='append',
-        opts=dict(xlabel='epoch', ylabel='total loss',
+        opts=dict(xlabel='epoch', ylabel='loss',
                   title='Total Loss', legend=['train_loss', 'test_loss'])
-    )
-
-    VIZ.line(
-        X=epoch, Y=test_mi_given_y, env=MODEL_NAME + '/lines',
-        win=WIN_ID['test_mi_given_y'], update='append',
-        opts=dict(xlabel='epoch', ylabel='accuracy',
-                  title='Test MI of concrete var given label', legend=['mi'])
     )
 
 if args.viz_on:
     WIN_ID = dict(
-        recon='win_recon', recon2='win_recon2', test_acc='win_test_acc', total_losses='win_total_losses',
-        test_mi_given_y='test_mi_given_y'
+        llA='win_llA', llB='win_llB', test_acc='win_test_acc', total_losses='win_total_losses'
     )
     LINE_GATHER = probtorch.util.DataGather(
-        'iter', 'epoch', 'full_modal_iter', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
-        'total_loss', 'test_total_loss', 'test_acc', 'test_mi'
+        'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
+        'total_loss', 'test_total_loss', 'test_acc'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -226,8 +204,7 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(epoch, iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
-    iter += epoch * TRAIN_ITER_PER_EPO
+def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                                                beta=beta1, bias=bias)
@@ -252,27 +229,19 @@ def elbo(epoch, iter, q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
 
-        # if args.viz_on and iter % args.viz_ll_iter == 0:
-        #     LINE_GATHER.insert(full_modal_iter=iter,
-        #                        recon_poeA=reconst_loss_poeA.item(),
-        #                        recon_poeB=reconst_loss_poeB.item(),
-        #                        recon_crA=reconst_loss_crA.item(),
-        #                        recon_crB=reconst_loss_crB.item()
-        #                        )
     else:
-        loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
-
-    # if args.viz_on and iter % args.viz_ll_iter == 0:
-    #     LINE_GATHER.insert(iter=iter,
-    #                        recon_A=reconst_loss_A.item(),
-    #                        recon_B=reconst_loss_B.item()
-    #                        )
-    return loss
+        reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
+        loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+    return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
+                                                                          reconst_loss_crB]
 
 
-def train(data, encA, decA, encB, decB, optimizer, epoch,
+def train(data, encA, decA, encB, decB, optimizer,
           label_mask={}, fixed_imgs=None, fixed_labels=None):
     epoch_elbo = 0.0
+    epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
+    epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
+    pair_cnt = 0
     encA.train()
     encB.train()
     decB.train()
@@ -282,7 +251,7 @@ def train(data, encA, decA, encB, decB, optimizer, epoch,
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             if args.label_frac > 1 and random.random() < args.sup_frac:
-                N += args.batch_size
+                N += 1
                 shuffled_idx = list(range(int(args.label_frac)))
                 random.shuffle(shuffled_idx)
                 shuffled_idx = shuffled_idx[:args.batch_size]
@@ -316,9 +285,9 @@ def train(data, encA, decA, encB, decB, optimizer, epoch,
                 for param in decB.parameters():
                     param.requires_grad = True
                 # loss
-                loss = -elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
-                N += args.batch_size
+                N += 1
                 # images = images.view(-1, NUM_PIXELS)
                 labels_onehot = torch.zeros(args.batch_size, args.n_shared)
                 labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
@@ -350,9 +319,11 @@ def train(data, encA, decA, encB, decB, optimizer, epoch,
                     for param in decB.parameters():
                         param.requires_grad = True
                     # loss
-                    loss = -elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                    loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
                 else:
-                    # labels_onehot = labels_onehot[:, torch.randperm(10)]
+                    shuffled_idx = list(range(args.batch_size))
+                    random.shuffle(shuffled_idx)
+                    labels_onehot = labels_onehot[shuffled_idx]
                     q = encA(images, num_samples=NUM_SAMPLES)
                     q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
                     pA = decA(images, {'sharedA': q['sharedA']}, q=q,
@@ -363,15 +334,33 @@ def train(data, encA, decA, encB, decB, optimizer, epoch,
                         param.requires_grad = False
                     for param in decB.parameters():
                         param.requires_grad = False
-                    loss = -elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                    loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
             loss.backward()
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
-            epoch_elbo -= loss.item()
+                recA[0] = recA[0].cpu()
+                recB[0] = recB[0].cpu()
 
-    return epoch_elbo / N, label_mask
+            epoch_elbo -= loss.item()
+            epoch_recA += recA[0].item()
+            epoch_recB += recB[0].item()
+
+            if recA[1] is not None:
+                if CUDA:
+                    for i in range(2):
+                        recA[i] = recA[i].cpu()
+                        recB[i] = recB[i].cpu()
+                epoch_rec_poeA += recA[1].item()
+                epoch_rec_crA += recA[2].item()
+                epoch_rec_poeB += recB[1].item()
+                epoch_rec_crB += recB[2].item()
+                pair_cnt += 1
+
+        return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
+                                                                                                       epoch_rec_poeB / pair_cnt,
+                                                                                                       epoch_rec_crB / pair_cnt], label_mask
 
 def test(data, encA, decA, encB, decB, epoch):
     encA.eval()
@@ -383,7 +372,7 @@ def test(data, encA, decA, encB, decB, epoch):
     N = 0
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
-            N += args.batch_size
+            N += 1
             # images = images.view(-1, NUM_PIXELS)
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
@@ -399,7 +388,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
-            batch_elbo = elbo(epoch, b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
@@ -413,7 +402,7 @@ def test(data, encA, decA, encB, decB, epoch):
                                      flatten_pixel=NUM_PIXELS)
 
         save_ckpt(e+1)
-    return epoch_elbo / N, 1 + epoch_correct / N
+    return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
 
 
 
@@ -491,8 +480,8 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, mask = train(train_data, encA, decA, encB, decB,
-                             optimizer, e, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
+    train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB,
+                                                   optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
@@ -503,9 +492,14 @@ for e in range(args.ckpt_epochs, args.epochs):
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_acc=test_accuracy,
-                           test_total_loss=test_elbo,
-                           total_loss=train_elbo,
-                           test_mi=mi[args.n_private]
+                           test_total_loss=-test_elbo,
+                           total_loss=-train_elbo,
+                           recon_A=rec_lossA[0],
+                           recon_poeA=rec_lossA[1],
+                           recon_crA=rec_lossA[2],
+                           recon_B=rec_lossB[0],
+                           recon_poeB=rec_lossB[1],
+                           recon_crB=rec_lossB[2],
                            )
         visualize_line()
         LINE_GATHER.flush()
