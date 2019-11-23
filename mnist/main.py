@@ -384,7 +384,7 @@ def test(data, encA, decA, encB, decB, epoch):
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
-            epoch_elbo -= batch_elbo.item()
+            epoch_elbo += batch_elbo.item()
             epoch_correct += pB['labels_sharedA'].loss.sum().item()
 
     if (epoch + 1) % 20 == 0 or epoch + 1 == args.epochs:
