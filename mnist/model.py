@@ -141,7 +141,6 @@ class DecoderA(nn.Module):
 
 class EncoderB(nn.Module):
     def __init__(self, seed, num_digis=10,
-                 num_hidden=256,
                  zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = torch.tensor(TEMP)
@@ -182,7 +181,6 @@ class EncoderB(nn.Module):
 
 class DecoderB(nn.Module):
     def __init__(self, seed, num_digits=10,
-                 num_hidden=256,
                  zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
