@@ -116,16 +116,19 @@ def train(data, enc, dec, optimizer,
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             if args.label_frac > 1 and random.random() < args.sup_frac:
-                N += args.batch_size
-                images = fixed_imgs.view(-1, NUM_PIXELS)
+                # print(b)
+                N += 1
+                shuffled_idx = list(range(int(args.label_frac)))
+                random.shuffle(shuffled_idx)
+                shuffled_idx = shuffled_idx[:args.batch_size]
+                # print(shuffled_idx[:10])
+                fixed_imgs_batch = fixed_imgs[shuffled_idx]
+                fixed_labels_batch = fixed_labels[shuffled_idx]
+                images = fixed_imgs_batch.view(-1, NUM_PIXELS)
                 labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-                labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
+                labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
 
-                # print('--------------s')
-                # print(b)
-                # print(images.sum())
-                # print(labels_onehot.sum())
                 optimizer.zero_grad()
                 if CUDA:
                     images = images.cuda()
@@ -146,14 +149,10 @@ def train(data, enc, dec, optimizer,
                 optimizer.zero_grad()
                 if b not in label_mask:
                     label_mask[b] = (random.random() < label_fraction)
-                if (label_mask[b] and args.label_frac < 1):
+                if (label_mask[b] and args.label_frac == args.sup_frac):
                     q = enc(images, labels_onehot, num_samples=NUM_SAMPLES)
                 else:
                     q = enc(images, num_samples=NUM_SAMPLES)
-                    # print('un--------------')
-                    # print(b)
-                    # print(images.sum())
-                    # print(labels_onehot.sum())
                 p = dec(images, q, num_samples=NUM_SAMPLES)
                 loss = -elbo(q, p)
             loss.backward()
