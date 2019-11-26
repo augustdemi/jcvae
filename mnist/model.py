@@ -149,7 +149,10 @@ class EncoderB(nn.Module):
         self.seed = seed
         self.enc_hidden = nn.Sequential(
             nn.Linear(num_digis, num_hidden),
-            nn.ReLU())
+            nn.ReLU(),
+            nn.Linear(num_digis, 512),
+            nn.ReLU()
+        )
 
         self.fc  = nn.Linear(num_hidden, zShared_dim)
         self.weight_init()
@@ -187,6 +190,8 @@ class DecoderB(nn.Module):
         self.seed = seed
 
         self.dec_hidden = nn.Sequential(
+            nn.Linear(zShared_dim, 512),
+            nn.ReLU(),
                             nn.Linear(zShared_dim, num_hidden),
                             nn.ReLU())
         self.dec_label = nn.Sequential(
