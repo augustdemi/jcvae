@@ -76,9 +76,9 @@ def load_data(train):
     # attr_meta = torch.tensor(attr_meta, dtype=float)
 
 
-    filenames = np.genfromtxt(path + 'AWA2-filenames.txt', delimiter='\n', dtype=str)
-    labels = np.genfromtxt(path + 'AWA2-labels.txt', delimiter='\n', dtype=int)
-    # features = list(np.genfromtxt(path + 'AWA2-features.txt', delimiter='\n', dtype=str))
+    filenames = np.genfromtxt(path + 'AwA2-filenames.txt', delimiter='\n', dtype=str)
+    labels = np.genfromtxt(path + 'AwA2-labels.txt', delimiter='\n', dtype=int)
+    # features = list(np.genfromtxt(path + 'AwA2-features.txt', delimiter='\n', dtype=str))
     # for i in range(len(features)):
     #     features[i] = features[i].split(' ')
     # features = np.array(features).astype(float)
