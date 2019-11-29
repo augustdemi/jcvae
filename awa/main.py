@@ -211,7 +211,7 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                latents=['privateA', 'sharedA'], sample_dim=0,
                                                                batch_dim=1,
                                                                beta=beta1, bias=bias)
-    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedB'], latents=['sharedB'],
+    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_sharedB'], latents=['sharedB'],
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta2, bias=bias)
 
@@ -221,7 +221,7 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                          latents=['privateA', 'poe'], sample_dim=0,
                                                                          batch_dim=1,
                                                                          beta=beta1, bias=bias)
-        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_poe'], latents=['poe'],
+        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_poe'], latents=['poe'],
                                                                          sample_dim=0, batch_dim=1,
                                                                          beta=beta2, bias=bias)
 
@@ -230,7 +230,7 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                        latents=['privateA', 'sharedB'], sample_dim=0,
                                                                        batch_dim=1,
                                                                        beta=beta1, bias=bias)
-        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedA'], latents=['sharedA'],
+        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_sharedA'], latents=['sharedA'],
                                                                        sample_dim=0, batch_dim=1,
                                                                        beta=beta2, bias=bias)
 
