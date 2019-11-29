@@ -208,10 +208,14 @@ if CUDA:
     cuda_tensors(decB)
     if len(args.gpu) > 2:
         print('multi: ' + args.gpu)
-        encA = nn.DataParallel(encA, device_ids=GPU, output_device=args.outgpu)
-        decA = nn.DataParallel(decA, device_ids=GPU, output_device=args.outgpu)
-        encB = nn.DataParallel(encB, device_ids=GPU, output_device=args.outgpu)
-        decB = nn.DataParallel(decB, device_ids=GPU, output_device=args.outgpu)
+        encA = nn.DataParallel(encA)
+        decA = nn.DataParallel(decA)
+        encB = nn.DataParallel(encB)
+        decB = nn.DataParallel(decB)
+        # encA = nn.DataParallel(encA, device_ids=GPU, output_device=args.outgpu)
+        # decA = nn.DataParallel(decA, device_ids=GPU, output_device=args.outgpu)
+        # encB = nn.DataParallel(encB, device_ids=GPU, output_device=args.outgpu)
+        # decB = nn.DataParallel(decB, device_ids=GPU, output_device=args.outgpu)
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
