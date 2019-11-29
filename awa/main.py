@@ -71,7 +71,7 @@ if __name__ == "__main__":
 EPS = 1e-9
 
 if len(args.gpu) > 0:
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 CUDA = torch.cuda.is_available()
 # path parameters
 MODEL_NAME = 'awa-run_id%d-privA%02ddim-privB%02ddim-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
