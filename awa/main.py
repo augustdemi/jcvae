@@ -170,7 +170,7 @@ test_labels = []
 for test_class in test_classes:
     for i in range(len(class_meta)):
         if test_class in class_meta[i]:
-            test_labels.append(i + 1)
+            test_labels.append(i)
 
 train_data = torch.utils.data.DataLoader(datasets(train=True), batch_size=args.batch_size, shuffle=True)
 test_data = torch.utils.data.DataLoader(datasets(train=False), batch_size=args.batch_size, shuffle=True)
