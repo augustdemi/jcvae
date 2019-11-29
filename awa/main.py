@@ -426,7 +426,6 @@ def test(data, encA, decA, encB, decB, epoch):
         # util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
         #                              fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
         #                              flatten_pixel=NUM_PIXELS)
-
         save_ckpt(e + 1)
     return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
 
