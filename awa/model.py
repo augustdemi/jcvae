@@ -295,7 +295,7 @@ class DecoderB(nn.Module):
             hiddens = self.dec_hidden(torch.cat(latents, -1))
             pred_labels = self.dec_label(hiddens)
             # define reconstruction loss (log prob of bernoulli dist)
-            pred_labels = F.log_softmax(pred_labels + EPS, dim=2)
+            pred_labels = F.logsigmoid(pred_labels + EPS)
             if train:
                 p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
                        pred_labels, attributes.unsqueeze(0), name='attr_' + shared_name)
