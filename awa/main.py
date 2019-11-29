@@ -394,6 +394,7 @@ def test(data, encA, decA, encB, decB, epoch):
             N += 1
             if CUDA:
                 images = images.cuda()
+                attr = attr.cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(attr, num_samples=NUM_SAMPLES, q=q)
