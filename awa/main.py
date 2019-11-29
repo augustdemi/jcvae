@@ -212,6 +212,8 @@ if CUDA:
         decA = nn.DataParallel(decA)
         encB = nn.DataParallel(encB)
         decB = nn.DataParallel(decB)
+        device = torch.device("cuda:0")
+        encA.to(device)
         # encA = nn.DataParallel(encA, device_ids=GPU, output_device=args.outgpu)
         # decA = nn.DataParallel(decA, device_ids=GPU, output_device=args.outgpu)
         # encB = nn.DataParallel(encB, device_ids=GPU, output_device=args.outgpu)
