@@ -68,7 +68,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'svhn-run_id%d-privA%02ddim-privB%02ddim-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+MODEL_NAME = 'awa-run_id%d-privA%02ddim-privB%02ddim-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
     args.run_id, args.n_privateA, args.n_privateB, args.lambda_text, args.beta1, args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
 
