@@ -7,7 +7,7 @@ import os
 import numpy as np
 from model import EncoderA, EncoderB, DecoderA, DecoderB
 from datasets import datasets
-
+import torch.nn as nn
 import sys
 
 sys.path.append('../')
@@ -54,6 +54,10 @@ if __name__ == "__main__":
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/svhn',
                         help='save and load path for ckpt')
+    parser.add_argument('--gpu', type=str, default='',
+                        help='cuda')
+    parser.add_argument('--outgpu', type=str, default='',
+                        help='outgpu')
     # visdom
     parser.add_argument('--viz_on',
                         default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
@@ -65,8 +69,10 @@ if __name__ == "__main__":
 
 
 EPS = 1e-9
-CUDA = torch.cuda.is_available()
 
+if len(args.gpu) > 0:
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda
+CUDA = torch.cuda.is_available()
 # path parameters
 MODEL_NAME = 'awa-run_id%d-privA%02ddim-privB%02ddim-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
     args.run_id, args.n_privateA, args.n_privateB, args.lambda_text, args.beta1, args.beta2, args.seed,
@@ -191,14 +197,23 @@ decA = DecoderA(args.wseed, zPrivate_dim=args.n_privateA, zShared_dim=args.n_sha
 encB = EncoderB(args.wseed, zPrivate_dim=args.n_privateB, zShared_dim=args.n_shared)
 decB = DecoderB(args.wseed, zPrivate_dim=args.n_privateB, zShared_dim=args.n_shared)
 if CUDA:
-    encA.cuda()
-    decA.cuda()
-    encB.cuda()
-    decB.cuda()
-    cuda_tensors(encA)
-    cuda_tensors(decA)
-    cuda_tensors(encB)
-    cuda_tensors(decB)
+    if len(args.gpu) > 2:
+        print('multi: ' + args.gpu)
+        encA = nn.DataParallel(encA, output_device=args.outgpu)
+        decA = nn.DataParallel(decA, output_device=args.outgpu)
+        encB = nn.DataParallel(encB, output_device=args.outgpu)
+        decB = nn.DataParallel(decB, output_device=args.outgpu)
+    else:
+        print('one: ' + args.gpu)
+        encA.cuda()
+        decA.cuda()
+        encB.cuda()
+        decB.cuda()
+
+        # cuda_tensors(encA)
+        # cuda_tensors(decA)
+        # cuda_tensors(encB)
+        # cuda_tensors(decB)
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
