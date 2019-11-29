@@ -186,7 +186,8 @@ BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 
-def cuda_tensors(obj):
+def cuda_tensors(obj, gpu):
+    torch.cuda.set_device(gpu)
     for attr in dir(obj):
         value = getattr(obj, attr)
         if isinstance(value, torch.Tensor):
@@ -210,10 +211,10 @@ if CUDA:
         decA.cuda()
         encB.cuda()
         decB.cuda()
-    cuda_tensors(encA)
-    cuda_tensors(decA)
-    cuda_tensors(encB)
-    cuda_tensors(decB)
+    cuda_tensors(encA, GPU[0])
+    cuda_tensors(decA, GPU[0])
+    cuda_tensors(encB, GPU[1])
+    cuda_tensors(decB, GPU[1])
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
