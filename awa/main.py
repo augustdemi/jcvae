@@ -56,7 +56,7 @@ if __name__ == "__main__":
                         help='save and load path for ckpt')
     parser.add_argument('--gpu', type=str, default='',
                         help='cuda')
-    parser.add_argument('--outgpu', type=str, default='',
+    parser.add_argument('--outgpu', type=int, default=-1,
                         help='outgpu')
     # visdom
     parser.add_argument('--viz_on',
