@@ -247,36 +247,30 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta2, bias=bias)
 
-    if q['poe'] is not None:
-        # by POE
-        reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'],
-                                                                         latents=np.concatenate([['privateA'], poe]),
-                                                                         sample_dim=0,
-                                                                         batch_dim=1,
-                                                                         beta=beta1, bias=bias)
-        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_poe'],
-                                                                         latents=np.concatenate([privateB, poe]),
-                                                                         sample_dim=0, batch_dim=1,
-                                                                         beta=beta2, bias=bias)
+    reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'],
+                                                                     latents=np.concatenate([['privateA'], poe]),
+                                                                     sample_dim=0,
+                                                                     batch_dim=1,
+                                                                     beta=beta1, bias=bias)
+    reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_poe'],
+                                                                     latents=np.concatenate([privateB, poe]),
+                                                                     sample_dim=0, batch_dim=1,
+                                                                     beta=beta2, bias=bias)
 
-        # # by cross
-        reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedB'],
-                                                                       latents=np.concatenate([['privateA'], sharedB]),
-                                                                       sample_dim=0,
-                                                                       batch_dim=1,
-                                                                       beta=beta1, bias=bias)
-        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_sharedA'],
-                                                                       latents=np.concatenate([privateB, sharedA]),
-                                                                       sample_dim=0, batch_dim=1,
-                                                                       beta=beta2, bias=bias)
+    # # by cross
+    reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedB'],
+                                                                   latents=np.concatenate([['privateA'], sharedB]),
+                                                                   sample_dim=0,
+                                                                   batch_dim=1,
+                                                                   beta=beta1, bias=bias)
+    reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_sharedA'],
+                                                                   latents=np.concatenate([privateB, sharedA]),
+                                                                   sample_dim=0, batch_dim=1,
+                                                                   beta=beta2, bias=bias)
 
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
-
-    else:
-        reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
-        loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+    loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
+           (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
+           (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
                                                                           reconst_loss_crB]
 
