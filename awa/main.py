@@ -72,6 +72,7 @@ EPS = 1e-9
 
 if len(args.gpu) > 0:
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+    GPU = [int(elt) for elt in args.gpu.split(',')]
 CUDA = torch.cuda.is_available()
 # path parameters
 MODEL_NAME = 'awa-run_id%d-privA%02ddim-privB%02ddim-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
@@ -199,10 +200,10 @@ decB = DecoderB(args.wseed, zPrivate_dim=args.n_privateB, zShared_dim=args.n_sha
 if CUDA:
     if len(args.gpu) > 2:
         print('multi: ' + args.gpu)
-        encA = nn.DataParallel(encA, output_device=args.outgpu)
-        decA = nn.DataParallel(decA, output_device=args.outgpu)
-        encB = nn.DataParallel(encB, output_device=args.outgpu)
-        decB = nn.DataParallel(decB, output_device=args.outgpu)
+        encA = nn.DataParallel(encA, device_ids=GPU, output_device=args.outgpu)
+        decA = nn.DataParallel(decA, device_ids=GPU, output_device=args.outgpu)
+        encB = nn.DataParallel(encB, device_ids=GPU, output_device=args.outgpu)
+        decB = nn.DataParallel(decB, device_ids=GPU, output_device=args.outgpu)
     else:
         print('one: ' + args.gpu)
         encA.cuda()
@@ -210,10 +211,10 @@ if CUDA:
         encB.cuda()
         decB.cuda()
 
-    cuda_tensors(encA)
-    cuda_tensors(decA)
-    cuda_tensors(encB)
-    cuda_tensors(decB)
+        # cuda_tensors(encA)
+        # cuda_tensors(decA)
+        # cuda_tensors(encB)
+        # cuda_tensors(decB)
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
