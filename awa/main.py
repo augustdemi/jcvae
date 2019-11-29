@@ -395,29 +395,28 @@ def test(data, encA, decA, encB, decB, epoch):
     epoch_elbo = 0.0
     epoch_correct = 0
     N = 0
-    for b, (images, labels) in enumerate(data):
+    for b, (images, attr, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            # images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
                 images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
-                      num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+            q = encB(attr, num_samples=NUM_SAMPLES, q=q)
+            # decode
+            shared_dist = {'sharedA': [], 'sharedB': []}
+            for i in range(args.n_shared):
+                shared_dist['sharedA'].append(q['sharedA' + str(i)])
+                shared_dist['sharedB'].append(q['sharedB' + str(i)])
+            pB = decB(attr, shared_dist, q=q,
                       num_samples=NUM_SAMPLES, train=False)
-
+            pA = decA(images, shared_dist, q=q,
+                      num_samples=NUM_SAMPLES)
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += pB['labels_sharedA'].loss.sum().item()
+            epoch_correct += pB['attr_sharedA'].loss.sum().item()
 
     if (epoch + 1) % 5 == 0 or epoch + 1 == args.epochs:
         # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
@@ -503,24 +502,6 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
-
-    mi = util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
-    mi = mi / np.linalg.norm(mi)
-
-    if args.viz_on:
-        LINE_GATHER.insert(epoch=e,
-                           test_acc=test_accuracy,
-                           test_total_loss=test_elbo,
-                           total_loss=train_elbo,
-                           recon_A=rec_lossA[0],
-                           recon_poeA=rec_lossA[1],
-                           recon_crA=rec_lossA[2],
-                           recon_B=rec_lossB[0],
-                           recon_poeB=rec_lossB[1],
-                           recon_crB=rec_lossB[2],
-                           )
-        visualize_line()
-        LINE_GATHER.flush()
 
     test_end = time.time()
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
