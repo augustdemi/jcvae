@@ -186,8 +186,7 @@ BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 
-def cuda_tensors(obj, gpu):
-    torch.cuda.set_device(gpu)
+def cuda_tensors(obj):
     for attr in dir(obj):
         value = getattr(obj, attr)
         if isinstance(value, torch.Tensor):
@@ -199,22 +198,20 @@ decA = DecoderA(args.wseed, zPrivate_dim=args.n_privateA, zShared_dim=args.n_sha
 encB = EncoderB(args.wseed, zPrivate_dim=args.n_privateB, zShared_dim=args.n_shared)
 decB = DecoderB(args.wseed, zPrivate_dim=args.n_privateB, zShared_dim=args.n_shared)
 if CUDA:
+    encA.cuda()
+    decA.cuda()
+    encB.cuda()
+    decB.cuda()
+    cuda_tensors(encA)
+    cuda_tensors(decA)
+    cuda_tensors(encB)
+    cuda_tensors(decB)
     if len(args.gpu) > 2:
         print('multi: ' + args.gpu)
         encA = nn.DataParallel(encA, device_ids=GPU, output_device=args.outgpu)
         decA = nn.DataParallel(decA, device_ids=GPU, output_device=args.outgpu)
         encB = nn.DataParallel(encB, device_ids=GPU, output_device=args.outgpu)
         decB = nn.DataParallel(decB, device_ids=GPU, output_device=args.outgpu)
-    else:
-        print('one: ' + args.gpu)
-        encA.cuda()
-        decA.cuda()
-        encB.cuda()
-        decB.cuda()
-    cuda_tensors(encA, GPU[0])
-    cuda_tensors(decA, GPU[0])
-    cuda_tensors(encB, GPU[1])
-    cuda_tensors(decB, GPU[1])
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
