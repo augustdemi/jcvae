@@ -210,10 +210,10 @@ if CUDA:
         encB.cuda()
         decB.cuda()
 
-        # cuda_tensors(encA)
-        # cuda_tensors(decA)
-        # cuda_tensors(encB)
-        # cuda_tensors(decB)
+    cuda_tensors(encA)
+    cuda_tensors(decA)
+    cuda_tensors(encB)
+    cuda_tensors(decB)
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
