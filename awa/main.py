@@ -503,6 +503,21 @@ for e in range(args.ckpt_epochs, args.epochs):
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
 
+    if args.viz_on:
+        LINE_GATHER.insert(epoch=e,
+                           test_acc=test_accuracy,
+                           test_total_loss=test_elbo,
+                           total_loss=train_elbo,
+                           recon_A=rec_lossA[0],
+                           recon_poeA=rec_lossA[1],
+                           recon_crA=rec_lossA[2],
+                           recon_B=rec_lossB[0],
+                           recon_poeB=rec_lossB[1],
+                           recon_crB=rec_lossB[2],
+                           )
+        visualize_line()
+        LINE_GATHER.flush()
+
     test_end = time.time()
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
