@@ -297,7 +297,7 @@ class DecoderB(nn.Module):
             # define reconstruction loss (log prob of bernoulli dist)
             pred_labels = F.logsigmoid(pred_labels + EPS)
             if train:
-                p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
+                p.loss(lambda y_pred, target: -(target * y_pred + (1 - target) * (1 - y_pred)).sum(-1), \
                        pred_labels, attributes.unsqueeze(0), name='attr_' + shared_name)
             else:
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
