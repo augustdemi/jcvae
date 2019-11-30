@@ -295,9 +295,10 @@ class DecoderB(nn.Module):
             hiddens = self.dec_hidden(torch.cat(latents, -1))
             pred_labels = self.dec_label(hiddens)
             # define reconstruction loss (log prob of bernoulli dist)
-            pred_labels = F.logsigmoid(pred_labels + EPS)
+            # pred_labels = F.logsigmoid(pred_labels + EPS)
+            # F.binary_cross_entropy_with_logits(pred_labels, attributes.unsqueeze(0))
             if train:
-                p.loss(lambda y_pred, target: -(target * y_pred + (1 - target) * (1 - y_pred)).sum(-1), \
+                p.loss(lambda y_pred, target: -F.binary_cross_entropy_with_logits(y_pred, target).sum(-1), \
                        pred_labels, attributes.unsqueeze(0), name='attr_' + shared_name)
             else:
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
