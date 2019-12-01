@@ -22,37 +22,37 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=10, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=3,
+    parser.add_argument('--n_shared', type=int, default=25,
                         help='size of the latent embedding of shared visual')
-    parser.add_argument('--n_privateA', type=int, default=50,
+    parser.add_argument('--n_privateA', type=int, default=10,
                         help='size of the latent embedding of privateA')
-    parser.add_argument('--n_privateB', type=int, default=82,
+    parser.add_argument('--n_privateB', type=int, default=60,
                         help='size of the latent embedding of privateB')
-    parser.add_argument('--batch_size', type=int, default=100, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=50, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--lambda_text', type=float, default=200.,
+    parser.add_argument('--lambda_text', type=float, default=500.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--beta2', type=float, default=3.,
+    parser.add_argument('--beta2', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/svhn',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/awa',
                         help='save and load path for ckpt')
     parser.add_argument('--gpu', type=str, default='',
                         help='cuda')
@@ -409,15 +409,16 @@ def test(data, encA, decA, encB, decB, epoch):
             for i in range(args.n_shared):
                 shared_dist['sharedA'].append(q['sharedA' + str(i)])
                 shared_dist['sharedB'].append(q['sharedB' + str(i)])
-            pB = decB(attr, shared_dist, q=q,
-                      num_samples=NUM_SAMPLES, train=False)
             pA = decA(images, shared_dist, q=q,
                       num_samples=NUM_SAMPLES)
+            pB = decB(attr, shared_dist, q=q,
+                      num_samples=NUM_SAMPLES, train=False)
+
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += pB['attr_sharedA'].loss.sum().item()
+            epoch_correct += pB['attr_sharedA'].loss.sum().item() / (args.batch_size * N_ATTR)  # (50, 85) --> (1)
 
     if (epoch + 1) % 5 == 0 or epoch + 1 == args.epochs:
         # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
@@ -427,7 +428,7 @@ def test(data, encA, decA, encB, decB, epoch):
         #                              fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
         #                              flatten_pixel=NUM_PIXELS)
         save_ckpt(e + 1)
-    return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
+    return epoch_elbo / N, 1 + epoch_correct / N
 
 
 def save_ckpt(e):
@@ -524,6 +525,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         test_elbo, test_accuracy, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
     util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA,
                                  fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
                                  flatten_pixel=NUM_PIXELS)
