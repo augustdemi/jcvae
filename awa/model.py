@@ -298,11 +298,13 @@ class DecoderB(nn.Module):
             # pred_labels = F.logsigmoid(pred_labels + EPS)
             # F.binary_cross_entropy_with_logits(pred_labels, attributes.unsqueeze(0))
             if train:
-                p.loss(lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduce='none').sum(-1), \
-                       pred_labels, attributes.unsqueeze(0), name='attr_' + shared_name)
+                p.loss(
+                    lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(-1), \
+                    pred_labels, attributes.unsqueeze(0), name='attr_' + shared_name)
             else:
+                pred_labels = torch.round(torch.sigmoid(pred_labels).squeeze(0))
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
-                       pred_labels.max(-1)[1], attributes.max(-1)[1], name='attr_' + shared_name)
+                       pred_labels, attributes, name='attr_' + shared_name)
         return p
 
 
