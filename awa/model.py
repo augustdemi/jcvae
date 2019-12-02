@@ -45,8 +45,11 @@ class EncoderA(nn.Module):
 
     # @expand_inputs
     def forward(self, x, num_samples=None, q=None):
+        import pdb
+        pdb.set_trace()
         if q is None:
             q = probtorch.Trace()
+
         hiddens = self.resnet(x)
         hiddens = hiddens.view(hiddens.size(0), -1)
         stats = self.fc(hiddens)
@@ -183,12 +186,13 @@ class DecoderA(nn.Module):
             one_hot_samples = one_hot_samples.cuda()
         return one_hot_samples
 
-    def forward2(self, zPrivate, zShared, cuda):
-        zShared = self.make_one_hot(zShared.squeeze(0), cuda).unsqueeze(0)
-        hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
-        hiddens = hiddens.view(-1, 256, 2, 2)
-        images_mean = self.dec_image(hiddens)
-        return images_mean
+    def forward2(self, latents, cuda):
+        hiddens = self.fc(torch.cat(latents, -1))
+        x = hiddens.view(-1, 2048, 1, 1)
+        for layer in self.layers:
+            x = layer(x)
+
+        return x
 
 
 class EncoderB(nn.Module):
