@@ -203,10 +203,10 @@ if CUDA:
     decA.cuda()
     encB.cuda()
     decB.cuda()
-    # cuda_tensors(encA)
-    # cuda_tensors(decA)
-    # cuda_tensors(encB)
-    # cuda_tensors(decB)
+    cuda_tensors(encA)
+    cuda_tensors(decA)
+    cuda_tensors(encB)
+    cuda_tensors(decB)
     if len(args.gpu) > 2:
         print('multi: ' + args.gpu)
         encA = nn.DataParallel(encA)
@@ -335,8 +335,8 @@ def train(data, encA, decA, encB, decB, optimizer):
                     labels_onehot = labels_onehot.cuda()
                     attr = attr.cuda()
                 # encode
-                q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(attr, num_samples=NUM_SAMPLES, q=q)
+                q = encB(attr, num_samples=NUM_SAMPLES, q=None)
+                # q = encA(images, num_samples=NUM_SAMPLES)
                 # q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
                 ## poe ##
                 for i in range(args.n_shared):
