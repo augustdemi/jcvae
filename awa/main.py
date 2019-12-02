@@ -22,7 +22,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=2, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -34,14 +34,14 @@ if __name__ == "__main__":
                         help='size of the latent embedding of privateB')
     parser.add_argument('--batch_size', type=int, default=50, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=15, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=15, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--lambda_text', type=float, default=500.,
+    parser.add_argument('--lambda_text', type=float, default=1000.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -73,6 +73,7 @@ EPS = 1e-9
 if len(args.gpu) > 0:
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     GPU = [int(elt) for elt in args.gpu.split(',')]
+    print('GPU:', GPU)
 CUDA = torch.cuda.is_available()
 # path parameters
 MODEL_NAME = 'awa-run_id%d-privA%02ddim-privB%02ddim-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
@@ -208,16 +209,16 @@ if CUDA:
     cuda_tensors(decB)
     if len(args.gpu) > 2:
         print('multi: ' + args.gpu)
-        encA = nn.DataParallel(encA)
-        decA = nn.DataParallel(decA)
-        encB = nn.DataParallel(encB)
-        decB = nn.DataParallel(decB)
-        device = torch.device("cuda:0")
-        encA.to(device)
-        # encA = nn.DataParallel(encA, device_ids=GPU, output_device=args.outgpu)
-        # decA = nn.DataParallel(decA, device_ids=GPU, output_device=args.outgpu)
-        # encB = nn.DataParallel(encB, device_ids=GPU, output_device=args.outgpu)
-        # decB = nn.DataParallel(decB, device_ids=GPU, output_device=args.outgpu)
+        # encA = nn.DataParallel(encA)
+        # decA = nn.DataParallel(decA)
+        # encB = nn.DataParallel(encB)
+        # decB = nn.DataParallel(decB)
+        # device = torch.device("cuda:0")
+        # encA.to(device)
+        encA = nn.DataParallel(encA, device_ids=GPU, output_device=args.outgpu)
+        decA = nn.DataParallel(decA, device_ids=GPU, output_device=args.outgpu)
+        encB = nn.DataParallel(encB, device_ids=GPU, output_device=args.outgpu)
+        decB = nn.DataParallel(decB, device_ids=GPU, output_device=args.outgpu)
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
@@ -525,13 +526,11 @@ for e in range(args.ckpt_epochs, args.epochs):
         test_elbo, test_accuracy, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
-    util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA,
-                                 fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
-                                 flatten_pixel=NUM_PIXELS)
-    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA,
-                                  fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
-                                  flatten_pixel=NUM_PIXELS)
+    # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
+    util.evaluation.save_reconst_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                     fixed_idxs=[1, 50, 100])
+    # util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+    #                               fixed_idxs=[1, 50, 100])
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
