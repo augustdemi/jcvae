@@ -335,8 +335,8 @@ def train(data, encA, decA, encB, decB, optimizer):
                     labels_onehot = labels_onehot.cuda()
                     attr = attr.cuda()
                 # encode
-                q = encB(attr, num_samples=NUM_SAMPLES, q=None)
-                # q = encA(images, num_samples=NUM_SAMPLES)
+                q = encA(images, num_samples=NUM_SAMPLES)
+                q = encB(attr, num_samples=NUM_SAMPLES, q=q)
                 # q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
                 ## poe ##
                 for i in range(args.n_shared):
