@@ -41,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--lambda_text', type=float, default=1000.,
+    parser.add_argument('--lambda_text', type=float, default=20.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -421,14 +421,6 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_elbo += batch_elbo.item()
             epoch_correct += pB['attr_sharedA'].loss.sum().item() / (args.batch_size * N_ATTR)  # (50, 85) --> (1)
 
-    if (epoch + 1) % 5 == 0 or epoch + 1 == args.epochs:
-        # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
-        #                               output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
-        #                               fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50])
-        # util.evaluation.save_reconst(epoch, test_data, encA, decA, encB, decB, CUDA,
-        #                              fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
-        #                              flatten_pixel=NUM_PIXELS)
-        save_ckpt(e + 1)
     return epoch_elbo / N, 1 + epoch_correct / N
 
 
@@ -521,16 +513,20 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
 
     test_end = time.time()
+    if (e + 1) % 5 == 0 or e + 1 == args.epochs:
+        save_ckpt(e + 1)
+    util.evaluation.save_traverse_awa(e, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                      fixed_idxs=[1000, 3000, 5000])
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, test_accuracy, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
     # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
-    util.evaluation.save_reconst_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
-                                     fixed_idxs=[1, 50, 100])
-    # util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
-    #                               fixed_idxs=[1, 50, 100])
+    # util.evaluation.save_reconst_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+    #                                  fixed_idxs=[1000, 3000, 5000])
+    util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                      fixed_idxs=[1000, 3000, 5000])
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
