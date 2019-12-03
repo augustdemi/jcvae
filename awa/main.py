@@ -34,7 +34,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of privateB')
     parser.add_argument('--batch_size', type=int, default=50, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=15, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=15, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -60,7 +60,7 @@ if __name__ == "__main__":
                         help='outgpu')
     # visdom
     parser.add_argument('--viz_on',
-                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+                        default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument('--viz_port',
                         default=8002, type=int, help='visdom port number')
     args = parser.parse_args()
@@ -148,7 +148,7 @@ def visualize_line():
         X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
         win=WIN_ID['test_acc'], update='append',
         opts=dict(xlabel='epoch', ylabel='accuracy',
-                  title='Test Accuracy', legend=['acc'])
+                  title='Test Accuracy', legend=['acc', 'cr_acc', 'vis_acc', 'vis_cr_acc'])
     )
 
     VIZ.line(
@@ -246,9 +246,6 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                latents=np.concatenate([privateB, sharedB]),
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta2, bias=bias)
-
-    reconst_loss_A = reconst_loss_A / NUM_PIXELS
-    reconst_loss_B = reconst_loss_B / N_ATTR
 
     if 'poe0' in list(q.keys()):
         # by POE
@@ -396,7 +393,7 @@ def test(data, encA, decA, encB, decB, epoch):
     encB.eval()
     decB.eval()
     epoch_elbo = 0.0
-    epoch_correct = 0
+    epoch_correct = epoch_correct_cr = epoch_correct_vis = epoch_correct_vis_cr = 0
     N = 0
     for b, (images, attr, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
@@ -421,9 +418,13 @@ def test(data, encA, decA, encB, decB, epoch):
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += pB['attr_sharedA'].loss.sum().item() / (args.batch_size * N_ATTR)  # (50, 85) --> (1)
+            epoch_correct += pB['attr_sharedB'].loss.sum().item() / (args.batch_size * N_ATTR)  # (50, 85) --> (1)
+            epoch_correct_cr += pB['attr_sharedA'].loss.sum().item() / (args.batch_size * N_ATTR)
+            epoch_correct_vis += pB['attr_vis_sharedB'].loss.sum().item() / (args.batch_size * args.n_shared)
+            epoch_correct_vis_cr += pB['attr_vis_sharedA'].loss.sum().item() / (args.batch_size * args.n_shared)
 
-    return epoch_elbo / N, 1 + epoch_correct / N
+    acc = [1 + epoch_correct / N, 1 + epoch_correct_cr / N, 1 + epoch_correct_vis / N, 1 + epoch_correct_vis_cr / N]
+    return epoch_elbo / N, acc
 
 
 def save_ckpt(e):
@@ -518,17 +519,17 @@ for e in range(args.ckpt_epochs, args.epochs):
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
     util.evaluation.save_traverse_awa(e, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
-                                      fixed_idxs=[1000, 3000, 5000])
+                                      fixed_idxs=[1000, 3000])
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
-        test_elbo, test_accuracy, test_end - test_start))
+        test_elbo, test_accuracy[0], test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
     # util.evaluation.save_reconst_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
     #                                  fixed_idxs=[1000, 3000, 5000])
     util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
-                                      fixed_idxs=[1000, 3000, 5000])
+                                      fixed_idxs=[1000, 3000])
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
