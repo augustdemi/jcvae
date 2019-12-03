@@ -563,10 +563,11 @@ def save_reconst_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sha
 
 
 def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_shared,
-                      fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99]):
+                      fixed_idxs=[0]):
     output_dir_trvsl = '../output/' + output_dir_trvsl
     tr_range = 2
-    out_dir = os.path.join(output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range), 'private')
+    out_dir = os.path.join(output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range), str(fixed_idxs),
+                           'private')
 
     fixed_XA = [0] * len(fixed_idxs)
 
@@ -666,7 +667,8 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
 
     output_dir_trvsl = '../output/' + output_dir_trvsl
     tr_range = 2
-    out_dir = os.path.join(output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range), 'shared')
+    out_dir = os.path.join(output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range), str(fixed_idxs),
+                           'shared')
     mkdirs(output_dir_trvsl)
     mkdirs(out_dir)
 
