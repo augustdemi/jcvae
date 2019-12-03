@@ -37,6 +37,8 @@ class EncoderA(nn.Module):
 
     def weight_init(self):
         for m in self._modules:
+            if m == 'resnet':
+                continue
             if isinstance(self._modules[m], nn.Sequential):
                 for one_module in self._modules[m]:
                     kaiming_init(one_module, self.seed)
