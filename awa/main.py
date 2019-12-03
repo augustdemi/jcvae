@@ -525,7 +525,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         test_elbo, test_accuracy[0], test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
+    # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
     # util.evaluation.save_reconst_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
     #                                  fixed_idxs=[1000, 3000, 5000])
     util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
