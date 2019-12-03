@@ -45,7 +45,7 @@ class EncoderA(nn.Module):
 
     # @expand_inputs
     def forward(self, x, num_samples=None, q=None):
-        import pdb
+        # import pdb
         if q is None:
             q = probtorch.Trace()
         hiddens = self.resnet(x)
@@ -66,7 +66,7 @@ class EncoderA(nn.Module):
             q.concrete(logits=shared_logit[:, :, 2 * i:2 * (i + 1)],
                        temperature=self.digit_temp,
                        name='sharedA' + str(i))
-        pdb.set_trace()
+        # pdb.set_trace()
         return q
 
 
