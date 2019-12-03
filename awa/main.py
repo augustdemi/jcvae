@@ -518,8 +518,12 @@ for e in range(args.ckpt_epochs, args.epochs):
     test_end = time.time()
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-    util.evaluation.save_traverse_awa(e, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
-                                      fixed_idxs=[1000, 3000])
+    util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                      fixed_idxs=[1000])
+    util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                      fixed_idxs=[3000])
+    util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                      fixed_idxs=[6500])
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, test_accuracy[0], test_end - test_start))
@@ -529,7 +533,11 @@ if args.ckpt_epochs == args.epochs:
     # util.evaluation.save_reconst_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
     #                                  fixed_idxs=[1000, 3000, 5000])
     util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
-                                      fixed_idxs=[1000, 3000])
+                                      fixed_idxs=[1000])
+    util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                      fixed_idxs=[3000])
+    util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                      fixed_idxs=[6500])
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
