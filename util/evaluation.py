@@ -653,7 +653,7 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
             one_hot[:, :, i % zS_dim] = 1
             zS[row] = one_hot
             if cuda:
-                zS = zS.cuda()
+                zS[row] = zS[row].cuda()
             latents = [zA_ori]
             latents.extend(zS)
             sampleA = dec.forward2(latents, cuda)
