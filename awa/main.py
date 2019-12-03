@@ -273,17 +273,13 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                        sample_dim=0, batch_dim=1,
                                                                        beta=beta2, bias=bias)
 
-        reconst_loss_poeA = reconst_loss_poeA / NUM_PIXELS
-        reconst_loss_poeB = reconst_loss_poeB / N_ATTR
-        reconst_loss_crA = reconst_loss_crA / NUM_PIXELS
-        reconst_loss_crB = reconst_loss_crB / N_ATTR
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A / NUM_PIXELS - kl_A) + (lamb * reconst_loss_B / N_ATTR - kl_B) + \
+               (reconst_loss_poeA / NUM_PIXELS - kl_poeA) + (lamb * reconst_loss_poeB / N_ATTR - kl_poeB) + \
+               (reconst_loss_crA / NUM_PIXELS - kl_crA) + (lamb * reconst_loss_crB / N_ATTR - kl_crB)
 
     else:
         reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
-        loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+        loss = 3 * ((reconst_loss_A / NUM_PIXELS - kl_A) + (lamb * reconst_loss_B / N_ATTR - kl_B))
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
                                                                           reconst_loss_crB]
 
