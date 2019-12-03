@@ -252,6 +252,7 @@ class DecoderB(nn.Module):
         self.digit_temp = TEMP
         self.seed = seed
         self.zPrivate_dim = zPrivate_dim
+        self.zShared_dim = zShared_dim
 
         self.dec_hidden = nn.Sequential(
             nn.Linear(2 * zPrivate_dim + 2 * zShared_dim, 512),
@@ -310,11 +311,13 @@ class DecoderB(nn.Module):
                 pred_labels = torch.round(torch.sigmoid(pred_labels).squeeze(0))
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
                        pred_labels, attributes, name='attr_' + shared_name)
+                p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
+                       pred_labels[:, :self.zShared_dim], attributes[:, :self.zShared_dim],
+                       name='attr_vis_' + shared_name)
         return p
 
 
 ''' introVAE: https://github.com/woxuankai/IntroVAE-Pytorch/blob/758328a64dbe4eb650a0916af8ce64f5df9d07e3/model.py '''
-
 
 class ResBlk(nn.Module):
     def __init__(self, kernels, chs, upsample=False):
