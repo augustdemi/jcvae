@@ -34,7 +34,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of privateB')
     parser.add_argument('--batch_size', type=int, default=50, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=15, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=15, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -94,10 +94,9 @@ N_ATTR = 85
 # BIAS_TRAIN = 1.0
 # BIAS_TEST = 1.0
 # model parameters
-# NUM_PIXELS = 3*32*32
+NUM_PIXELS = 3 * 32 * 32
 
-
-NUM_PIXELS = None
+# NUM_PIXELS = None
 TEMP = 0.66
 
 NUM_SAMPLES = 1
@@ -248,6 +247,9 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta2, bias=bias)
 
+    reconst_loss_A = reconst_loss_A / NUM_PIXELS
+    reconst_loss_B = reconst_loss_B / N_ATTR
+
     if 'poe0' in list(q.keys()):
         # by POE
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'],
@@ -271,6 +273,10 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                        sample_dim=0, batch_dim=1,
                                                                        beta=beta2, bias=bias)
 
+        reconst_loss_poeA = reconst_loss_poeA / NUM_PIXELS
+        reconst_loss_poeB = reconst_loss_poeB / N_ATTR
+        reconst_loss_crA = reconst_loss_crA / NUM_PIXELS
+        reconst_loss_crB = reconst_loss_crB / N_ATTR
         loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
