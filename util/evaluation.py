@@ -639,6 +639,8 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
     grid2gif(
         out_dir, str(os.path.join(out_dir, 'traverse_private' + '.gif')), delay=10
     )
+    del tempA
+    del temp
 
     tempS = []
     for row in range(n_shared):
