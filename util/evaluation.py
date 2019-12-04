@@ -626,13 +626,11 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
 
     for j, val in enumerate(interpolation):
         # I = torch.cat([IMG[key], gifs[:][j]], dim=0)
-        Il = gifs[:, j]
         save_image(
-            tensor=Il.cpu(),
+            tensor=gifs[:, j].cpu(),
             filename=os.path.join(out_dir, '%03d.jpg' % (j)),
             nrow=1 + zA_dim + 1,
             pad_value=1)
-        del ll
         # make animated gif
 
     grid2gif(
@@ -681,10 +679,8 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
     mkdirs(out_dir)
 
     for j, val in enumerate(interpolation):
-        # I = torch.cat([IMG[key], gifs[:][j]], dim=0)
-        I = gifs_shared[:, j]
         save_image(
-            tensor=I.cpu(),
+            tensor=gifs_shared[:, j].cpu(),
             filename=os.path.join(out_dir, '%03d.jpg' % (j)),
             nrow=1 + n_shared + 1,
             pad_value=1)
