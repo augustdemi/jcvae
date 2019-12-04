@@ -642,16 +642,13 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
     del zA
     del latents
 
-
     tempS = []
     for row in range(n_shared):
         if loc != -1 and row != loc:
             continue
         zS = zS_ori.copy()
         temp = []
-        print(row)
         for i in range(zS_dim):
-            print('i;', i)
             one_hot = torch.zeros_like(zS[row])
             one_hot[:, :, i % zS_dim] = 1
             zS[row] = one_hot
