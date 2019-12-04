@@ -593,7 +593,7 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
     zA_dim = zA_ori.shape[2]
     zS_dim = zS_ori[0].shape[2]
 
-    n_interp = 3
+    n_interp = 5
     interpolation = torch.tensor(np.linspace(-tr_range, tr_range, n_interp))
 
     tempA = []
