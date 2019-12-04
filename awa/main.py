@@ -382,6 +382,14 @@ def train(data, encA, decA, encB, decB, optimizer):
                 epoch_rec_crB += recB[2].item()
                 pair_cnt += 1
 
+        if b == 3:
+            util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                              fixed_idxs=[1000])
+            util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                              fixed_idxs=[3000])
+            util.evaluation.save_traverse_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
+                                              fixed_idxs=[6500])
+
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
                                                                                                    epoch_rec_crB / pair_cnt]
