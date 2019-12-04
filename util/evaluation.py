@@ -641,10 +641,6 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
     )
 
     tempS = []
-    temp = [(torch.cat([org_img[i] for i in range(org_img.shape[0])], dim=1)).unsqueeze(0)] * 2
-    tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
-    temp = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0)] * 2
-    tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
     for row in range(n_shared):
         if loc != -1 and row != loc:
             continue
@@ -662,6 +658,10 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
 
+    temp = [(torch.cat([org_img[i] for i in range(org_img.shape[0])], dim=1)).unsqueeze(0)] * 2
+    tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
+    temp = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0)] * 2
+    tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
     gifs_shared = torch.cat(tempS, dim=0)  # torch.Size([11, 10, 1, 384, 32])
 
     interpolation = torch.tensor(np.linspace(-tr_range, tr_range, zS_dim))
