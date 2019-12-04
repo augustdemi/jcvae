@@ -597,11 +597,7 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
     interpolation = torch.tensor(np.linspace(-tr_range, tr_range, n_interp))
 
     tempA = []
-    org_img = fixed_XA
-    temp = [(torch.cat([org_img[i] for i in range(org_img.shape[0])], dim=1)).unsqueeze(0)] * n_interp
-    tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
-    temp = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0)] * n_interp
-    tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
+
 
     loc = -1
     for row in range(zA_dim):
@@ -619,6 +615,11 @@ def save_traverse_awa(iters, data_loader, enc, dec, cuda, output_dir_trvsl, n_sh
 
         tempA.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
+    org_img = fixed_XA
+    temp = [(torch.cat([org_img[i] for i in range(org_img.shape[0])], dim=1)).unsqueeze(0)] * n_interp
+    tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
+    temp = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0)] * n_interp
+    tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
     gifs = torch.cat(tempA, dim=0)  # torch.Size([11, 10, 1, 384, 32])
 
     # save the generated files, also the animated gifs
