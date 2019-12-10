@@ -587,14 +587,15 @@ def test(data, encA, decA, encB, decB, epoch):
                 for j in range(N_ATTR):
                     concat_all_attr.append(attr[j][i])
                 attributes.append(torch.cat(concat_all_attr, dim=0))
-                for i in range(len(attr)):
-                    attr[i] = attr[i].cuda()
             attributes = torch.stack(attributes).float()
+
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
                 labels_onehot = labels_onehot.cuda()
                 attributes = attributes.cuda()
+                for i in range(len(attr)):
+                    attr[i] = attr[i].cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
