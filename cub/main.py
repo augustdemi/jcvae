@@ -415,6 +415,8 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
 
             ## poe of label from modal A, B & C ##
             prior_logit = torch.zeros(N_CLASSES)  # prior for label is the concrete dist. of uniform dist.
+            if CUDA:
+                prior_logit = prior_logit.cuda()
             poe_logit = q['sharedA_label'].dist.logits + q['sharedB_label'].dist.logits + q[
                 'sharedC_label'].dist.logits + prior_logit
             q.concrete(logits=poe_logit,
