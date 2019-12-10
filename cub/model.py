@@ -78,7 +78,8 @@ class EncoderA(nn.Module):
         q.concrete(logits=shared_label_logit,
                    temperature=self.digit_temp,
                    name='sharedA_label')
-        return q
+        self.q = q
+        # return q
 
 
 class DecoderA(nn.Module):

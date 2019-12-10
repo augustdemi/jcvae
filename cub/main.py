@@ -414,8 +414,8 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
                 for i in range(len(attr)):
                     attr[i] = attr[i].cuda()
             # encode
-            q = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
+            encA(images, num_samples=NUM_SAMPLES)
+            q = encB(attributes, num_samples=NUM_SAMPLES, q=encA.q)
             q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
 
             ## poe of label from modal A, B & C ##
