@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--beta', type=float, default=[1., 3., 1.], nargs='*',
                         help='beta for TC. [svhn img, mnist img, label]')
-    parser.add_argument('--lamb', type=float, default=[1., 1., 1.], nargs='*',
+    parser.add_argument('--lamb', type=float, default=[1., 1000., 10000.], nargs='*',
                         help='lambda for reconst. [svhn img, mnist img, label')
 
     parser.add_argument('--seed', type=int, default=0, metavar='N',
