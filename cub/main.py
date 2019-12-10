@@ -414,7 +414,7 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
                 for i in range(len(attr)):
                     attr[i] = attr[i].cuda()
             # encode
-            encA(images, num_samples=NUM_SAMPLES)
+            encA.forward(images, num_samples=NUM_SAMPLES)
             print(encA.module.q)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=encA.module.q)
             q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
