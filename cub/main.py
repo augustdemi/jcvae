@@ -605,7 +605,7 @@ def test(data, encA, decA, encB, decB, epoch):
             shared_dist = {'crossA': 'sharedA_label', 'crossB': 'sharedB_label', 'own': 'sharedC_label'}
 
             pC = decC(labels_onehot, shared_dist, q=q,
-                      num_samples=NUM_SAMPLES)
+                      num_samples=NUM_SAMPLES, train=False)
 
             # decode attr
             shared_dist = {'own': [[], 'sharedB_label']}
