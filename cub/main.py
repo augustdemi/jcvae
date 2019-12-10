@@ -460,7 +460,7 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
                       num_samples=NUM_SAMPLES)
 
             # loss
-            loss, recA, recB, recC = elbo(q, pA, pB, pC, lamb=args.lamb, beta=args.beta, bias=BIAS_TRAIN)
+            loss, recA, recB, recC = elbo(q, pA, pB, pC, lamb=lamb, beta=beta, bias=BIAS_TRAIN)
             loss.backward()
             optimizer.step()
             if CUDA:
@@ -544,7 +544,7 @@ def train_testset(data, encB, decB, encC, decC, optimizer):
                       num_samples=NUM_SAMPLES)
 
             # loss
-            loss, _, recB, recC = elbo(q, None, pB, pC, lamb=args.lamb, beta=args.beta, bias=BIAS_TEST)
+            loss, _, recB, recC = elbo(q, None, pB, pC, lamb=lamb, beta=beta, bias=BIAS_TEST)
             loss.backward()
             optimizer.step()
             if CUDA:
@@ -621,7 +621,7 @@ def test(data, encA, decA, encB, decB, epoch):
                       num_samples=NUM_SAMPLES)
 
             # loss
-            batch_elbo, _, _, _ = elbo(q, pA, pB, pC, lamb=args.lamb, beta=args.beta, bias=BIAS_TEST, train=False)
+            batch_elbo, _, _, _ = elbo(q, pA, pB, pC, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
             ######
 
             if CUDA:
