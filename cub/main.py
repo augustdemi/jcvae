@@ -550,8 +550,9 @@ def train_testset(data, encB, decB, encC, decC, optimizer):
             if CUDA:
                 loss = loss.cpu()
                 for i in range(3):
-                    recB[i] = recB[i].cpu()
                     recC[i] = recC[i].cpu()
+                recB[0] = recB[0].cpu()
+                recB[2] = recB[2].cpu()
 
             epoch_elbo += loss.item()
             epoch_recB += recB[0].item()
