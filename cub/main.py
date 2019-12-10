@@ -32,7 +32,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -411,6 +411,8 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
                 images = images.cuda()
                 labels_onehot = labels_onehot.cuda()
                 attributes = attributes.cuda()
+                for i in range(len(attr)):
+                    attr[i] = attr[i].cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
