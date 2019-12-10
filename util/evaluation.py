@@ -772,51 +772,53 @@ def save_traverse_cub(iters, data_loader, enc, dec, cuda, output_dir_trvsl, attr
         del latents
 
     # for shared attr
-    # for row in range(len(attr_dim)):
-    #     tempS = []
-    #     if loc != -1 and row != loc:
-    #         continue
-    #     zS = zS_attr_ori.copy()
-    #     this_attr_dim = attr_dim[row]
-    #
-    #     # add original, reconstructed img
-    #     gt_img = [(torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0)] * this_attr_dim
-    #     reconst_img = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0)] * this_attr_dim
-    #     tempS.append(torch.cat(gt_img, dim=0).unsqueeze(0))
-    #     tempS.append(torch.cat(reconst_img, dim=0).unsqueeze(0))
-    #
-    #     temp = []
-    #     for i in range(this_attr_dim):
-    #         one_hot = torch.zeros_like(zS[row])
-    #         one_hot[:, :, i % this_attr_dim] = 1
-    #         zS[row] = one_hot
-    #         if cuda:
-    #             zS[row] = zS[row].cuda()
-    #         latents = [zA_ori]
-    #         latents.extend(zS)
-    #         latents.append(zS_label_ori)
-    #         sampleA = dec.forward2(latents, cuda)
-    #         temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
-    #     tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
-    #     gifs_shared = torch.cat(tempS, dim=0)  # torch.Size([11, 10, 1, 384, 32])
-    #
-    #     interpolation = torch.tensor(np.linspace(-tr_range, tr_range, this_attr_dim))
-    #
-    #     out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs), 'attr' + str(row) + '_dim' + str(this_attr_dim))
-    #     mkdirs(out_dir)
-    #
-    #     for j, val in enumerate(interpolation):
-    #         save_image(
-    #             tensor=gifs_shared[:, j].cpu(),
-    #             filename=os.path.join(out_dir, '%03d.jpg' % (j)),
-    #             nrow=1 + 1 + 1,
-    #             pad_value=1)
-    #         # make animated gif
-    #     file_name = str(iters) + 'iter_attr' + str(row) + '_dim' + str(this_attr_dim)
-    #     grid2gif(
-    #         out_dir, str(os.path.join(out_dir, file_name + '.gif')), delay=10
-    #     )
-    #
+    for row in range(len(attr_dim)):
+        tempS = []
+        if loc != -1 and row != loc:
+            continue
+        zS = zS_attr_ori.copy()
+        this_attr_dim = attr_dim[row]
+
+        # add original, reconstructed img
+        gt_img = [(torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0)] * this_attr_dim
+        reconst_img = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(
+            0)] * this_attr_dim
+        tempS.append(torch.cat(gt_img, dim=0).unsqueeze(0))
+        tempS.append(torch.cat(reconst_img, dim=0).unsqueeze(0))
+
+        temp = []
+        for i in range(this_attr_dim):
+            one_hot = torch.zeros_like(zS[row])
+            one_hot[:, :, i % this_attr_dim] = 1
+            zS[row] = one_hot
+            if cuda:
+                zS[row] = zS[row].cuda()
+            latents = [zA_ori]
+            latents.extend(zS)
+            latents.append(zS_label_ori)
+            sampleA = dec.forward2(latents, cuda)
+            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
+        gifs_shared = torch.cat(tempS, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+        interpolation = torch.tensor(np.linspace(-tr_range, tr_range, this_attr_dim))
+
+        out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs),
+                               'attr' + str(row) + '_dim' + str(this_attr_dim))
+        mkdirs(out_dir)
+
+        for j, val in enumerate(interpolation):
+            save_image(
+                tensor=gifs_shared[:, j].cpu(),
+                filename=os.path.join(out_dir, '%03d.jpg' % (j)),
+                nrow=1 + 1 + 1,
+                pad_value=1)
+            # make animated gif
+        file_name = str(iters) + 'iter_attr' + str(row) + '_dim' + str(this_attr_dim)
+        grid2gif(
+            out_dir, str(os.path.join(out_dir, file_name + '.gif')), delay=10
+        )
+
 
 
     ### for label
