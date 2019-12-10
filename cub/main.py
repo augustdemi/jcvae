@@ -414,9 +414,8 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
                 for i in range(len(attr)):
                     attr[i] = attr[i].cuda()
             # encode
-            encA.forward(images, num_samples=NUM_SAMPLES)
-            print(encA.module.q)
-            q = encB(attributes, num_samples=NUM_SAMPLES, q=encA.module.q)
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
             q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
 
             ## poe of label from modal A, B & C ##
@@ -520,6 +519,8 @@ def train_testset(data, encB, decB, encC, decC, optimizer):
             if CUDA:
                 labels_onehot = labels_onehot.cuda()
                 attributes = attributes.cuda()
+                for i in range(len(attr)):
+                    attr[i] = attr[i].cuda()
             # encode
             q = encB(attributes, num_samples=NUM_SAMPLES)
             q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
@@ -589,6 +590,8 @@ def test(data, encA, decA, encB, decB, epoch):
                 for j in range(N_ATTR):
                     concat_all_attr.append(attr[j][i])
                 attributes.append(torch.cat(concat_all_attr, dim=0))
+                for i in range(len(attr)):
+                    attr[i] = attr[i].cuda()
             attributes = torch.stack(attributes).float()
             optimizer.zero_grad()
             if CUDA:
