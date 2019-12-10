@@ -34,6 +34,7 @@ class EncoderA(nn.Module):
         )
 
         self.weight_init()
+        self.q = None
 
     def weight_init(self):
         for m in self._modules:
