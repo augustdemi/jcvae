@@ -24,7 +24,6 @@ from PIL import Image
 
 class datasets(Dataset):
     def __init__(self, path, primary_attr_idx, train=True):
-        path = '../../data/cub/CUB_200_2011/CUB_200_2011/'
         self.filepaths, self.attributes, self.labels = load_data(train, path, primary_attr_idx)
         self.path = path
 
