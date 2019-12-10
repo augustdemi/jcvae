@@ -37,10 +37,10 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--beta', type=float, default=[1., 3., 1.], nargs='*',
-                        help='beta for TC. [svhn img, mnist img, label]')
-    parser.add_argument('--lamb', type=float, default=[1., 1000., 10000.], nargs='*',
-                        help='lambda for reconst. [svhn img, mnist img, label')
+    parser.add_argument('--beta', type=str, default='1,3,1',
+                        help='beta for TC. [img, attr, label]')
+    parser.add_argument('--lamb', type=str, default='1,1000,10000',
+                        help='lambda for reconst. [img, attr, label')
 
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -75,16 +75,12 @@ else:
     GPU = []
 CUDA = torch.cuda.is_available()
 
-BETA1 = (1., args.beta[0], 1.)
-BETA2 = (1., args.beta[1], 1.)
-BETA3 = (1., args.beta[2], 1.)
-LAMBDA1 = args.lamb[0]
-LAMBDA2 = args.lamb[1]
-LAMBDA3 = args.lamb[2]
+beta = [float(i) for i in args.beta.split(',')]
+lamb = [float(i) for i in args.lamb.split(',')]
 
 # path parameters
 MODEL_NAME = 'cub-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s' % (
-    args.run_id, args.n_privateA, '_'.join([str(elt) for elt in args.lamb]), '_'.join([str(elt) for elt in args.beta]),
+    args.run_id, args.n_privateA, '_'.join([str(elt) for elt in lamb]), '_'.join([str(elt) for elt in beta]),
     args.lr, args.batch_size, args.wseed, args.seed)
 
 if len(args.run_desc) > 1:
