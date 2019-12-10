@@ -26,8 +26,6 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=25,
-                        help='size of the latent embedding of shared visual')
     parser.add_argument('--n_privateA', type=int, default=10,
                         help='size of the latent embedding of privateA')
     parser.add_argument('--batch_size', type=int, default=50, metavar='N',
@@ -49,7 +47,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/awa',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/cub',
                         help='save and load path for ckpt')
     parser.add_argument('--gpu', type=str, default='',
                         help='cuda')
