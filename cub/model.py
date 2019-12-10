@@ -175,7 +175,7 @@ class DecoderA(nn.Module):
                     latents.append(torch.pow(one_attr_zShared + EPS, 1 / 3))  # (sample)^(1/3):prior, modalA,B
                 else:
                     latents.append(one_attr_zShared)
-            label_zShared = p.concrete(logits=torch.zeros(self.zSharedLabel_dim),
+            label_zShared = p.concrete(logits=torch.zeros_like(q[shared[shared_from][1]]),
                                        temperature=self.digit_temp,
                                        value=q[shared[shared_from][1]],
                                        name=shared[shared_from][1])
@@ -313,7 +313,7 @@ class DecoderB(nn.Module):
                     latents.append(torch.pow(one_attr_zShared + EPS, 1 / 3))  # (sample)^(1/3):prior, modalA,B
                 else:
                     latents.append(one_attr_zShared)
-            label_zShared = p.concrete(logits=torch.zeros(self.zSharedLabel_dim),
+            label_zShared = p.concrete(logits=torch.zeros_like(q[shared[shared_from][1]]),
                                        temperature=self.digit_temp,
                                        value=q[shared[shared_from][1]],
                                        name=shared[shared_from][1])
@@ -400,7 +400,7 @@ class DecoderC(nn.Module):
         p = probtorch.Trace()
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_from in shared.keys():
-            label_zShared = p.concrete(logits=torch.zeros(self.zSharedLabel_dim),
+            label_zShared = p.concrete(logits=torch.zeros_like(q[shared[shared_from]]),
                                        temperature=self.digit_temp,
                                        value=q[shared[shared_from]],
                                        name=shared[shared_from])
