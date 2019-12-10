@@ -103,6 +103,9 @@ path = args.data_path
 ATTR_PRIOR = pickle.load(open(path + "attributes/attr_prior.pkl", "rb"))
 for i in range(len(ATTR_PRIOR)):
     ATTR_PRIOR[i] = torch.FloatTensor(ATTR_PRIOR[i])
+    if CUDA:
+        ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
+
 
 primary_attr = ['eye_color', 'bill_length', 'size', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
@@ -414,9 +417,10 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
             q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
 
             ## poe of label from modal A, B & C ##
-            prior_logit = torch.zeros(N_CLASSES)  # prior for label is the concrete dist. of uniform dist.
-            if CUDA:
-                prior_logit = prior_logit.cuda()
+            prior_logit = torch.zeros_like(
+                q['sharedC_label'].dist.logits)  # prior for label is the concrete dist. of uniform dist.
+            # if CUDA:
+            #     prior_logit = prior_logit.cuda()
             poe_logit = q['sharedA_label'].dist.logits + q['sharedB_label'].dist.logits + q[
                 'sharedC_label'].dist.logits + prior_logit
             q.concrete(logits=poe_logit,
@@ -518,7 +522,8 @@ def train_testset(data, encB, decB, encC, decC, optimizer):
             q = encC(labels_onehot, num_samples=NUM_SAMPLES, q=q)
 
             ## poe of label from modal A, B & C ##
-            prior_logit = torch.zeros(N_CLASSES)  # prior for label is the concrete dist. of uniform dist.
+            prior_logit = torch.zeros_like(
+                q['sharedC_label'].dist.logits)  # prior for label is the concrete dist. of uniform dist.
             poe_logit = q['sharedB_label'].dist.logits + q['sharedC_label'].dist.logits + prior_logit
             q.concrete(logits=poe_logit,
                        temperature=TEMP,
