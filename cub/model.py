@@ -168,7 +168,7 @@ class DecoderA(nn.Module):
 
             for i in range(len(shared[shared_from][0])):
                 shared_name = shared[shared_from][0][i]
-                one_attr_zShared = p.concrete(logits=torch.log(attr_prior[i]),
+                one_attr_zShared = p.concrete(logits=torch.log(attr_prior[i] + EPS),
                                               temperature=self.digit_temp,
                                               value=q[shared_name],
                                               name=shared_name)
@@ -306,7 +306,7 @@ class DecoderB(nn.Module):
                 if p[shared_name] is not None:
                     one_attr_zShared = p[shared_name].value
                 else:
-                    one_attr_zShared = p.concrete(logits=torch.log(attr_prior[i]),
+                    one_attr_zShared = p.concrete(logits=torch.log(attr_prior[i] + EPS),
                                                   temperature=self.digit_temp,
                                                   value=q[shared_name],
                                                   name=shared_name)
