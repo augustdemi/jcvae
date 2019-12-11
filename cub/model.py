@@ -335,6 +335,8 @@ class DecoderB(nn.Module):
             for i in range(len(attr_len)):
                 reshaped_pred_labels.append(pred_labels[:, start:start + attr_len[i]])
                 start += attr_len[i]
+            for i in range(len(attr_len)):
+                reshaped_pred_labels[i] = F.log_softmax(reshaped_pred_labels[i] + EPS, dim=1)
             p.loss(
                 lambda y_pred, target: sum(
                     [-(target[i].float() * y_pred[i].float()).sum(-1) for i in range(len(target))]), \
