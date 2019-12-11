@@ -26,7 +26,7 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_privateA', type=int, default=10,
+    parser.add_argument('--n_privateA', type=int, default=600,
                         help='size of the latent embedding of privateA')
     parser.add_argument('--batch_size', type=int, default=50, metavar='N',
                         help='input batch size for training [default: 100]')
@@ -710,7 +710,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
 
     test_end = time.time()
-    if (e + 1) % 5 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
                                           fixed_idxs=[658], private=False)
