@@ -400,7 +400,7 @@ class DecoderC(nn.Module):
             else:
                 kaiming_init(self._modules[m], self.seed)
 
-    def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True):
+    def forward(self, labels, shared, q=None, p=None, num_samples=None, acc=True):
         p = probtorch.Trace()
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_from in shared.keys():
@@ -419,13 +419,12 @@ class DecoderC(nn.Module):
             pred_labels = self.dec_label(hiddens)
             # define reconstruction loss (log prob of bernoulli dist)
             pred_labels = F.log_softmax(pred_labels + EPS, dim=2)
-            if train:
-                p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
-                       pred_labels, labels.unsqueeze(0), name='label_' + shared_from)
-            else:
-                p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
-                       pred_labels.max(-1)[1], labels.max(-1)[1], name='label_' + shared_from)
 
+            p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
+                   pred_labels, labels.unsqueeze(0), name='label_' + shared_from)
+            if acc:
+                p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
+                       pred_labels.max(-1)[1], labels.max(-1)[1], name='acc_label_' + shared_from)
         return p
 
 

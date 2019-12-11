@@ -137,6 +137,7 @@ def visualize_line():
     recon_C_test = torch.Tensor(data['rec_lossC_testset'])
 
     epoch = torch.Tensor(data['epoch'])
+    train_acc = torch.Tensor(data['train_acc'])
     test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
     total_loss = torch.Tensor(data['total_loss'])
@@ -178,6 +179,13 @@ def visualize_line():
     )
 
     VIZ.line(
+        X=epoch, Y=train_acc, env=MODEL_NAME + '/lines',
+        win=WIN_ID['train_acc'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Train Accuracy', legend=['acc', 'img_acc', 'attr_acc'])
+    )
+
+    VIZ.line(
         X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
         win=WIN_ID['test_acc'], update='append',
         opts=dict(xlabel='epoch', ylabel='accuracy',
@@ -194,12 +202,13 @@ def visualize_line():
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', llC='win_llC', test_acc='win_test_acc', total_losses='win_total_losses',
+        llA='win_llA', llB='win_llB', llC='win_llC', train_acc='win_train_acc', test_acc='win_test_acc',
+        total_losses='win_total_losses',
         llB_test='win_llB_test', llC_test='win_llC_test'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_C',
-        'total_loss', 'test_total_loss', 'test_acc', 'rec_lossB_testset', 'rec_lossC_testset'
+        'total_loss', 'test_total_loss', 'train_acc', 'test_acc', 'rec_lossB_testset', 'rec_lossC_testset'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -390,6 +399,8 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
     decC.train()
 
     N = 0
+    epoch_correct = epoch_correct_from_img = epoch_correct_from_attr = 0
+
     torch.autograd.set_detect_anomaly(True)
     for b, (images, attr, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
@@ -483,9 +494,16 @@ def train(data, encA, decA, encB, decB, encC, decC, optimizer):
             epoch_rec_poeC += recC[1].item()
             epoch_rec_crC += recC[2].item()
 
+            # accuracy
+            epoch_correct += pC['acc_label_own'].loss.sum().item() / args.batch_size
+            epoch_correct_from_img += pC['acc_label_crossA'].loss.sum().item() / args.batch_size
+            epoch_correct_from_attr += pC['acc_label_crossB'].loss.sum().item() / args.batch_size
+    acc = [1 + epoch_correct / N, 1 + epoch_correct_from_img / N, 1 + epoch_correct_from_attr / N]
+
+
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], [epoch_recC / N, epoch_rec_poeC / N,
-                                                                     epoch_rec_crC / N]
+           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], \
+           [epoch_recC / N, epoch_rec_poeC / N, epoch_rec_crC / N], acc
 
 
 def train_testset(data, encB, decB, encC, decC, optimizer):
@@ -534,7 +552,7 @@ def train_testset(data, encB, decB, encC, decC, optimizer):
             # decode label
             shared_dist = {'partial_poe': 'poe_label', 'crossB': 'sharedB_label', 'own': 'sharedC_label'}
             pC = decC(labels_onehot, shared_dist, q=q,
-                      num_samples=NUM_SAMPLES)
+                      num_samples=NUM_SAMPLES, acc=False)
 
             # decode attr
             shared_dist = {'cross': [[], 'sharedC_label'],
@@ -607,7 +625,7 @@ def test(data, encA, decA, encB, decB, epoch):
             shared_dist = {'crossA': 'sharedA_label', 'crossB': 'sharedB_label', 'own': 'sharedC_label'}
 
             pC = decC(labels_onehot, shared_dist, q=q,
-                      num_samples=NUM_SAMPLES, train=False)
+                      num_samples=NUM_SAMPLES)
 
             # decode attr
             shared_dist = {'own': [[], 'sharedB_label']}
@@ -630,9 +648,9 @@ def test(data, encA, decA, encB, decB, epoch):
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += pC['label_own'].loss.sum().item() / args.batch_size
-            epoch_correct_from_img += pC['label_crossA'].loss.sum().item() / args.batch_size
-            epoch_correct_from_attr += pC['label_crossB'].loss.sum().item() / args.batch_size
+            epoch_correct += pC['acc_label_own'].loss.sum().item() / args.batch_size
+            epoch_correct_from_img += pC['acc_label_crossA'].loss.sum().item() / args.batch_size
+            epoch_correct_from_attr += pC['acc_label_crossB'].loss.sum().item() / args.batch_size
     acc = [1 + epoch_correct / N, 1 + epoch_correct_from_img / N, 1 + epoch_correct_from_attr / N]
     return epoch_elbo / N, acc
 
@@ -668,7 +686,8 @@ if args.ckpt_epochs > 0:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, rec_lossC = train(train_data, encA, decA, encB, decB, encC, decC, optimizer)
+    train_elbo, rec_lossA, rec_lossB, rec_lossC, train_acc = train(train_data, encA, decA, encB, decB, encC, decC,
+                                                                   optimizer)
     train_testset_elbo, rec_lossB_testset, rec_lossC_testset = train_testset(test_data, encB, decB, encC, decC,
                                                                              optimizer)
     train_end = time.time()
@@ -677,6 +696,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
+                           train_acc=train_acc,
                            test_acc=test_accuracy,
                            test_total_loss=test_elbo,
                            total_loss=train_elbo,
