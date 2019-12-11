@@ -712,12 +712,12 @@ for e in range(args.ckpt_epochs, args.epochs):
     test_end = time.time()
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-    util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[658], private=False)
-    util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[2233], private=False)
-    util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[2456], private=False)
+        util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+                                          fixed_idxs=[658], private=False)
+        util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+                                          fixed_idxs=[2233], private=False)
+        util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+                                          fixed_idxs=[2456], private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, test_accuracy[0], test_end - test_start))
