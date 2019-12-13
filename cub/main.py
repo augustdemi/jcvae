@@ -213,9 +213,11 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-train_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True), batch_size=args.batch_size, shuffle=True,
+train_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True, crop=1.2), batch_size=args.batch_size,
+                                         shuffle=True,
                                          num_workers=len(GPU))
-test_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=False), batch_size=args.batch_size, shuffle=True,
+test_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=False, crop=1.2), batch_size=args.batch_size,
+                                        shuffle=True,
                                         num_workers=len(GPU))
 
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
