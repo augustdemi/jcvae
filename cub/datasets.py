@@ -47,16 +47,18 @@ class datasets(Dataset):
         """
         img_path, attr, label = self.filepaths[index], self.attributes[index], self.labels[index]
 
+        # for i in range(len(self.labels)):
+        #     if self.labels[i] == 106:
+        #         print(i)
+
+        # img_path = self.filepaths[4288]
         img = pil_loader(self.path + '/images/' + img_path)
         img = transforms.Compose([
             transforms.Resize((128, 128)),
             transforms.ToTensor(),
         ])(img)
-
         # imgshow(img)
-        # for i in range(self.labels.shape[0]):
-        #     if self.labels[i] == 163:
-        #         print(i)
+
 
         label = torch.tensor(label - 1, dtype=torch.int64)
         # attr = torch.FloatTensor(attr)
