@@ -26,20 +26,20 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_privateA', type=int, default=600,
+    parser.add_argument('--n_privateA', type=int, default=636,
                         help='size of the latent embedding of privateA')
     parser.add_argument('--batch_size', type=int, default=50, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=160, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=160, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--beta', type=str, default='1,3,1',
+    parser.add_argument('--beta', type=str, default='1,10,1',
                         help='beta for TC. [img, attr, label]')
-    parser.add_argument('--lamb', type=str, default='1,1000,10000',
+    parser.add_argument('--lamb', type=str, default='1,500,5000',
                         help='lambda for reconst. [img, attr, label')
 
     parser.add_argument('--seed', type=int, default=0, metavar='N',
@@ -724,28 +724,25 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
 
     test_end = time.time()
-    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 1 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[658], private=False)
-        util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[2233], private=False)
-        util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[2456], private=False)
+                                          fixed_idxs=[658, 2233, 2456], private=False)
+        util.evaluation.save_traverse_cub(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+                                          fixed_idxs=[130, 502, 4288], private=False)
+
+        print('wwww:')
+        print(encA.state_dict()['resnet.4.0.conv1.weight'].sum())
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, test_accuracy[0], test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
     # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
-    # util.evaluation.save_reconst_awa(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, args.n_shared,
-    #                                  fixed_idxs=[1000, 3000, 5000])
     util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[658], private=False)
-    util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[2233], private=False)
-    util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[2456], private=False)
+                                      fixed_idxs=[658, 2233, 2456], private=False)
+    util.evaluation.save_traverse_cub(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+                                      fixed_idxs=[130, 502, 4288], private=False)
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
