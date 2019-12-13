@@ -15,7 +15,8 @@ import pickle
 import numpy as np
 
 import torch
-import torchvision
+import os
+from scipy import io, misc
 from torchvision import transforms
 from torch.utils.data.dataset import Dataset
 # from utils import transform
@@ -23,10 +24,10 @@ from PIL import Image
 
 
 class datasets(Dataset):
-    def __init__(self, path, primary_attr_idx, train=True):
-        self.filepaths, self.attributes, self.labels = load_data(train, path, primary_attr_idx)
+    def __init__(self, path, primary_attr_idx, train=True, crop=None):
+        self.filepaths, self.attributes, self.labels, self.boxes = load_data(train, path, primary_attr_idx)
         self.path = path
-
+        self.crop = crop
 
         # dataset = torchvision.datasets.ImageFolder(
         #     root= self.filepaths,
@@ -45,28 +46,70 @@ class datasets(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        img_path, attr, label = self.filepaths[index], self.attributes[index], self.labels[index]
-
+        # index = 2233
+        # img_idx: 8055
+        # paht: 138.Tree_Swallow / Tree_Swallow_0060_134961.jpg
+        # label:138
+        # bding box: 13.0 39.0 476.0 458.0
+        # attr: checked
+        img_path, attr, label, box = self.filepaths[index], self.attributes[index], self.labels[index], self.boxes[
+            index]
+        # for i in range(len(self.labels)): #16,28 (10,0)
+        #     if self.labels[i] == 10:
+        #         print(i)
+        # img_path = self.filepaths[4288]
         img = pil_loader(self.path + '/images/' + img_path)
-        img = transforms.Compose([
+        crop_img = self._read(img, index)
+
+        crop_img = transforms.Compose([
             transforms.Resize((128, 128)),
             transforms.ToTensor(),
-        ])(img)
-
-        # imgshow(img)
-        # for i in range(self.labels.shape[0]):
-        #     if self.labels[i] == 163:
-        #         print(i)
+        ])(Image.fromarray(crop_img))
+        # imgshow(crop_img)
 
         label = torch.tensor(label - 1, dtype=torch.int64)
         # attr = torch.FloatTensor(attr)
-        return img, attr, label
+        return crop_img, attr, label
 
     def __len__(self):
         return len(self.labels)
 
+    def _read(self, img, index):
+        raw_dim = img.size
+        img = np.asarray(img)
+        if self.crop is not None:
+            xmin, ymin, xmax, ymax = self._get_cropped_coordinates(index, raw_dim)
+        else:
+            xmin, ymin, xmax, ymax = 0, 0, raw_dim[0], raw_dim[1]
+        crop_img = img[ymin:ymax, xmin:xmax]
+        # if self._target_size is not None:
+        #     image = misc.imresize(image, self._target_size)
+        return crop_img
+
+    def _get_cropped_coordinates(self, index, raw_dim):
+        box = self.boxes[index]
+        x, y, width, height = box
+        centerx = x + width / 2.
+        centery = y + height / 2.
+        xoffset = width * self.crop / 2.
+        yoffset = height * self.crop / 2.
+        xmin = max(int(centerx - xoffset + 0.5), 0)
+        ymin = max(int(centery - yoffset + 0.5), 0)
+        xmax = min(int(centerx + xoffset + 0.5), raw_dim[0] - 1)
+        ymax = min(int(centery + yoffset + 0.5), raw_dim[1] - 1)
+        # if xmax - xmin <= 0 or ymax - ymin <= 0:
+        #     raise ValueError, "The cropped bounding box has size 0."
+        return xmin, ymin, xmax, ymax
 
 def load_data(train, path, primary_attr_idx):
+    boxes = []
+    for line in open(path + 'attributes/bounding_boxes.txt', 'r'):
+        box = []
+        for val in line.split(' ')[1:]:
+            box.append(float(val))
+        boxes.append(box)
+    boxes = np.array(boxes)
+    # boxes = [box for box, val in zip(boxes, is_selected) if val]
     train_classes = np.genfromtxt(path + "attributes/trainvalids.txt", delimiter='\n', dtype=int)
     imgid_label = np.array([int(elt.split(' ')[1]) for elt in
                             np.genfromtxt(path + "attributes/image_class_labels.txt", delimiter='\n', dtype=str)])
@@ -83,6 +126,7 @@ def load_data(train, path, primary_attr_idx):
             [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
             tr_imgidx]
         filepaths = list(filepaths)
+        boxes = list(boxes[tr_imgidx])
 
         # testset - only attributes and labels
         # te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
@@ -103,7 +147,8 @@ def load_data(train, path, primary_attr_idx):
         filepaths = np.array(
             [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
             te_imgidx]
-    return filepaths, attributes, labels
+        boxes = list(boxes[te_imgidx])
+    return filepaths, attributes, labels, boxes
 
 
 def get_attr(labels, path):

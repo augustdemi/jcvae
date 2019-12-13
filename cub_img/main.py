@@ -159,9 +159,11 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-train_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True), batch_size=args.batch_size, shuffle=True,
+train_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True, crop=1.2), batch_size=args.batch_size,
+                                         shuffle=True,
                                          num_workers=len(GPU))
-test_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=False), batch_size=args.batch_size, shuffle=True,
+test_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=False, crop=1.2), batch_size=args.batch_size,
+                                        shuffle=True,
                                         num_workers=len(GPU))
 
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
@@ -246,7 +248,7 @@ def train(data, encA, decA, optimizer):
             epoch_elbo += loss.item()
             epoch_recA += recA.item()
 
-    return epoch_elbo / N, [epoch_recA / N]
+    return epoch_elbo / N, epoch_recA / N
 
 
 def test(data, encA, decA, epoch):
@@ -330,19 +332,17 @@ for e in range(args.ckpt_epochs, args.epochs):
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[658, 2233, 2456], private=False)
+                                          fixed_idxs=[658, 1570, 2233, 2456, 2880], private=False)  # 2880
         util.evaluation.save_traverse_cub(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[130, 502, 4288], private=False)
+                                          fixed_idxs=[130, 215, 502, 537, 4288], private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, LL %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, rec_lossA, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
     util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[658, 2233, 2456], private=False)
+                                      fixed_idxs=[658, 1570, 2233, 2456, 2880], private=False)  # 2880
     util.evaluation.save_traverse_cub(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[130, 502, 4288], private=False)
-    # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
+                                      fixed_idxs=[130, 215, 502, 537, 4288], private=False)
 else:
     save_ckpt(args.epochs)
