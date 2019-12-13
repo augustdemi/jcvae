@@ -241,10 +241,10 @@ def train(data, encA, decA, optimizer):
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
-                recA[0] = recA[0].cpu()
+                recA = recA.cpu()
 
             epoch_elbo += loss.item()
-            epoch_recA += recA[0].item()
+            epoch_recA += recA.item()
 
     return epoch_elbo / N, [epoch_recA / N]
 
