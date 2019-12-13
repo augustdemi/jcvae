@@ -669,34 +669,32 @@ def test(data, encA, decA, encB, decB, epoch):
     return epoch_elbo / N, acc
 
 
+####
 def save_ckpt(e):
-    if not os.path.isdir(args.ckpt_path):
-        os.mkdir(args.ckpt_path)
-    torch.save(encA.state_dict(),
-               '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decA.state_dict(),
-               '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(encB.state_dict(),
-               '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decB.state_dict(),
-               '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(encA, '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(encB, '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(encC, '%s/%s-encC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decA, '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decB, '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decC, '%s/%s-decC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
 
 
+####
 if args.ckpt_epochs > 0:
     if CUDA:
-        encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        encC = torch.load('%s/%s-encC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decC = torch.load('%s/%s-decC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
     else:
-        encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        encC = torch.load('%s/%s-encC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decC = torch.load('%s/%s-decC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
