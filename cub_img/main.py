@@ -5,7 +5,7 @@ import random
 import torch
 import os
 import numpy as np
-from model import EncoderA, DecoderA, EncoderB, DecoderB, EncoderC, DecoderC
+from model import EncoderA, DecoderA, DecoderA2
 from datasets import datasets
 import torch.nn as nn
 import sys
@@ -101,9 +101,10 @@ for i in range(len(ATTR_PRIOR)):
     if CUDA:
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 
-primary_attr = ['eye_color', 'bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
+primary_attr = ['eye_color', 'bill_length', 'size', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
-                'breast_color', 'wing_color', 'belly_color']
+                'breast_color', 'wing_color']
+
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
@@ -178,7 +179,7 @@ def cuda_tensors(obj):
 
 
 encA = EncoderA(args.wseed, zPrivate_dim=args.n_privateA, zSharedAttr_dim=ATTR_DIM, zSharedLabel_dim=N_CLASSES)
-decA = DecoderA(args.wseed, zPrivate_dim=args.n_privateA, zSharedAttr_dim=ATTR_DIM, zSharedLabel_dim=N_CLASSES)
+decA = DecoderA2(args.wseed, zPrivate_dim=args.n_privateA, zSharedAttr_dim=ATTR_DIM, zSharedLabel_dim=N_CLASSES)
 
 if CUDA:
     encA.cuda()

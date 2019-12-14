@@ -471,3 +471,108 @@ class ResBlk(nn.Module):
         # aa =self.shortcut(x)
         # bb =self.net(x)
         return F.relu(self.shortcut(x) + self.net(x), inplace=True)  # Identity + residual
+
+
+class DecoderA2(nn.Module):
+    def __init__(self, seed, zPrivate_dim, zSharedAttr_dim, zSharedLabel_dim):
+        super(self.__class__, self).__init__()
+        self.digit_temp = TEMP
+        self.zSharedAttr_dim = zSharedAttr_dim
+        self.zSharedLabel_dim = zSharedLabel_dim
+
+        self.style_mean = zPrivate_dim
+        self.style_std = zPrivate_dim
+        self.seed = seed
+
+        self.fc = nn.Sequential(
+            nn.Linear(zPrivate_dim + sum(zSharedAttr_dim) + zSharedLabel_dim, 2048),
+            nn.ReLU()
+        )
+
+        self.dec_image = nn.Sequential(
+            nn.ConvTranspose2d(512, 256, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 64, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 32, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 3, 4, 2, 1),
+            nn.Sigmoid())
+
+        self.weight_init()
+
+    def weight_init(self):
+        for m in self._modules:
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
+    def forward(self, images, shared, attr_prior, q=None, p=None, num_samples=None):
+        priv_mean = torch.zeros_like(q['privateA'].dist.loc)
+        priv_std = torch.ones_like(q['privateA'].dist.scale)
+
+        p = probtorch.Trace()
+
+        # prior for z_private
+        zPrivate = p.normal(priv_mean,
+                            priv_std,
+                            value=q['privateA'],
+                            name='privateA')
+
+        for shared_from in shared.keys():
+            latents = [zPrivate]
+            # prior for z_shared_atrr
+
+            for i in range(len(shared[shared_from][0])):
+                shared_name = shared[shared_from][0][i]
+                one_attr_zShared = p.concrete(logits=torch.log(attr_prior[i] + EPS),
+                                              temperature=self.digit_temp,
+                                              value=q[shared_name],
+                                              name=shared_name)
+
+                if 'poe' in shared_from:
+                    latents.append(torch.pow(one_attr_zShared + EPS, 1 / 3))  # (sample)^(1/3):prior, modalA,B
+                else:
+                    latents.append(one_attr_zShared)
+            label_zShared = p.concrete(logits=torch.zeros_like(q[shared[shared_from][1]].value),
+                                       temperature=self.digit_temp,
+                                       value=q[shared[shared_from][1]],
+                                       name=shared[shared_from][1])
+            if 'poe' in shared_from:
+                latents.append(torch.pow(label_zShared + EPS, 1 / 4))  # (sample)^(1/4):prior, modalA,B,C
+            else:
+                latents.append(label_zShared)
+
+            hiddens = self.fc(torch.cat(latents, -1))
+            hiddens = hiddens.view(hiddens.size(1), 512, 2, 2)
+            x = self.dec_image(hiddens)
+
+            images_mean = x.view(x.size(0), -1)
+            images = images.view(images.size(0), -1)
+            # define reconstruction loss (log prob of bernoulli dist)
+            p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
+                                      torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
+                   images_mean, images, name='images_' + shared_from)
+        return p
+
+    def make_one_hot(self, alpha, cuda):
+        _, max_alpha = torch.max(alpha, dim=1)
+        one_hot_samples = torch.zeros(alpha.size())
+        one_hot_samples.scatter_(1, max_alpha.view(-1, 1).data.cpu(), 1)
+        if cuda:
+            one_hot_samples = one_hot_samples.cuda()
+        return one_hot_samples
+
+    def forward2(self, latents, cuda):
+        hiddens = self.fc(torch.cat(latents, -1))
+        x = hiddens.view(-1, 2048, 1, 1)
+        for layer in self.layers:
+            x = layer(x)
+
+        return x
