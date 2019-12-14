@@ -571,8 +571,6 @@ class DecoderA2(nn.Module):
 
     def forward2(self, latents, cuda):
         hiddens = self.fc(torch.cat(latents, -1))
-        x = hiddens.view(-1, 2048, 1, 1)
-        for layer in self.layers:
-            x = layer(x)
-
+        hiddens = hiddens.view(hiddens.size(1), 512, 2, 2)
+        x = self.dec_image(hiddens)
         return x
