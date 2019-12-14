@@ -101,9 +101,9 @@ for i in range(len(ATTR_PRIOR)):
     if CUDA:
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 
-primary_attr = ['eye_color', 'bill_length', 'size', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
+primary_attr = ['eye_color', 'bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
-                'breast_color', 'wing_color']
+                'breast_color', 'wing_color', 'belly_color']
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
@@ -259,24 +259,10 @@ def test(data, encA, decA, epoch):
     for b, (images, attr, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            labels_onehot = torch.zeros(args.batch_size, N_CLASSES)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-            attributes = []
-            for i in range(args.batch_size):
-                concat_all_attr = []
-                for j in range(N_ATTR):
-                    concat_all_attr.append(attr[j][i])
-                attributes.append(torch.cat(concat_all_attr, dim=0))
-            attributes = torch.stack(attributes).float()
 
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
-                attributes = attributes.cuda()
-                for i in range(len(attr)):
-                    attr[i] = attr[i].cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
 
