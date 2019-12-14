@@ -32,7 +32,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -79,7 +79,7 @@ beta = [float(i) for i in args.beta.split(',')]
 lamb = [float(i) for i in args.lamb.split(',')]
 
 # path parameters
-MODEL_NAME = 'cub-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s' % (
+MODEL_NAME = 'cub_img-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s' % (
     args.run_id, args.n_privateA, '_'.join([str(elt) for elt in lamb]), '_'.join([str(elt) for elt in beta]),
     args.lr, args.batch_size, args.wseed, args.seed)
 
@@ -319,17 +319,21 @@ for e in range(args.ckpt_epochs, args.epochs):
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[658, 1570, 2233, 2456, 2880], private=False)  # 2880
+                                          fixed_idxs=[658, 1570, 2233, 2456, 2880, 344, 2166, 2059, 1111, 300],
+                                          private=False)  # 2880
         util.evaluation.save_traverse_cub(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[130, 215, 502, 537, 4288], private=False)
+                                          fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+                                          private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, LL %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, rec_lossA, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
     util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[658, 1570, 2233, 2456, 2880], private=False)  # 2880
+                                      fixed_idxs=[658, 1570, 2233, 2456, 2880, 344, 2166, 2059, 1111, 300],
+                                      private=False)  # 2880
     util.evaluation.save_traverse_cub(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[130, 215, 502, 537, 4288], private=False)
+                                      fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+                                      private=False)
 else:
     save_ckpt(args.epochs)
