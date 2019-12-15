@@ -101,7 +101,13 @@ for i in range(len(ATTR_PRIOR)):
     if CUDA:
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 
-primary_attr = ['shape', 'belly_pattern', 'bill_shape',
+# 0
+# primary_attr = ['shape', 'belly_pattern', 'bill_shape',
+#                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
+#                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
+
+# 1
+primary_attr = ['bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
 
