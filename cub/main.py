@@ -108,6 +108,15 @@ primary_attr = ['eye_color', 'bill_length', 'shape', 'breast_pattern', 'belly_pa
 primary_attr = ['eye_color', 'bill_length', 'size', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
                 'breast_color', 'wing_color']
+# regressor + stat 10
+primary_attr = ['eye_color', 'bill_length', 'leg_color', 'bill_shape',
+                'bill_color', 'throat_color', 'crown_color', 'forehead_color',
+                'belly_color', 'wing_color']
+
+# regressor + stat 13
+primary_attr = ['eye_color', 'bill_length', 'shape', 'bill_shape', 'head_pattern',
+                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'breast_color',
+                'belly_color', 'wing_color', 'leg_color']
 
 ATTR_IDX = []
 ATTR_DIM = []
