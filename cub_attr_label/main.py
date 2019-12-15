@@ -289,8 +289,8 @@ if args.ckpt_epochs > 0:
         encA = torch.load('%s/%s-regressor_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
     else:
         encA = torch.load('%s/%s-regressor_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                          map_location='cpu') \
- \
+                          map_location='cpu')
+
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_loss, train_acc = train(train_data, regressor, optimizer)
