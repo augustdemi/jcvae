@@ -319,13 +319,13 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_loss, train_acc = train(train_data, regressor, optimizer)
     train_end = time.time()
     test_start = time.time()
-    test_loss, test_acc = test(test_data, regressor, optimizer)
+    # test_loss, test_acc = test(test_data, regressor, optimizer)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            train_acc=train_acc,
-                           test_acc=test_acc,
-                           test_total_loss=test_loss,
+                           test_acc=train_acc,
+                           test_total_loss=train_loss,
                            total_loss=train_loss
                            )
         visualize_line()
@@ -336,6 +336,6 @@ for e in range(args.ckpt_epochs, args.epochs):
         save_ckpt(e + 1)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: TR Accuracy %0.3f, TE Accuracy %0.3f (%ds)' % (
         e, train_loss, train_end - train_start,
-        train_acc, test_acc, test_end - test_start))
+        train_acc, train_acc, test_end - test_start))
 
 save_ckpt(args.epochs)
