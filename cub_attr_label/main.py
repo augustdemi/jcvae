@@ -106,10 +106,15 @@ for i in range(len(ATTR_PRIOR)):
 #                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
 #                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
 
-# 1
-primary_attr = ['shape', 'belly_pattern', 'bill_shape',
-                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
-                'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
+# # 1
+# primary_attr = ['shape', 'belly_pattern', 'bill_shape',
+#                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
+#                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
+
+# 2
+primary_attr = ['shape', 'bill_shape',
+                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'primary_color',
+                'breast_color', 'wing_color', 'belly_color']
 
 ATTR_IDX = []
 ATTR_DIM = []
