@@ -367,14 +367,7 @@ def elbo(q, pA, pB, pC, lamb, beta, bias=1.0, train=True):
                                                                                        sample_dim=0, batch_dim=1,
                                                                                        beta=(1, beta[2], 1), bias=bias)
 
-            # loss = (lamb[0] * reconst_loss_A / N_PIXELS - kl_A) + (lamb[1] * reconst_loss_B / N_ATTR - kl_B) + (
-            # lamb[2] * reconst_loss_C - kl_C) + \
-            #        (lamb[0] * reconst_loss_poeA / N_PIXELS - kl_poeA) + (
-            #        lamb[1] * reconst_loss_poeB / N_ATTR - kl_poeB) + (
-            #        lamb[2] * reconst_loss_poeC - kl_poeC) + \
-            #        (lamb[0] * reconst_loss_crA / N_PIXELS - kl_crA) + (lamb[1] * reconst_loss_crB / N_ATTR - kl_crB) + \
-            #        0.5 * ((lamb[2] * reconst_loss_crC_fromB - kl_crC_fromB) + (
-            #        lamb[2] * reconst_loss_crC_fromA - kl_crC_fromA))
+
             loss = (lamb[0] * reconst_loss_A - kl_A) + (lamb[1] * reconst_loss_B - kl_B) + (
             lamb[2] * reconst_loss_C - kl_C) + \
                    (lamb[0] * reconst_loss_poeA - kl_poeA) + (lamb[1] * reconst_loss_poeB - kl_poeB) + (
@@ -390,11 +383,7 @@ def elbo(q, pA, pB, pC, lamb, beta, bias=1.0, train=True):
                                                                                [sharedB_attr, ['sharedC_label']]),
                                                                            sample_dim=0, batch_dim=1,
                                                                            beta=(1, beta[1], 1), bias=bias)
-            # loss = 1.5 * (
-            # 1.5 * ((lamb[1] * reconst_loss_B / N_ATTR - kl_B) + (lamb[1] * reconst_loss_crB / N_ATTR - kl_crB)) + \
-            # ((lamb[2] * reconst_loss_C - kl_C) + \
-            #                (lamb[2] * reconst_loss_poeC - kl_poeC) + \
-            #                (lamb[2] * reconst_loss_crC_fromB - kl_crC_fromB)))
+
             loss = 1.5 * (1.5 * ((lamb[1] * reconst_loss_B - kl_B) + (lamb[1] * reconst_loss_crB - kl_crB)) + \
                           ((lamb[2] * reconst_loss_C - kl_C) + \
                            (lamb[2] * reconst_loss_poeC - kl_poeC) + \
@@ -409,9 +398,6 @@ def elbo(q, pA, pB, pC, lamb, beta, bias=1.0, train=True):
                                                                    batch_dim=1,
                                                                    beta=(1, beta[0], 1), bias=bias)
 
-        # loss = 3 * (
-        #     (lamb[0] * reconst_loss_A / N_PIXELS - kl_A) + (lamb[1] * reconst_loss_B / N_ATTR - kl_B) + (
-        #     lamb[2] * reconst_loss_C - kl_C))
         loss = 3 * (
             (lamb[0] * reconst_loss_A - kl_A) + (lamb[1] * reconst_loss_B - kl_B) + (lamb[2] * reconst_loss_C - kl_C))
 
@@ -721,8 +707,8 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB, rec_lossC, train_acc = train(train_data, encA, decA, encB, decB, encC, decC,
                                                                    optimizer)
-    train_testset_elbo, rec_lossB_testset, rec_lossC_testset = train_testset(test_data, encB, decB, encC, decC,
-                                                                             optimizer)
+    # train_testset_elbo, rec_lossB_testset, rec_lossC_testset = train_testset(test_data, encB, decB, encC, decC,
+    #                                                                          optimizer)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
@@ -736,8 +722,8 @@ for e in range(args.ckpt_epochs, args.epochs):
                            recon_A=rec_lossA,
                            recon_B=rec_lossB,
                            recon_C=rec_lossC,
-                           rec_lossB_testset=rec_lossB_testset,
-                           rec_lossC_testset=rec_lossC_testset
+                           rec_lossB_testset=rec_lossB,
+                           rec_lossC_testset=rec_lossC
                            )
         visualize_line()
         LINE_GATHER.flush()
