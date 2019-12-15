@@ -104,7 +104,7 @@ for i in range(len(ATTR_PRIOR)):
 primary_attr = ['bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
-print(primary_attr)
+
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
@@ -117,7 +117,8 @@ for i in range(attributes.shape[0]):
         ATTR_DIM.append(len(attributes[i].split("::")[1].split(',')) + 1)
 
 ATTR_PRIOR = [ATTR_PRIOR[i] for i in ATTR_IDX]
-
+print(primary_attr)
+print(ATTR_IDX)
 
 # visdom setup
 def viz_init():
