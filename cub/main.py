@@ -373,7 +373,7 @@ def elbo(q, pA, pB, pC, lamb, beta, bias=1.0, train=True):
                    (lamb[0] * reconst_loss_poeA - kl_poeA) + (lamb[1] * reconst_loss_poeB - kl_poeB) + (
                    lamb[2] * reconst_loss_poeC - kl_poeC) + \
                    (lamb[0] * reconst_loss_crA - kl_crA) + (lamb[1] * reconst_loss_crB - kl_crB) + \
-                   0.5 * ((lamb[2] * reconst_loss_crC_fromB - kl_crC_fromB) + (
+                   1.0 * ((lamb[2] * reconst_loss_crC_fromB - kl_crC_fromB) + (
                    lamb[2] * reconst_loss_crC_fromA - kl_crC_fromA))
 
             reconst_loss_crC = 0.5 * (reconst_loss_crC_fromB + reconst_loss_crC_fromA)
@@ -387,7 +387,7 @@ def elbo(q, pA, pB, pC, lamb, beta, bias=1.0, train=True):
             loss = 1.5 * (1.5 * ((lamb[1] * reconst_loss_B - kl_B) + (lamb[1] * reconst_loss_crB - kl_crB)) + \
                           ((lamb[2] * reconst_loss_C - kl_C) + \
                            (lamb[2] * reconst_loss_poeC - kl_poeC) + \
-                           (lamb[2] * reconst_loss_crC_fromB - kl_crC_fromB)))
+                           2 * (lamb[2] * reconst_loss_crC_fromB - kl_crC_fromB)))
             reconst_loss_crC = reconst_loss_crC_fromB
 
     else:
