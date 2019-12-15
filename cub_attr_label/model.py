@@ -32,6 +32,6 @@ class linearRegression(nn.Module):
     def forward(self, attributes, labels):
         pred_labels = self.fc(attributes)
         pred_labels = F.log_softmax(pred_labels + EPS, dim=1)
-        loss = (pred_labels * labels).sum()
+        loss = -(pred_labels * labels).sum()
         acc = (pred_labels.max(-1)[1] == labels.max(-1)[1]).float().sum()
         return loss, acc
