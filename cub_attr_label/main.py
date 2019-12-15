@@ -100,6 +100,7 @@ for i in range(len(ATTR_PRIOR)):
     ATTR_PRIOR[i] = torch.FloatTensor(ATTR_PRIOR[i])
     if CUDA:
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
+attributes = np.genfromtxt(path + 'attributes/attr.txt', delimiter='\n', dtype=str)
 
 # 0
 # primary_attr = ['bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
@@ -112,16 +113,19 @@ for i in range(len(ATTR_PRIOR)):
 #                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
 
 # 2
-primary_attr = ['shape', 'bill_shape',
-                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'primary_color',
-                'breast_color', 'wing_color', 'belly_color']
+# primary_attr = ['shape', 'bill_shape',
+#                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'primary_color',
+#                 'breast_color', 'wing_color', 'belly_color']
+# total
+primary_attr = []
+for i in range(attributes.shape[0]):
+    primary_attr.append(attributes[i].split("::")[0])
 
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
 TRAIN_CLASSES = np.genfromtxt(path + 'attributes/trainvalids.txt', delimiter='\n', dtype=int)
 
-attributes = np.genfromtxt(path + 'attributes/attr.txt', delimiter='\n', dtype=str)
 for i in range(attributes.shape[0]):
     if attributes[i].split("::")[0] in primary_attr:
         ATTR_IDX.append(i)
