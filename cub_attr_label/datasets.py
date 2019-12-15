@@ -116,39 +116,41 @@ def load_data(train, path, primary_attr_idx):
                             np.genfromtxt(path + "attributes/image_class_labels.txt", delimiter='\n', dtype=str)])
 
     attributes = []
-    if train:
-        # trainset - all modalities: img path, attr, label
-        tr_vec_attr = pickle.load(open(path + "attributes/vec_attr_trainval.pkl", "rb"))
-        for key in tr_vec_attr.keys():
-            attributes.append([tr_vec_attr[key][i] / tr_vec_attr[key][i].sum() for i in primary_attr_idx])
-        tr_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] in train_classes])
-        labels = list(imgid_label[tr_imgidx])
-        filepaths = np.array(
-            [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
-            tr_imgidx]
-        filepaths = list(filepaths)
-        boxes = list(boxes[tr_imgidx])
+    # if train:
+    #     # trainset - all modalities: img path, attr, label
+    #     tr_vec_attr = pickle.load(open(path + "attributes/vec_attr_trainval.pkl", "rb"))
+    #     for key in tr_vec_attr.keys():
+    #         attributes.append([tr_vec_attr[key][i] / tr_vec_attr[key][i].sum() for i in primary_attr_idx])
+    #     tr_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] in train_classes])
+    #     labels = list(imgid_label[tr_imgidx])
+    #     filepaths = np.array(
+    #         [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
+    #         tr_imgidx]
+    #     filepaths = list(filepaths)
+    #     boxes = list(boxes[tr_imgidx])
+    # else:
+    #     te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
+    #     for key in te_vec_attr.keys():
+    #         attributes.append([te_vec_attr[key][i] / te_vec_attr[key][i].sum() for i in primary_attr_idx])
+    #     te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
+    #     labels = imgid_label[te_imgidx]
+    #     filepaths = np.array(
+    #         [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
+    #         te_imgidx]
+    #     boxes = list(boxes[te_imgidx])
 
-        # testset - only attributes and labels
-        # te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
-        # for key in te_vec_attr.keys():
-        #     attributes.append([te_vec_attr[key][i] for i in primary_attr_idx])
-        # te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
-        # labels.extend(list(imgid_label[te_imgidx]))
-        # filepaths.extend(list(np.array(
-        #     [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
-        #     te_imgidx]))
-        # filepaths.extend([None] * te_imgidx.shape[0])
-    else:
-        te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
-        for key in te_vec_attr.keys():
-            attributes.append([te_vec_attr[key][i] / te_vec_attr[key][i].sum() for i in primary_attr_idx])
-        te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
-        labels = imgid_label[te_imgidx]
-        filepaths = np.array(
-            [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
-            te_imgidx]
-        boxes = list(boxes[te_imgidx])
+    tr_vec_attr = pickle.load(open(path + "attributes/vec_attr_trainval.pkl", "rb"))
+    for key in tr_vec_attr.keys():
+        attributes.append([tr_vec_attr[key][i] / tr_vec_attr[key][i].sum() for i in primary_attr_idx])
+    te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
+    for key in te_vec_attr.keys():
+        attributes.append([te_vec_attr[key][i] / te_vec_attr[key][i].sum() for i in primary_attr_idx])
+
+    labels = list(imgid_label)
+    filepaths = np.array(
+        [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])
+    filepaths = list(filepaths)
+    boxes = list(boxes)
     return filepaths, attributes, labels, boxes
 
 
