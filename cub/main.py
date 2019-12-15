@@ -5,7 +5,7 @@ import random
 import torch
 import os
 import numpy as np
-from model import EncoderA, DecoderA, EncoderB, DecoderB, EncoderC, DecoderC
+from model import EncoderA, DecoderA, EncoderB, DecoderB, EncoderC, DecoderC, DecoderA2
 from datasets import datasets
 import torch.nn as nn
 import sys
@@ -101,23 +101,33 @@ for i in range(len(ATTR_PRIOR)):
     if CUDA:
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 
-
+primary_attr = ['eye_color', 'bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
+                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
+                'breast_color', 'wing_color']
+# original
 primary_attr = ['eye_color', 'bill_length', 'size', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
                 'breast_color', 'wing_color']
+
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
 TRAIN_CLASSES = np.genfromtxt(path + 'attributes/trainvalids.txt', delimiter='\n', dtype=int)
 
 attributes = np.genfromtxt(path + 'attributes/attr.txt', delimiter='\n', dtype=str)
+total_attr = []
 for i in range(attributes.shape[0]):
-    if attributes[i].split("::")[0] in primary_attr:
+    attr = attributes[i].split("::")[0]
+    total_attr.append(attr)
+    if attr in primary_attr:
         ATTR_IDX.append(i)
         ATTR_DIM.append(len(attributes[i].split("::")[1].split(',')) + 1)
 
 ATTR_PRIOR = [ATTR_PRIOR[i] for i in ATTR_IDX]
-
+print(primary_attr)
+print(ATTR_IDX)
+print(np.array(total_attr)[ATTR_IDX])
+print(len(ATTR_IDX))
 
 # visdom setup
 def viz_init():
@@ -727,9 +737,11 @@ for e in range(args.ckpt_epochs, args.epochs):
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[658, 1570, 2233, 2456, 2880], private=False)  # 2880
+                                          fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300],
+                                          private=False)  # 2880
         util.evaluation.save_traverse_cub(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[130, 215, 502, 537, 4288], private=False)
+                                          fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+                                          private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, test_accuracy[0], test_end - test_start))
@@ -737,9 +749,11 @@ for e in range(args.ckpt_epochs, args.epochs):
 if args.ckpt_epochs == args.epochs:
     # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
     util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[658, 1570, 2233, 2456, 2880], private=False)  # 2880
+                                      fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300],
+                                      private=False)  # 2880
     util.evaluation.save_traverse_cub(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[130, 215, 502, 537, 4288], private=False)
+                                      fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+                                      private=False)
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
