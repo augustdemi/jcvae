@@ -75,12 +75,12 @@ else:
     GPU = []
 CUDA = torch.cuda.is_available()
 
-beta = [float(i) for i in args.beta.split(',')]
+exc = args.beta
 lamb = [float(i) for i in args.lamb.split(',')]
 
 # path parameters
-MODEL_NAME = 'cub_reg-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s' % (
-    args.run_id, args.n_privateA, '_'.join([str(elt) for elt in lamb]), '_'.join([str(elt) for elt in beta]),
+MODEL_NAME = 'cub_reg-run_id%d-privA%02ddim-lamb%s-exc_%s-lr%s-bs%s-wseed%s-seed%s' % (
+    args.run_id, args.n_privateA, '_'.join([str(elt) for elt in lamb]), exc,
     args.lr, args.batch_size, args.wseed, args.seed)
 
 if len(args.run_desc) > 1:
@@ -125,6 +125,9 @@ primary_attr = ['bill_shape', 'wing_color', 'upperparts_color', 'underparts_colo
                 'tail_pattern', 'belly_pattern', 'primary_color', 'leg_color', 'bill_color', 'crown_color',
                 'wing_pattern']
 
+primary_attr = [elt for elt in primary_attr if elt not in exc]
+
+
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
@@ -138,6 +141,7 @@ for i in range(attributes.shape[0]):
 ATTR_PRIOR = [ATTR_PRIOR[i] for i in ATTR_IDX]
 print(primary_attr)
 print(ATTR_IDX)
+print(len(ATTR_IDX))
 
 # visdom setup
 def viz_init():
