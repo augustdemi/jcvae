@@ -28,7 +28,7 @@ if __name__ == "__main__":
                         help='run_id desc')
     parser.add_argument('--n_privateA', type=int, default=636,
                         help='size of the latent embedding of privateA')
-    parser.add_argument('--batch_size', type=int, default=8855, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -102,12 +102,12 @@ for i in range(len(ATTR_PRIOR)):
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 
 # 0
-# primary_attr = ['shape', 'belly_pattern', 'bill_shape',
+# primary_attr = ['bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
 #                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
 #                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
 
 # 1
-primary_attr = ['bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
+primary_attr = ['shape', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
 
