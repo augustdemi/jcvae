@@ -22,13 +22,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=2, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_privateA', type=int, default=636,
                         help='size of the latent embedding of privateA')
-    parser.add_argument('--batch_size', type=int, default=50, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=8855, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -57,7 +57,7 @@ if __name__ == "__main__":
                         help='data path')
     # visdom
     parser.add_argument('--viz_on',
-                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+                        default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument('--viz_port',
                         default=8002, type=int, help='visdom port number')
     args = parser.parse_args()
@@ -101,7 +101,7 @@ for i in range(len(ATTR_PRIOR)):
     if CUDA:
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 
-primary_attr = ['bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
+primary_attr = ['shape', 'belly_pattern', 'bill_shape',
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
                 'breast_color', 'wing_color', 'belly_color', 'wing_pattern']
 
@@ -296,7 +296,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_loss, train_acc = train(train_data, regressor, optimizer)
     train_end = time.time()
     test_start = time.time()
-    test_loss, test_acc = train(test_data, regressor, optimizer)
+    test_loss, test_acc = test(test_data, regressor, optimizer)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
