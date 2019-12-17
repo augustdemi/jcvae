@@ -392,6 +392,8 @@ def train(data, encA, decA, encB, decB, optimizer):
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
 
+    del q
+    del pA
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
            [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N]
 
@@ -448,6 +450,8 @@ def test(data, encA, decA, encB, decB, epoch):
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
+    del q
+    del pA
     return epoch_elbo / N, recA, recB
 
 
