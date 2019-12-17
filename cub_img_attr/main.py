@@ -516,7 +516,7 @@ for e in range(args.ckpt_epochs, args.epochs):
                                              private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
-        test_elbo, recon_B_test[2], test_end - test_start))
+        test_elbo, recon_B_test[1], test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
     # util.evaluation.save_recon_cub(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
