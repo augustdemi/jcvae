@@ -200,7 +200,7 @@ if args.viz_on:
     WIN_ID = dict(
         llA='win_llA', llB='win_llB',
         total_losses='win_total_losses',
-        llB_test='win_llB_test', llC_test='win_llA_test'
+        llB_test='win_llB_test', llA_test='win_llA_test'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B',
@@ -516,8 +516,9 @@ if args.ckpt_epochs == args.epochs:
     util.evaluation.save_traverse_cub_ia(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
                                          fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300],
                                          private=False)  # 2880
+    # train
     util.evaluation.save_traverse_cub_ia(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                         fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+                                         fixed_idxs=[130, 215, 336, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
                                          private=False)
 
 
