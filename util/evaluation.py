@@ -859,3 +859,190 @@ def save_traverse_cub(iters, data_loader, enc, dec, cuda, output_dir_trvsl, attr
         grid2gif(
             out_dir, str(os.path.join(out_dir, file_name + '.gif')), delay=10
         )
+
+
+def save_recon_cub(iters, data_loader, enc, dec, encB, cuda, output_dir_trvsl, attr_dim,
+                   fixed_idxs=[0]):
+    output_dir_trvsl = '../output/' + output_dir_trvsl
+    mkdirs(output_dir_trvsl)
+
+    tr_range = 2
+
+    imgs = [0] * len(fixed_idxs)
+    attr = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        imgs[i], attr[i] = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            imgs[i] = imgs[i].cuda()
+            imgs[i] = imgs[i].squeeze(0)
+    imgs = torch.stack(imgs, dim=0)
+    attributes = []
+    for i in range(imgs.shape[0]):
+        concat_all_attr = []
+        for j in range(len(attr_dim)):
+            concat_all_attr.append(torch.Tensor(attr[i][j]))
+        attributes.append(torch.cat(concat_all_attr, dim=0))
+    attributes = torch.stack(attributes).float()
+    if cuda:
+        attributes = attributes.cuda()
+
+    # do traversal and collect generated images
+
+    q = enc(imgs, num_samples=1)
+    q = encB(attributes, q=q, num_samples=1)
+    zA_ori = q['privateA'].dist.loc
+    sharedA_attr = []
+    sharedB_attr = []
+    for i in range(len(attr_dim)):
+        sharedA_attr.append(q['sharedA_attr' + str(i)].value)
+        sharedB_attr.append(q['sharedB_attr' + str(i)].value)
+
+    recon_img = dec.forward2([zA_ori] + sharedA_attr, cuda)
+    recon_img_cr = dec.forward2([zA_ori] + sharedB_attr, cuda)
+
+    temp = []
+    temp.append((torch.cat([imgs[i] for i in range(imgs.shape[0])], dim=1)).unsqueeze(0))
+    temp.append((torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0))
+    temp.append((torch.cat([recon_img_cr[i] for i in range(recon_img_cr.shape[0])], dim=1)).unsqueeze(0))
+
+    fin = torch.cat(temp, dim=0)
+
+    # save the generated files, also the animated gifs
+
+    out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs))
+    mkdirs(out_dir)
+    save_image(
+        tensor=fin[:, 0].cpu(),
+        filename=os.path.join(out_dir, 'rec.jpg'),
+        nrow=1 + 1 + 1,
+        pad_value=1)
+
+
+def save_traverse_cub_ia(iters, data_loader, enc, dec, cuda, output_dir_trvsl, attr_dim,
+                         fixed_idxs=[0], private=True):
+    output_dir_trvsl = '../output/' + output_dir_trvsl
+    mkdirs(output_dir_trvsl)
+
+    tr_range = 2
+
+    fixed_XA = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+
+    # do traversal and collect generated images
+
+    q = enc(fixed_XA, num_samples=1)
+    zA_ori = q['privateA'].dist.loc
+    zS_attr_ori = []
+    for i in range(len(attr_dim)):
+        zS_attr_ori.append(q['sharedA_attr' + str(i)].value)
+
+    latents = [zA_ori]
+    latents.extend(zS_attr_ori)
+    recon_img = dec.forward2(latents, cuda)
+
+    zA_dim = zA_ori.shape[2]
+
+    n_interp = 5
+    interpolation = torch.tensor(np.linspace(-tr_range, tr_range, n_interp))
+    loc = -1
+
+    if private:
+        tempA = []
+        for row in range(zA_dim):
+            if loc != -1 and row != loc:
+                continue
+            zA = zA_ori.clone()
+
+            temp = []
+            for val in interpolation:
+                zA[:, :, row] = val
+                latents = [zA]
+                latents.extend(zS_attr_ori)
+                sampleA = dec.forward2(latents, cuda)
+                temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+
+            tempA.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+
+        temp = [(torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0)] * n_interp
+        tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
+        temp = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0)] * n_interp
+        tempA.append(torch.cat(temp, dim=0).unsqueeze(0))
+        gifs = torch.cat(tempA, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+        # save the generated files, also the animated gifs
+
+        out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs),
+                               'private_range' + str(tr_range))
+        mkdirs(out_dir)
+
+        for j, val in enumerate(interpolation):
+            # I = torch.cat([IMG[key], gifs[:][j]], dim=0)
+            save_image(
+                tensor=gifs[:, j].cpu(),
+                filename=os.path.join(out_dir, '%03d.jpg' % (j)),
+                nrow=1 + zA_dim + 1,
+                pad_value=1)
+            # make animated gif
+
+        grid2gif(
+            out_dir, str(os.path.join(out_dir, 'traverse_private' + '.gif')), delay=10
+        )
+        del tempA
+        del temp
+        del gifs
+        del zA
+        del latents
+
+    # for shared attr
+    for row in range(len(attr_dim)):
+        tempS = []
+        if loc != -1 and row != loc:
+            continue
+        zS = zS_attr_ori.copy()
+        this_attr_dim = attr_dim[row]
+
+        # add original, reconstructed img
+        gt_img = [(torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0)] * this_attr_dim
+        reconst_img = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(
+            0)] * this_attr_dim
+        tempS.append(torch.cat(gt_img, dim=0).unsqueeze(0))
+        tempS.append(torch.cat(reconst_img, dim=0).unsqueeze(0))
+
+        temp = []
+        for i in range(this_attr_dim):
+            one_hot = torch.zeros_like(zS[row])
+            one_hot[:, :, i % this_attr_dim] = 1
+            zS[row] = one_hot
+            if cuda:
+                zS[row] = zS[row].cuda()
+            latents = [zA_ori]
+            latents.extend(zS)
+            sampleA = dec.forward2(latents, cuda)
+            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
+        gifs_shared = torch.cat(tempS, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+        interpolation = torch.tensor(np.linspace(-tr_range, tr_range, this_attr_dim))
+
+        out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs),
+                               'attr' + str(row) + '_dim' + str(this_attr_dim))
+        mkdirs(out_dir)
+
+        for j, val in enumerate(interpolation):
+            save_image(
+                tensor=gifs_shared[:, j].cpu(),
+                filename=os.path.join(out_dir, '%03d.jpg' % (j)),
+                nrow=1 + 1 + 1,
+                pad_value=1)
+            # make animated gif
+        file_name = str(iters) + 'iter_attr' + str(row) + '_dim' + str(this_attr_dim)
+        grid2gif(
+            out_dir, str(os.path.join(out_dir, file_name + '.gif')), delay=10
+        )
