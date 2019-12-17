@@ -380,8 +380,9 @@ def train(data, encA, decA, encB, decB, optimizer):
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
-                recA[0] = recA[0].cpu()
-                recB[0] = recB[0].cpu()
+                for i in range(3):
+                    recA[i] = recA[i].cpu()
+                    recB[i] = recB[i].cpu()
 
             epoch_elbo += loss.item()
             epoch_recA += recA[0].item()
@@ -392,8 +393,6 @@ def train(data, encA, decA, encB, decB, optimizer):
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
 
-    del q
-    del pA
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
            [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N]
 
@@ -404,7 +403,8 @@ def test(data, encA, decA, encB, decB, epoch):
     encB.eval()
     decB.eval()
     epoch_elbo = 0.0
-    epoch_correct = epoch_correct_from_img = epoch_correct_from_attr = 0
+    epoch_recA = epoch_rec_crA = 0.0
+    epoch_recB = epoch_rec_crB = 0.0
     N = 0
     for b, (images, attr, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
@@ -444,15 +444,25 @@ def test(data, encA, decA, encB, decB, epoch):
                       num_samples=NUM_SAMPLES)
 
             # loss
-            batch_elbo, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
+            loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
             ######
 
             if CUDA:
-                batch_elbo = batch_elbo.cpu()
-            epoch_elbo += batch_elbo.item()
-    del q
-    del pA
-    return epoch_elbo / N, recA, recB
+                loss = loss.cpu()
+                for i in [0, 2]:
+                    recA[i] = recA[i].cpu()
+                    recB[i] = recB[i].cpu()
+
+            epoch_elbo += loss.item()
+            epoch_recA += recA[0].item()
+            epoch_rec_crA += recA[2].item()
+
+            epoch_recB += recB[0].item()
+            epoch_rec_crB += recB[2].item()
+            epoch_elbo += loss.item()
+
+    return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
+           [epoch_recB / N, epoch_rec_crB / N]
 
 
 ####
@@ -489,8 +499,8 @@ for e in range(args.ckpt_epochs, args.epochs):
                            total_loss=train_elbo,
                            recon_A=rec_lossA,
                            recon_B=rec_lossB,
-                           recon_A_test=[recon_A_test[0], recon_A_test[2]],
-                           recon_B_test=[recon_B_test[0], recon_B_test[2]]
+                           recon_A_test=recon_A_test,
+                           recon_B_test=recon_B_test
                            )
         visualize_line()
         LINE_GATHER.flush()
