@@ -32,7 +32,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=2, metavar='N',
+    parser.add_argument('--epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -455,10 +455,8 @@ def test(data, encA, decA, encB, decB, epoch):
 def save_ckpt(e):
     torch.save(encA, '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
     torch.save(encB, '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(encC, '%s/%s-encC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
     torch.save(decA, '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
     torch.save(decB, '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decC, '%s/%s-decC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
 
 
 ####
@@ -466,17 +464,13 @@ if args.ckpt_epochs > 0:
     if CUDA:
         encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
         encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        encC = torch.load('%s/%s-encC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
         decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
         decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        decC = torch.load('%s/%s-decC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
     else:
         encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
         encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        encC = torch.load('%s/%s-encC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
         decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
         decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        decC = torch.load('%s/%s-decC_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
@@ -498,13 +492,15 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
 
     test_end = time.time()
-    if (e + 1) % 1 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub_ia(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                             fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300],
+                                             fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1800, 1111,
+                                                         300],
                                              private=False)  # 2880
         util.evaluation.save_traverse_cub_ia(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                             fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+                                             fixed_idxs=[130, 215, 336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002,
+                                                         3312],
                                              private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
@@ -514,11 +510,12 @@ if args.ckpt_epochs == args.epochs:
     # util.evaluation.save_recon_cub(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
     #                                   fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312])
     util.evaluation.save_traverse_cub_ia(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                         fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300],
+                                         fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1800, 1111,
+                                                     300],
                                          private=False)  # 2880
     # train
     util.evaluation.save_traverse_cub_ia(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                         fixed_idxs=[130, 215, 336, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+                                         fixed_idxs=[130, 215, 336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
                                          private=False)
 
 
