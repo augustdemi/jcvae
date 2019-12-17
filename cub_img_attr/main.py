@@ -142,7 +142,8 @@ print(len(ATTR_IDX))
 def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA_test'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB_test'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
 
 
