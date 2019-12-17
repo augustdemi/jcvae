@@ -495,11 +495,10 @@ for e in range(args.ckpt_epochs, args.epochs):
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub_ia(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                             fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111,
-                                                         300],
+                                             fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
                                              private=False)  # 2880
         util.evaluation.save_traverse_cub_ia(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                             fixed_idxs=[215, 336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
+                                             fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
                                              private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
@@ -509,12 +508,11 @@ if args.ckpt_epochs == args.epochs:
     # util.evaluation.save_recon_cub(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
     #                                   fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312])
     util.evaluation.save_traverse_cub_ia(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                         fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111,
-                                                     300],
+                                         fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
                                          private=False)  # 2880
     # train
     util.evaluation.save_traverse_cub_ia(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                         fixed_idxs=[215, 336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
+                                         fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
                                          private=False)
 
 
