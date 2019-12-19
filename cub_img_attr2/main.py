@@ -92,11 +92,11 @@ N_PIXELS = 3 * 128 * 128
 TEMP = 0.66
 NUM_SAMPLES = 1
 import pickle
-
 path = args.data_path
 ATTR_PRIOR = pickle.load(open(path + "attributes/attr_prior_312.pkl", "rb"))
 for i in range(len(ATTR_PRIOR)):
-    ATTR_PRIOR[i] = torch.FloatTensor(ATTR_PRIOR[i])
+    ATTR_PRIOR[i] = torch.FloatTensor(np.array([1 - ATTR_PRIOR[i], ATTR_PRIOR[i]]))
+    ATTR_PRIOR[i] = torch.transpose(ATTR_PRIOR[i], dim0=0, dim1=1)
     if CUDA:
         ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 

@@ -1069,11 +1069,9 @@ def save_traverse_cub_ia2(iters, data_loader, enc, dec, cuda, output_dir_trvsl, 
     q = enc(fixed_XA, num_samples=1)
     zA_ori = q['privateA'].dist.loc
     zS_attr_ori = []
-    cnt = 0
-    for i in range(len(attr_dim)):
-        for j in range(attr_dim[i]):
-            zS_attr_ori.append(q['sharedA_attr' + str(cnt)].value)
-            cnt += 1
+
+    for i in range(sum(attr_dim)):
+        zS_attr_ori.append(q['sharedA_attr' + str(i)].value)
 
     latents = [zA_ori]
     latents.extend(zS_attr_ori)
@@ -1150,10 +1148,9 @@ def save_traverse_cub_ia2(iters, data_loader, enc, dec, cuda, output_dir_trvsl, 
             tempS.append(torch.cat(reconst_img, dim=0).unsqueeze(0))
 
             temp = []
-            for i in range(this_attr_dim):
+            for d in range(this_attr_dim):
                 one_hot = torch.zeros_like(zS[row])
-                if i == 1:
-                    one_hot[:, :, 0] = 1
+                one_hot[:, :, d % this_attr_dim] = 1
                 zS[row] = one_hot
                 if cuda:
                     zS[row] = zS[row].cuda()

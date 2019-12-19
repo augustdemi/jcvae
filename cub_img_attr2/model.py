@@ -28,7 +28,7 @@ class EncoderA(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Dropout(0.1),
-            nn.Linear(2048, 2 * zPrivate_dim + sum(zSharedAttr_dim)),
+            nn.Linear(2048, 2 * zPrivate_dim + sum(zSharedAttr_dim) * 2),
             nn.Tanh()
         )
 
@@ -63,16 +63,10 @@ class EncoderA(nn.Module):
                  name='privateA')
 
         # attributes
-        start_dim = 0
-        i = 0
-        for this_attr_dim in self.zSharedAttr_dim:
-            for _ in range(this_attr_dim):
-                q.concrete(logits=shared_attr_logit[:, :, start_dim + i:start_dim + i + 1],
-                           temperature=self.digit_temp,
-                           name='sharedA_attr' + str(i))
-                i += 1
-            start_dim += this_attr_dim
-
+        for i in range(sum(self.zSharedAttr_dim)):
+            q.concrete(logits=shared_attr_logit[:, :, i * 2:(i + 1) * 2],
+                       temperature=self.digit_temp,
+                       name='sharedA_attr' + str(i))
         return q
 
 
@@ -87,7 +81,7 @@ class DecoderA(nn.Module):
         self.seed = seed
 
         self.fc = nn.Sequential(
-            nn.Linear(zPrivate_dim + sum(zSharedAttr_dim), 2048),
+            nn.Linear(zPrivate_dim + 2 * sum(zSharedAttr_dim), 2048),
             nn.ReLU()
         )
 
@@ -160,7 +154,7 @@ class DecoderA(nn.Module):
 
             for i in range(len(shared[shared_from])):
                 shared_name = shared[shared_from][i]
-                one_attr_zShared = p.concrete(logits=torch.log((attr_prior[i] + EPS).unsqueeze(0)),
+                one_attr_zShared = p.concrete(logits=torch.log(attr_prior[i] + EPS),
                                               temperature=self.digit_temp,
                                               value=q[shared_name],
                                               name=shared_name)
@@ -205,7 +199,7 @@ class EncoderB(nn.Module):
             nn.ReLU(),
         )
 
-        self.fc = nn.Linear(512, sum(zSharedAttr_dim))
+        self.fc = nn.Linear(512, sum(zSharedAttr_dim) * 2)
         self.weight_init()
 
     def weight_init(self):
@@ -225,15 +219,11 @@ class EncoderB(nn.Module):
         shared_attr_logit = self.fc(hiddens)
 
         # attributes
-        start_dim = 0
-        i = 0
-        for this_attr_dim in self.zSharedAttr_dim:
-            for _ in range(this_attr_dim):
-                q.concrete(logits=shared_attr_logit[:, :, start_dim + i:start_dim + i + 1],
-                           temperature=self.digit_temp,
-                           name='sharedB_attr' + str(i))
-                i += 1
-            start_dim += this_attr_dim
+
+        for i in range(sum(self.zSharedAttr_dim)):
+            q.concrete(logits=shared_attr_logit[:, :, i * 2:(i + 1) * 2],
+                       temperature=self.digit_temp,
+                       name='sharedB_attr' + str(i))
         return q
 
 
@@ -245,7 +235,7 @@ class DecoderB(nn.Module):
         self.zSharedAttr_dim = zSharedAttr_dim
 
         self.dec_hidden = nn.Sequential(
-            nn.Linear(sum(zSharedAttr_dim), 512),
+            nn.Linear(2 * sum(zSharedAttr_dim), 512),
             nn.ReLU(),
             nn.Linear(512, 512),
             nn.ReLU()
@@ -273,7 +263,7 @@ class DecoderB(nn.Module):
                 if p[shared_name] is not None:
                     one_attr_zShared = p[shared_name].value
                 else:
-                    one_attr_zShared = p.concrete(logits=torch.log((attr_prior[i] + EPS).unsqueeze(0)),
+                    one_attr_zShared = p.concrete(logits=torch.log(attr_prior[i] + EPS),
                                                   temperature=self.digit_temp,
                                                   value=q[shared_name],
                                                   name=shared_name)
