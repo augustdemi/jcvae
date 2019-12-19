@@ -32,7 +32,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -119,10 +119,10 @@ primary_attr = ['eye_color', 'bill_length', 'shape', 'bill_shape', 'head_pattern
 
 primary_attr = ['primary_color']
 
+
 # regressor + stat + visible 12
-primary_attr = ['bill_length', 'shape', 'bill_shape', 'wing_pattern', 'primary_color'
-                                                                      'bill_color', 'throat_color', 'forehead_color',
-                'breast_color',
+primary_attr = ['bill_length', 'shape', 'bill_shape', 'wing_pattern', 'primary_color',
+                'bill_color', 'throat_color', 'forehead_color', 'breast_color',
                 'belly_color', 'wing_color', 'leg_color']
 
 
