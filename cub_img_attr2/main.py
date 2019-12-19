@@ -84,6 +84,7 @@ MODEL_NAME = 'cub_ia2-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed
     args.lr, args.batch_size, args.wseed, args.seed)
 
 if len(args.run_desc) > 1:
+    print(args.run_desc)
     desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
     with open(desc_file, 'w') as outfile:
         outfile.write(args.run_desc)
@@ -360,7 +361,9 @@ def train(data, encA, decA, encB, decB, optimizer):
             poe_cnt = 0
             for i in range(N_ATTR):
                 for j in range(ATTR_DIM[i]):
-                    prior_logit = torch.log(ATTR_PRIOR[i][j] + EPS)
+                    # prior_logit = torch.log(ATTR_PRIOR[i][j] + EPS)
+                    prior_logit = torch.zeros_like(
+                        q['sharedA_attr0'].dist.logits)  # prior is the concrete dist. of uniform dist.
                     poe_logit = q['sharedA_attr' + str(poe_cnt)].dist.logits + q[
                         'sharedB_attr' + str(poe_cnt)].dist.logits + prior_logit
                     q.concrete(logits=poe_logit,
