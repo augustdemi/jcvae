@@ -756,13 +756,16 @@ for e in range(args.ckpt_epochs, args.epochs):
         test_elbo, test_accuracy[0], test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 5)
-    util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300],
-                                      private=False)  # 2880
-    util.evaluation.save_traverse_cub(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                      fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
-                                      private=False)
+    torch.save(encA.resnet.state_dict(),
+               '%s/%s-encA_res_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+    torch.save(decA.layers.state_dict(),
+               '%s/%s-decA_layers_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+    # util.evaluation.save_traverse_cub(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+    #                                   fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300],
+    #                                   private=False)  # 2880
+    # util.evaluation.save_traverse_cub(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+    #                                   fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312],
+    #                                   private=False)
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
     save_ckpt(args.epochs)
