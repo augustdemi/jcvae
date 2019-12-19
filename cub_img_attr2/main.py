@@ -499,11 +499,9 @@ def save_ckpt(e):
 
 ####
 encA.resnet.load_state_dict(torch.load(
-    '%s/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta2.0_1.0_1.0-lr0.001-bs50-wseed0-seed0-encA_res_epoch380.rar' % (
-    args.ckpt_path)))
+    '../weights/cub/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta2.0_1.0_1.0-lr0.001-bs50-wseed0-seed0-encA_res_epoch380.rar'))
 decA.layers.load_state_dict(torch.load(
-    '%s/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta2.0_1.0_1.0-lr0.001-bs50-wseed0-seed0-decA_layers_epoch380.rar' % (
-    args.ckpt_path)))
+    '../weights/cub/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta2.0_1.0_1.0-lr0.001-bs50-wseed0-seed0-decA_layers_epoch380.rar'))
 
 if args.ckpt_epochs > 0:
     if CUDA:
