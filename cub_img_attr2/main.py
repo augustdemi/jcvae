@@ -119,6 +119,13 @@ primary_attr = ['eye_color', 'bill_length', 'shape', 'bill_shape', 'head_pattern
 
 primary_attr = ['primary_color']
 
+# regressor + stat + visible 12
+primary_attr = ['bill_length', 'shape', 'bill_shape', 'wing_pattern', 'primary_color'
+                                                                      'bill_color', 'throat_color', 'forehead_color',
+                'breast_color',
+                'belly_color', 'wing_color', 'leg_color']
+
+
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
