@@ -142,7 +142,7 @@ def load_data(train, path, primary_attr_idx):
     else:
         te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
         for key in te_vec_attr.keys():
-            attributes.append([te_vec_attr[key][i] for i in primary_attr_idx])
+            attributes.append([te_vec_attr[key][i][:-1] for i in primary_attr_idx])
         te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
         labels = imgid_label[te_imgidx]
         filepaths = np.array(
