@@ -280,7 +280,7 @@ class DecoderB(nn.Module):
             pred_labels = F.logsigmoid(pred_labels + EPS)
 
             p.loss(
-                lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target), \
+                lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
                 pred_labels, attributes, name='attr_' + shared_from)
         return p
 
