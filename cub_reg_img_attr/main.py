@@ -173,14 +173,14 @@ def visualize_line():
         X=epoch, Y=train_acc, env=MODEL_NAME + '/lines',
         win=WIN_ID['train_acc'], update='append',
         opts=dict(xlabel='epoch', ylabel='accuracy',
-                  title='Train Accuracy', legend=['acc', 'img_acc', 'attr_acc'])
+                  title='Train Accuracy', legend=['acc'])
     )
 
     VIZ.line(
         X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
         win=WIN_ID['test_acc'], update='append',
         opts=dict(xlabel='epoch', ylabel='accuracy',
-                  title='Test Accuracy', legend=['acc', 'img_acc', 'attr_acc'])
+                  title='Test Accuracy', legend=['acc'])
     )
 
     VIZ.line(
@@ -327,8 +327,8 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.insert(epoch=e,
                            test_total_loss=test_elbo,
                            total_loss=train_elbo,
-                           tr_acc=tr_acc,
-                           te_acc=te_acc,
+                           train_acc=tr_acc,
+                           test_acc=te_acc,
                            )
         visualize_line()
         LINE_GATHER.flush()
@@ -336,12 +336,12 @@ for e in range(args.ckpt_epochs, args.epochs):
     test_end = time.time()
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                              fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
-                                              private=False)  # 2880
-        util.evaluation.save_traverse_cub_ia2(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                              fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
-                                              private=False)
+        # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+        #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
+        #                                       private=False)  # 2880
+        # util.evaluation.save_traverse_cub_ia2(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+        #                                       fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
+        #                                       private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, te_acc, test_end - test_start))
