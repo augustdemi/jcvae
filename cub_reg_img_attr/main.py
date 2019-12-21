@@ -279,7 +279,8 @@ def test(data, encA, epoch):
                 attributes = attributes.cuda()
             # encode
             loss, acc, pred_labels = encA(images, attributes, num_samples=NUM_SAMPLES)
-            loss.backward()
+            pred_labels = pred_labels.sum(dim=0)
+
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
