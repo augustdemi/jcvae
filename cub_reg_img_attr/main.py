@@ -273,17 +273,17 @@ def test(data, encA, epoch):
     for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            optimizer.zero_grad()
+            attributes = attributes.float()
             if CUDA:
                 images = images.cuda()
                 attributes = attributes.cuda()
             # encode
             loss, acc, pred_labels = encA(images, attributes, num_samples=NUM_SAMPLES)
             loss.backward()
-            optimizer.step()
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
+                pred_labels = pred_labels.cpu()
             epoch_elbo += loss.item()
             epoch_correct += acc.item()
             epoch_pred += pred_labels.detach().numpy()
