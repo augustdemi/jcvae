@@ -238,59 +238,47 @@ optimizer = torch.optim.Adam(
 
 def train(data, encA, optimizer):
     epoch_elbo = epoch_correct = 0.0
+    epoch_pred = np.zeros(sum(ATTR_DIM))
     encA.train()
 
     N = 0
-    for b, (images, attr, _) in enumerate(data):
+    for b, (images, attributes, label) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            attributes = []
-            for i in range(args.batch_size):
-                concat_all_attr = []
-                for j in range(N_ATTR):
-                    concat_all_attr.append(attr[j][i])
-                attributes.append(torch.cat(concat_all_attr, dim=0))
-            attributes = torch.stack(attributes).float()
+            attributes = attributes.float()
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
                 attributes = attributes.cuda()
-                for i in range(len(attr)):
-                    attr[i] = attr[i].cuda()
-            loss, acc = encA(images, attributes, num_samples=NUM_SAMPLES)
+            loss, acc, pred_labels = encA(images, attributes, num_samples=NUM_SAMPLES)
             loss.backward()
             optimizer.step()
+            pred_labels = pred_labels.sum(dim=0)
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
+                acc = acc.cpu()
             epoch_elbo += loss.item()
             epoch_correct += acc.item()
-        return epoch_elbo / N, epoch_correct / (N * args.batch_size)
+            epoch_pred += pred_labels.detach().numpy()
+    return epoch_elbo / N, epoch_correct / (N * args.batch_size), epoch_pred / (N * args.batch_size)
 
 
 def test(data, encA, epoch):
     encA.eval()
     epoch_elbo = epoch_correct = 0.0
+    epoch_pred = np.zeros(sum(ATTR_DIM))
+
     N = 0
-    for b, (images, attr, _) in enumerate(data):
+    for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            attributes = []
-            for i in range(args.batch_size):
-                concat_all_attr = []
-                for j in range(N_ATTR):
-                    concat_all_attr.append(attr[j][i])
-                attributes.append(torch.cat(concat_all_attr, dim=0))
-            attributes = torch.stack(attributes).float()
-
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
                 attributes = attributes.cuda()
-                for i in range(len(attr)):
-                    attr[i] = attr[i].cuda()
             # encode
-            loss, acc = encA(images, attributes, num_samples=NUM_SAMPLES)
+            loss, acc, pred_labels = encA(images, attributes, num_samples=NUM_SAMPLES)
             loss.backward()
             optimizer.step()
             if CUDA:
@@ -298,7 +286,9 @@ def test(data, encA, epoch):
                 acc = acc.cpu()
             epoch_elbo += loss.item()
             epoch_correct += acc.item()
-        return epoch_elbo / N, epoch_correct / (N * args.batch_size)
+            epoch_pred += pred_labels.detach().numpy()
+
+    return epoch_elbo / N, epoch_correct / (N * args.batch_size), epoch_pred / (N * args.batch_size)
 
 
 ####
@@ -318,10 +308,10 @@ if args.ckpt_epochs > 0:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, tr_acc = train(train_data, encA, optimizer)
+    train_elbo, tr_acc, tr_pred = train(train_data, encA, optimizer)
     train_end = time.time()
     test_start = time.time()
-    test_elbo, te_acc = test(test_data, encA, e)
+    test_elbo, te_acc, te_pred = test(test_data, encA, e)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
@@ -334,29 +324,12 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
 
     test_end = time.time()
+    print(tr_pred)
+    print(te_pred)
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-        #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
-        #                                       private=False)  # 2880
-        # util.evaluation.save_traverse_cub_ia2(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-        #                                       fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
-        #                                       private=False)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, te_acc, test_end - test_start))
 
-if args.ckpt_epochs == args.epochs:
-    # util.evaluation.save_recon_cub(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
-    #                                   fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312])
-    util.evaluation.save_traverse_cub_ia2(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
-                                          private=False)  # 2880
-    # train
-    util.evaluation.save_traverse_cub_ia2(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
-                                          private=False)
-
-
-else:
-    save_ckpt(args.epochs)
+save_ckpt(args.epochs)

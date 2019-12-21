@@ -56,5 +56,6 @@ class EncoderA(nn.Module):
 
         pred_labels = F.logsigmoid(pred_labels + EPS)
         loss = F.binary_cross_entropy_with_logits(pred_labels, attributes, reduction='none').sum()
-        acc = (torch.round(torch.exp(pred_labels)) == attributes).sum() / sum(self.zSharedAttr_dim)
-        return loss, acc
+        pred_labels = torch.round(torch.exp(pred_labels))
+        acc = (pred_labels == attributes).sum() / sum(self.zSharedAttr_dim)
+        return loss, acc, pred_labels
