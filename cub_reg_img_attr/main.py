@@ -261,7 +261,7 @@ def train(data, encA, optimizer):
             epoch_elbo += loss.item()
             epoch_correct += acc.item()
             epoch_pred += pred_labels.detach().numpy()
-    return epoch_elbo / N, epoch_correct / (N * args.batch_size), epoch_pred / (N * args.batch_size)
+    return epoch_elbo / N, epoch_correct / (N * args.batch_size), np.round(epoch_pred / (N * args.batch_size), 2)
 
 
 def test(data, encA, epoch):
@@ -289,7 +289,7 @@ def test(data, encA, epoch):
             epoch_correct += acc.item()
             epoch_pred += pred_labels.detach().numpy()
 
-    return epoch_elbo / N, epoch_correct / (N * args.batch_size), epoch_pred / (N * args.batch_size)
+    return epoch_elbo / N, epoch_correct / (N * args.batch_size), np.round(epoch_pred / (N * args.batch_size), 2)
 
 
 ####
@@ -329,7 +329,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     print(te_pred)
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
+    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, test_acc %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, te_acc, test_end - test_start))
 
