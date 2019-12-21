@@ -257,7 +257,7 @@ def train(data, encA, optimizer):
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
-                acc = acc.cpu()
+                pred_labels = pred_labels.cpu()
             epoch_elbo += loss.item()
             epoch_correct += acc.item()
             epoch_pred += pred_labels.detach().numpy()
