@@ -31,7 +31,7 @@ class datasets(Dataset):
         self.crop = crop
 
         if train:
-            n_data = len(self.filepaths)
+            n_data = self.filepaths.shape[0]
             n_tr_data = int(n_data * 0.8)
 
             total_idx = list(range(n_data))
@@ -41,15 +41,15 @@ class datasets(Dataset):
             tr_idx = total_idx[:n_tr_data]
             val_idx = total_idx[n_tr_data:]
             if val:
-                self.filepaths = np.array(self.filepaths)[val_idx]
-                self.attributes = np.array(self.attributes)[val_idx]
-                self.labels = np.array(self.labels)[val_idx]
-                self.boxes = np.array(self.boxes)[val_idx]
+                self.filepaths = self.filepaths[val_idx]
+                self.attributes = self.attributes[val_idx]
+                self.labels = self.labels[val_idx]
+                self.boxes = self.boxes[val_idx]
             else:
-                self.filepaths = np.array(self.filepaths)[tr_idx]
-                self.attributes = np.array(self.attributes)[tr_idx]
-                self.labels = np.array(self.labels)[tr_idx]
-                self.boxes = np.array(self.boxes)[tr_idx]
+                self.filepaths = self.filepaths[tr_idx]
+                self.attributes = self.attributes[tr_idx]
+                self.labels = self.labels[tr_idx]
+                self.boxes = self.boxes[tr_idx]
 
     def __getitem__(self, index):
         """
@@ -157,7 +157,7 @@ def load_data(train, path, primary_attr_idx):
             [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
             te_imgidx]
         boxes = list(boxes[te_imgidx])
-    return filepaths, attributes, labels, boxes
+    return np.array(filepaths), np.array(attributes), np.array(labels), np.array(boxes)
 
 
 def get_attr(labels, path):
