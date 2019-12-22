@@ -117,13 +117,13 @@ primary_attr = ['eye_color', 'bill_length', 'shape', 'bill_shape', 'head_pattern
                 'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'breast_color',
                 'belly_color', 'wing_color', 'leg_color']
 
-primary_attr = ['primary_color']
-
-
-# regressor + stat + visible 12
-primary_attr = ['bill_length', 'shape', 'bill_shape', 'wing_pattern', 'primary_color',
-                'bill_color', 'throat_color', 'forehead_color', 'breast_color',
-                'belly_color', 'wing_color', 'leg_color']
+# primary_attr = ['primary_color']
+#
+#
+# # regressor + stat + visible 12
+# primary_attr = ['bill_length', 'shape', 'bill_shape', 'wing_pattern', 'primary_color',
+#                 'bill_color', 'throat_color', 'forehead_color', 'breast_color',
+#                 'belly_color', 'wing_color', 'leg_color']
 
 
 ATTR_IDX = []
@@ -154,6 +154,8 @@ def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA_test'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB_test'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA_val'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB_val'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
 
 
@@ -165,11 +167,15 @@ def visualize_line():
     recon_A_test = torch.Tensor(data['recon_A_test'])
     recon_B_test = torch.Tensor(data['recon_B_test'])
 
+    recon_A_val = torch.Tensor(data['recon_A_val'])
+    recon_B_val = torch.Tensor(data['recon_B_val'])
+
     epoch = torch.Tensor(data['epoch'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
+    val_total_loss = torch.Tensor(data['val_total_loss'])
     total_loss = torch.Tensor(data['total_loss'])
 
-    total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
+    total_losses = torch.tensor(np.stack([total_loss, test_total_loss, val_total_loss], -1))
 
     VIZ.line(
         X=epoch, Y=recon_A, env=MODEL_NAME + '/lines',
@@ -199,10 +205,24 @@ def visualize_line():
     )
 
     VIZ.line(
+        X=epoch, Y=recon_B_val, env=MODEL_NAME + '/lines',
+        win=WIN_ID['llB_val'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loglike',
+                  title='LL of modalB val', legend=['B', 'crB'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=recon_A_val, env=MODEL_NAME + '/lines',
+        win=WIN_ID['llA_val'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loglike',
+                  title='LL of modalA val', legend=['A', 'crA'])
+    )
+
+    VIZ.line(
         X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
         win=WIN_ID['total_losses'], update='append',
         opts=dict(xlabel='epoch', ylabel='loss',
-                  title='Total Loss', legend=['train_loss', 'test_loss'])
+                  title='Total Loss', legend=['train_loss', 'test_loss', 'val_loss'])
     )
 
 
@@ -210,11 +230,13 @@ if args.viz_on:
     WIN_ID = dict(
         llA='win_llA', llB='win_llB',
         total_losses='win_total_losses',
-        llB_test='win_llB_test', llA_test='win_llA_test'
+        llB_test='win_llB_test', llA_test='win_llA_test',
+        llB_val='win_llB_val', llA_val='win_llA_val'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B',
-        'total_loss', 'test_total_loss', 'recon_A_test', 'recon_B_test'
+        'total_loss', 'test_total_loss', 'recon_A_test', 'recon_B_test',
+        'val_total_loss', 'recon_A_val', 'recon_B_val'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -225,6 +247,11 @@ train_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True, cr
 test_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=False, crop=1.2), batch_size=args.batch_size,
                                         shuffle=True,
                                         num_workers=len(GPU))
+
+val_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True, crop=1.2, val=True),
+                                       batch_size=args.batch_size,
+                                       shuffle=True,
+                                       num_workers=len(GPU))
 
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
@@ -336,22 +363,14 @@ def train(data, encA, decA, encB, decB, optimizer):
     decB.train()
 
     N = 0
-    for b, (images, attr, _) in enumerate(data):
+    for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            attributes = []
-            for i in range(args.batch_size):
-                concat_all_attr = []
-                for j in range(N_ATTR):
-                    concat_all_attr.append(attr[j][i])
-                attributes.append(torch.cat(concat_all_attr, dim=0))
-            attributes = torch.stack(attributes).float()
+            attributes = attributes.float()
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
                 attributes = attributes.cuda()
-                for i in range(len(attr)):
-                    attr[i] = attr[i].cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
@@ -424,23 +443,14 @@ def test(data, encA, decA, encB, decB, epoch):
     epoch_recA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_crB = 0.0
     N = 0
-    for b, (images, attr, _) in enumerate(data):
+    for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            attributes = []
-            for i in range(args.batch_size):
-                concat_all_attr = []
-                for j in range(N_ATTR):
-                    concat_all_attr.append(attr[j][i])
-                attributes.append(torch.cat(concat_all_attr, dim=0))
-            attributes = torch.stack(attributes).float()
-
+            attributes = attributes.float()
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
                 attributes = attributes.cuda()
-                for i in range(len(attr)):
-                    attr[i] = attr[i].cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
@@ -519,22 +529,30 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB = train(train_data, encA, decA, encB, decB, optimizer)
     train_end = time.time()
+
+    val_start = time.time()
+    val_elbo, recon_A_val, recon_B_val = test(val_data, encA, decA, encB, decB, e)
+    val_end = time.time()
+
     test_start = time.time()
     test_elbo, recon_A_test, recon_B_test = test(test_data, encA, decA, encB, decB, e)
+    test_end = time.time()
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_total_loss=test_elbo,
+                           val_total_loss=val_elbo,
                            total_loss=train_elbo,
                            recon_A=rec_lossA,
                            recon_B=rec_lossB,
                            recon_A_test=recon_A_test,
-                           recon_B_test=recon_B_test
+                           recon_B_test=recon_B_test,
+                           recon_A_val=recon_A_val,
+                           recon_B_val=recon_B_val
                            )
         visualize_line()
         LINE_GATHER.flush()
 
-    test_end = time.time()
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,

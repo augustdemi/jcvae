@@ -195,8 +195,6 @@ class EncoderB(nn.Module):
         self.enc_hidden = nn.Sequential(
             nn.Linear(sum(zSharedAttr_dim), 512),
             nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
         )
 
         self.fc = nn.Linear(512, sum(zSharedAttr_dim) * 2)
@@ -237,8 +235,6 @@ class DecoderB(nn.Module):
         self.dec_hidden = nn.Sequential(
             nn.Linear(2 * sum(zSharedAttr_dim), 512),
             nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU()
         )
         self.dec_label = nn.Sequential(
             nn.Linear(512, sum(zSharedAttr_dim)))

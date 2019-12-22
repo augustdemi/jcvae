@@ -22,22 +22,34 @@ from torch.utils.data.dataset import Dataset
 # from utils import transform
 from PIL import Image
 
+import random
 
 class datasets(Dataset):
-    def __init__(self, path, primary_attr_idx, train=True, crop=None):
+    def __init__(self, path, primary_attr_idx, train=True, crop=None, val=False):
         self.filepaths, self.attributes, self.labels, self.boxes = load_data(train, path, primary_attr_idx)
         self.path = path
         self.crop = crop
 
-        # dataset = torchvision.datasets.ImageFolder(
-        #     root= self.filepaths,
-        #     transform=transforms.Compose([
-        #     transforms.Resize(64),
-        #     transforms.ToTensor()
-        # ])
-        # )
-        # path = '../../data/awa/Animals_with_Attributes2/'
-        # attributes = get_attr(dataset.targets, path)
+        if train:
+            n_data = len(self.filepaths)
+            n_tr_data = int(n_data * 0.8)
+
+            total_idx = list(range(n_data))
+            random.seed(324)
+            random.shuffle(total_idx)
+
+            tr_idx = total_idx[:n_tr_data]
+            val_idx = total_idx[n_tr_data:]
+            if val:
+                self.filepaths = np.array(self.filepaths)[val_idx]
+                self.attributes = np.array(self.attributes)[val_idx]
+                self.labels = np.array(self.labels)[val_idx]
+                self.boxes = np.array(self.boxes)[val_idx]
+            else:
+                self.filepaths = np.array(self.filepaths)[tr_idx]
+                self.attributes = np.array(self.attributes)[tr_idx]
+                self.labels = np.array(self.labels)[tr_idx]
+                self.boxes = np.array(self.boxes)[tr_idx]
 
     def __getitem__(self, index):
         """
@@ -120,7 +132,10 @@ def load_data(train, path, primary_attr_idx):
         # trainset - all modalities: img path, attr, label
         tr_vec_attr = pickle.load(open(path + "attributes/vec_attr_trainval.pkl", "rb"))
         for key in tr_vec_attr.keys():
-            attributes.append([tr_vec_attr[key][i][:-1] for i in primary_attr_idx])
+            bin_attr = []
+            for i in primary_attr_idx:
+                bin_attr.extend(tr_vec_attr[key][i][:-1])
+            attributes.append(bin_attr)
         tr_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] in train_classes])
         labels = list(imgid_label[tr_imgidx])
         filepaths = np.array(
@@ -129,20 +144,13 @@ def load_data(train, path, primary_attr_idx):
         filepaths = list(filepaths)
         boxes = list(boxes[tr_imgidx])
 
-        # testset - only attributes and labels
-        # te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
-        # for key in te_vec_attr.keys():
-        #     attributes.append([te_vec_attr[key][i] for i in primary_attr_idx])
-        # te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
-        # labels.extend(list(imgid_label[te_imgidx]))
-        # filepaths.extend(list(np.array(
-        #     [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
-        #     te_imgidx]))
-        # filepaths.extend([None] * te_imgidx.shape[0])
     else:
         te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
         for key in te_vec_attr.keys():
-            attributes.append([te_vec_attr[key][i][:-1] for i in primary_attr_idx])
+            bin_attr = []
+            for i in primary_attr_idx:
+                bin_attr.extend(te_vec_attr[key][i][:-1])
+            attributes.append(bin_attr)
         te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
         labels = imgid_label[te_imgidx]
         filepaths = np.array(
