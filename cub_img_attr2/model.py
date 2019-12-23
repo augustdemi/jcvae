@@ -278,7 +278,9 @@ class DecoderB(nn.Module):
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
                 pred_labels, attributes, name='attr_' + shared_from)
-        return p
+            pred_labels = torch.round(torch.exp(pred_labels))
+            acc = (pred_labels == attributes).sum() / sum(self.zSharedAttr_dim)
+        return p, acc
 
 
 ''' introVAE: https://github.com/woxuankai/IntroVAE-Pytorch/blob/758328a64dbe4eb650a0916af8ce64f5df9d07e3/model.py '''
