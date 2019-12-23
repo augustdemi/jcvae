@@ -187,17 +187,17 @@ class DecoderA(nn.Module):
 
 
 class EncoderB(nn.Module):
-    def __init__(self, seed, zSharedAttr_dim):
+    def __init__(self, seed, zSharedAttr_dim, num_hidden):
         super(self.__class__, self).__init__()
         self.digit_temp = torch.tensor(TEMP)
         self.zSharedAttr_dim = zSharedAttr_dim
         self.seed = seed
         self.enc_hidden = nn.Sequential(
-            nn.Linear(sum(zSharedAttr_dim), 256),
+            nn.Linear(sum(zSharedAttr_dim), num_hidden),
             nn.ReLU(),
         )
 
-        self.fc = nn.Linear(256, sum(zSharedAttr_dim) * 2)
+        self.fc = nn.Linear(num_hidden, sum(zSharedAttr_dim) * 2)
         self.weight_init()
 
     def weight_init(self):
@@ -226,18 +226,18 @@ class EncoderB(nn.Module):
 
 
 class DecoderB(nn.Module):
-    def __init__(self, seed, zSharedAttr_dim):
+    def __init__(self, seed, zSharedAttr_dim, num_hidden):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
         self.seed = seed
         self.zSharedAttr_dim = zSharedAttr_dim
 
         self.dec_hidden = nn.Sequential(
-            nn.Linear(2 * sum(zSharedAttr_dim), 256),
+            nn.Linear(2 * sum(zSharedAttr_dim), num_hidden),
             nn.ReLU(),
         )
         self.dec_label = nn.Sequential(
-            nn.Linear(256, sum(zSharedAttr_dim)))
+            nn.Linear(num_hidden, sum(zSharedAttr_dim)))
         self.weight_init()
 
     def weight_init(self):

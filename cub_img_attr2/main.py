@@ -53,6 +53,10 @@ if __name__ == "__main__":
                         help='cuda')
     parser.add_argument('--outgpu', type=int, default=-1,
                         help='outgpu')
+    parser.add_argument('--num_hidden', type=int, default=256,
+                        help='num_hidden')
+
+
     parser.add_argument('--data_path', type=str, default='../../data/cub/CUB_200_2011/CUB_200_2011/',
                         help='data path')
     # visdom
@@ -79,11 +83,12 @@ beta = [float(i) for i in args.beta.split(',')]
 lamb = [float(i) for i in args.lamb.split(',')]
 
 # path parameters
-MODEL_NAME = 'cub_ia2-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s' % (
+MODEL_NAME = 'cub_ia2-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s-num_hidden%s' % (
     args.run_id, args.n_privateA, '_'.join([str(elt) for elt in lamb]), '_'.join([str(elt) for elt in beta]),
-    args.lr, args.batch_size, args.wseed, args.seed)
+    args.lr, args.batch_size, args.wseed, args.seed, args.num_hidden)
 
 if len(args.run_desc) > 1:
+    print(args.run_desc)
     desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
     with open(desc_file, 'w') as outfile:
         outfile.write(args.run_desc)
@@ -177,13 +182,13 @@ def visualize_line():
     val_total_loss = torch.Tensor(data['val_total_loss'])
     total_loss = torch.Tensor(data['total_loss'])
 
-    te_acc_loss = torch.Tensor(data['te_acc_loss'])
-    tr_acc_loss = torch.Tensor(data['tr_acc_loss'])
-    val_acc_loss = torch.Tensor(data['val_acc_loss'])
+    te_acc = torch.Tensor(data['te_acc'])
+    tr_acc = torch.Tensor(data['tr_acc'])
+    val_acc = torch.Tensor(data['val_acc'])
 
 
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss, val_total_loss], -1))
-    acc = torch.tensor(np.stack([tr_acc_loss, val_acc_loss, te_acc_loss], -1))
+    acc = torch.tensor(np.stack([tr_acc, val_acc, te_acc], -1))
 
     VIZ.line(
         X=epoch, Y=recon_A, env=MODEL_NAME + '/lines',
@@ -281,8 +286,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zPrivate_dim=args.n_privateA, zSharedAttr_dim=ATTR_DIM)
 decA = DecoderA(args.wseed, zPrivate_dim=args.n_privateA, zSharedAttr_dim=ATTR_DIM)
-encB = EncoderB(args.wseed, zSharedAttr_dim=ATTR_DIM)
-decB = DecoderB(args.wseed, zSharedAttr_dim=ATTR_DIM)
+encB = EncoderB(args.wseed, zSharedAttr_dim=ATTR_DIM, num_hidden=args.num_hidden)
+decB = DecoderB(args.wseed, zSharedAttr_dim=ATTR_DIM, num_hidden=args.num_hidden)
 
 if CUDA:
     encA.cuda()
