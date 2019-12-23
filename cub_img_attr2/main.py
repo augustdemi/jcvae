@@ -575,9 +575,9 @@ for e in range(args.ckpt_epochs, args.epochs):
                            recon_B_test=recon_B_test,
                            recon_A_val=recon_A_val,
                            recon_B_val=recon_B_val,
-                           train_acc=tr_acc,
+                           tr_acc=tr_acc,
                            val_acc=val_acc,
-                           test_acc=te_acc,
+                           te_acc=te_acc,
                            )
         visualize_line()
         LINE_GATHER.flush()
