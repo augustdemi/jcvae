@@ -129,7 +129,16 @@ primary_attr = ['eye_color', 'bill_length', 'shape', 'bill_shape', 'head_pattern
 #                 'bill_color', 'throat_color', 'forehead_color', 'breast_color',
 #                 'belly_color', 'wing_color', 'leg_color']
 
+# total
+primary_attr = ['bill_shape', 'wing_color', 'upperparts_color', 'underparts_color', 'breast_pattern', 'back_color',
+                'tail_shape', 'upper_tail_color', 'head_pattern', 'breast_color', 'throat_color', 'eye_color',
+                'bill_length',
+                'forehead_color', 'under_tail_color', 'nape_color', 'belly_color', 'wing_shape', 'size', 'shape',
+                'back_pattern',
+                'tail_pattern', 'belly_pattern', 'primary_color', 'leg_color', 'bill_color', 'crown_color',
+                'wing_pattern']
 
+# primary_attr = ['wing_color']
 ATTR_IDX = []
 ATTR_DIM = []
 N_ATTR = len(primary_attr)
