@@ -25,32 +25,31 @@ from PIL import Image
 import random
 
 class datasets(Dataset):
-    def __init__(self, path, primary_attr_idx, train=True, crop=None):
+    def __init__(self, path, primary_attr_idx, train=True, crop=None, val=False):
+        self.filepaths, self.attributes, self.labels, self.boxes = load_data(train, path, primary_attr_idx)
         self.path = path
         self.crop = crop
 
-        self.filepaths, self.attributes, self.labels, self.boxes = load_data(train, path, primary_attr_idx)
-
-        n_data = len(self.filepaths)
-        n_tr_data = int(n_data * 0.7)
-
-        total_idx = list(range(n_data))
-        random.seed(324)
-        random.shuffle(total_idx)
-
-        tr_idx = total_idx[:n_tr_data]
-        te_idx = total_idx[n_tr_data:]
-
         if train:
-            self.filepaths = np.array(self.filepaths)[tr_idx]
-            self.attributes = np.array(self.attributes)[tr_idx]
-            self.labels = np.array(self.labels)[tr_idx]
-            self.boxes = np.array(self.boxes)[tr_idx]
-        else:
-            self.filepaths = np.array(self.filepaths)[te_idx]
-            self.attributes = np.array(self.attributes)[te_idx]
-            self.labels = np.array(self.labels)[te_idx]
-            self.boxes = np.array(self.boxes)[te_idx]
+            n_data = self.filepaths.shape[0]
+            n_tr_data = int(n_data * 0.8)
+
+            total_idx = list(range(n_data))
+            random.seed(324)
+            random.shuffle(total_idx)
+
+            tr_idx = total_idx[:n_tr_data]
+            val_idx = total_idx[n_tr_data:]
+            if val:
+                self.filepaths = self.filepaths[val_idx]
+                self.attributes = self.attributes[val_idx]
+                self.labels = self.labels[val_idx]
+                self.boxes = self.boxes[val_idx]
+            else:
+                self.filepaths = self.filepaths[tr_idx]
+                self.attributes = self.attributes[tr_idx]
+                self.labels = self.labels[tr_idx]
+                self.boxes = self.boxes[tr_idx]
 
     def __getitem__(self, index):
         """
@@ -59,10 +58,18 @@ class datasets(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-
+        # index = 2233
+        # img_idx: 8055
+        # paht: 138.Tree_Swallow / Tree_Swallow_0060_134961.jpg
+        # label:138
+        # bding box: 13.0 39.0 476.0 458.0
+        # attr: checked
         img_path, attr, label, box = self.filepaths[index], self.attributes[index], self.labels[index], self.boxes[
             index]
-
+        # for i in range(len(self.labels)): #16,28 (10,0)
+        #     if self.labels[i] == 10:
+        #         print(i)
+        # img_path = self.filepaths[4288]
         img = pil_loader(self.path + '/images/' + img_path)
         crop_img = self._read(img, index)
 
@@ -73,6 +80,7 @@ class datasets(Dataset):
         # imgshow(crop_img)
 
         label = torch.tensor(label - 1, dtype=torch.int64)
+        # attr = torch.FloatTensor(attr)
         return crop_img, attr, label
 
     def __len__(self):
@@ -118,33 +126,38 @@ def load_data(train, path, primary_attr_idx):
     train_classes = np.genfromtxt(path + "attributes/trainvalids.txt", delimiter='\n', dtype=int)
     imgid_label = np.array([int(elt.split(' ')[1]) for elt in
                             np.genfromtxt(path + "attributes/image_class_labels.txt", delimiter='\n', dtype=str)])
-    filepaths = np.array(
-        [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])
-
 
     attributes = []
-    tr_vec_attr = pickle.load(open(path + "attributes/vec_attr_trainval.pkl", "rb"))
-    for key in tr_vec_attr.keys():
-        bin_attr = []
-        for i in primary_attr_idx:
-            bin_attr.extend(tr_vec_attr[key][i][:-1])
-        attributes.append(bin_attr)
+    if train:
+        # trainset - all modalities: img path, attr, label
+        tr_vec_attr = pickle.load(open(path + "attributes/vec_attr_trainval.pkl", "rb"))
+        for key in tr_vec_attr.keys():
+            bin_attr = []
+            for i in primary_attr_idx:
+                bin_attr.extend(tr_vec_attr[key][i][:-1])
+            attributes.append(bin_attr)
+        tr_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] in train_classes])
+        labels = list(imgid_label[tr_imgidx])
+        filepaths = np.array(
+            [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
+            tr_imgidx]
+        filepaths = list(filepaths)
+        boxes = list(boxes[tr_imgidx])
 
-    te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
-    for key in te_vec_attr.keys():
-        bin_attr = []
-        for i in primary_attr_idx:
-            bin_attr.extend(te_vec_attr[key][i][:-1])
-        attributes.append(bin_attr)
-
-    tr_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] in train_classes])
-    te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
-
-    filepaths = list(filepaths[tr_imgidx]) + list(filepaths[te_imgidx])
-    labels = list(imgid_label[tr_imgidx]) + list(imgid_label[te_imgidx])
-    boxes = list(boxes[tr_imgidx]) + list(boxes[te_imgidx])
-
-    return filepaths, attributes, labels, boxes
+    else:
+        te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
+        for key in te_vec_attr.keys():
+            bin_attr = []
+            for i in primary_attr_idx:
+                bin_attr.extend(te_vec_attr[key][i][:-1])
+            attributes.append(bin_attr)
+        te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
+        labels = imgid_label[te_imgidx]
+        filepaths = np.array(
+            [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
+            te_imgidx]
+        boxes = list(boxes[te_imgidx])
+    return np.array(filepaths), np.array(attributes), np.array(labels), np.array(boxes)
 
 
 def get_attr(labels, path):

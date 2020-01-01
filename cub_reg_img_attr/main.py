@@ -165,6 +165,7 @@ print(sum(ATTR_DIM))
 def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['train_acc'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['val_acc'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
 
 
@@ -172,11 +173,13 @@ def visualize_line():
     data = LINE_GATHER.data
     epoch = torch.Tensor(data['epoch'])
     train_acc = torch.Tensor(data['train_acc'])
+    val_acc = torch.Tensor(data['val_acc'])
     test_acc = torch.Tensor(data['test_acc'])
-    test_total_loss = torch.Tensor(data['test_total_loss'])
+    val_total_loss = torch.Tensor(data['test_total_loss'])
+    test_total_loss = torch.Tensor(data['val_total_loss'])
     total_loss = torch.Tensor(data['total_loss'])
 
-    total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
+    total_losses = torch.tensor(np.stack([total_loss, val_total_loss, test_total_loss], -1))
 
     VIZ.line(
         X=epoch, Y=train_acc, env=MODEL_NAME + '/lines',
@@ -193,21 +196,28 @@ def visualize_line():
     )
 
     VIZ.line(
+        X=epoch, Y=val_acc, env=MODEL_NAME + '/lines',
+        win=WIN_ID['val_acc'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Val Accuracy', legend=['acc'])
+    )
+
+    VIZ.line(
         X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
         win=WIN_ID['total_losses'], update='append',
         opts=dict(xlabel='epoch', ylabel='loss',
-                  title='Total Loss', legend=['train_loss', 'test_loss'])
+                  title='Total Loss', legend=['train_loss', 'val_loss', 'test_loss'])
     )
 
 
 if args.viz_on:
     WIN_ID = dict(
-        train_acc='win_train_acc', test_acc='win_test_acc',
+        train_acc='win_train_acc', test_acc='win_test_acc', val_acc='win_val_acc',
         total_losses='win_total_losses'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch',
-        'total_loss', 'test_total_loss', 'train_acc', 'test_acc'
+        'total_loss', 'test_total_loss', 'val_total_loss', 'train_acc', 'test_acc', 'val_acc'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -218,6 +228,11 @@ train_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True, cr
 test_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=False, crop=1.2), batch_size=args.batch_size,
                                         shuffle=True,
                                         num_workers=len(GPU))
+
+val_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True, crop=1.2, val=True),
+                                       batch_size=args.batch_size,
+                                       shuffle=True,
+                                       num_workers=len(GPU))
 
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
@@ -322,20 +337,24 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
     test_start = time.time()
     test_elbo, te_acc, te_pred = test(test_data, encA, e)
+    test_end = time.time()
+
+    val_start = time.time()
+    val_elbo, val_acc, val_pred = test(val_data, encA, e)
+    val_end = time.time()
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_total_loss=test_elbo,
+                           val_total_loss=val_elbo,
                            total_loss=train_elbo,
                            train_acc=tr_acc,
                            test_acc=te_acc,
+                           val_acc=val_acc,
                            )
         visualize_line()
         LINE_GATHER.flush()
 
-    test_end = time.time()
-    print(tr_pred)
-    print(te_pred)
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, test_acc %0.3f (%ds)' % (
