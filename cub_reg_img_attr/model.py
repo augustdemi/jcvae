@@ -28,10 +28,15 @@ class EncoderA(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Dropout(0.1),
-            nn.Linear(2048, sum(zSharedAttr_dim)),
+            nn.Linear(2048, 2 * sum(zSharedAttr_dim)),
             nn.Tanh()
         )
-
+        self.dec_hidden = nn.Sequential(
+            nn.Linear(2 * sum(zSharedAttr_dim), 100),
+            nn.ReLU(),
+        )
+        self.dec_label = nn.Sequential(
+            nn.Linear(100, sum(zSharedAttr_dim)))
         self.weight_init()
 
     def weight_init(self):
@@ -50,7 +55,9 @@ class EncoderA(nn.Module):
             q = probtorch.Trace()
         hiddens = self.resnet(x)
         hiddens = hiddens.view(hiddens.size(0), -1)
-        pred_labels = self.fc(hiddens)
+        hiddens = self.fc(hiddens)
+        hiddens = self.dec_hidden(hiddens)
+        pred_labels = self.dec_label(hiddens)
         # pred_labels = stats.unsqueeze(0)
         # pred_labels = pred_labels.squeeze(0)
 
