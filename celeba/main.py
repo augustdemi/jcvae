@@ -279,9 +279,8 @@ def train(data, encA, decA, encB, decB, optimizer,
             random.shuffle(shuffled_idx)
             shuffled_idx = shuffled_idx[:args.batch_size]
             # print(shuffled_idx[:10])
-            fixed_imgs_batch = fixed_imgs[shuffled_idx]
+            images = fixed_imgs[shuffled_idx]
             attributes = fixed_attr[shuffled_idx]
-            images = fixed_imgs_batch.view(-1, NUM_PIXELS)
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
@@ -327,7 +326,6 @@ def train(data, encA, decA, encB, decB, optimizer,
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
             N += 1
-            images = images.view(-1, NUM_PIXELS)
             if CUDA:
                 images = images.cuda()
                 attributes = attributes.cuda()
@@ -443,7 +441,6 @@ def test(data, encA, decA, encB, decB, epoch, bias):
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            images = images.view(-1, NUM_PIXELS)
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
@@ -466,10 +463,10 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             epoch_elbo += batch_elbo.item()
             epoch_correct += acc.item()
 
-    if (epoch + 1) % 20 == 0 or epoch + 1 == args.epochs:
-        util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
-                                      output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
-                                      fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
+    if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
+        # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
+        #                               output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
+        #                               fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
         save_ckpt(e + 1)
     return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
 
