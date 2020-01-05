@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import os
+from PIL import Image
 
 import numpy as np
 import torch
@@ -64,18 +65,18 @@ class datasets(Dataset):
         Returns:
             tuple: (image, target) where target is index of the target class.
         """
-        # image_path = os.path.join(self.data_dir, 'img_align_celeba',
-        #                           self.image_paths[index])
+        image_path = os.path.join(self.data_dir, 'img_align_celeba',
+                                  self.image_paths[index])
         attr = self.attr_data[index]
-        # image      = Image.open(image_path).convert('RGB')
+        image = Image.open(image_path).convert('RGB')
 
-        # if self.image_transform is not None:
-        #     image  = self.image_transform(image)
+        if self.image_transform is not None:
+            image = self.image_transform(image)
 
         if self.attr_transform is not None:
             attr = self.attr_transform(attr)
 
-        return attr, attr
+        return image, attr
 
     def __len__(self):
         return self.size

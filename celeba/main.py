@@ -179,6 +179,8 @@ val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../..
                                                 image_transform=preprocess_data), batch_size=args.batch_size,
                                        shuffle=False)
 
+print('>>> data loaded')
+
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_VAL = (val_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
