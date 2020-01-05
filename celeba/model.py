@@ -57,8 +57,10 @@ class EncoderA(nn.Module):
             q = probtorch.Trace()
 
         hiddens = self.enc_hidden(x)
-        hiddens = hiddens.view(-1, 256 * 5 * 5)
+        hiddens = hiddens.view(hiddens.size(0), -1)
+        print(hiddens.shape)
         stats = self.fc(hiddens)
+        stats = stats.unsqueeze(0)
 
         muPrivate = stats[:, :, :self.zPrivate_dim]
         logvarPrivate = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
