@@ -35,6 +35,7 @@ class EncoderA(nn.Module):
             nn.Conv2d(128, 256, 4, 1, 0, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU())
+
         self.fc = nn.Sequential(
             nn.Linear(256 * 5 * 5, 512),
             nn.ReLU(),
@@ -56,6 +57,7 @@ class EncoderA(nn.Module):
             q = probtorch.Trace()
 
         hiddens = self.enc_hidden(x)
+        hiddens = hiddens.view(-1, 256 * 5 * 5)
         stats = self.fc(hiddens)
 
         muPrivate = stats[:, :, :self.zPrivate_dim]
