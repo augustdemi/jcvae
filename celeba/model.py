@@ -166,9 +166,9 @@ class DecoderA(nn.Module):
 
 
 class EncoderB(nn.Module):
-    def __init__(self, seed, num_attr=10,
+    def __init__(self, seed, num_attr=18,
                  num_hidden=256,
-                 zShared_dim=10):
+                 zShared_dim=18):
         super(self.__class__, self).__init__()
         self.digit_temp = torch.tensor(TEMP)
         self.zShared_dim = zShared_dim
@@ -206,19 +206,19 @@ class EncoderB(nn.Module):
 
 
 class DecoderB(nn.Module):
-    def __init__(self, seed, num_digits=10,
+    def __init__(self, seed, num_attr=18,
                  num_hidden=256,
-                 zShared_dim=10):
+                 zShared_dim=18):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
-        self.num_digits = zShared_dim
+        self.num_attr = num_attr
         self.seed = seed
 
         self.dec_hidden = nn.Sequential(
             nn.Linear(zShared_dim, num_hidden),
             nn.ReLU())
         self.dec_label = nn.Sequential(
-            nn.Linear(num_hidden, num_digits))
+            nn.Linear(num_hidden, num_attr))
         self.weight_init()
 
     def weight_init(self):
@@ -262,5 +262,5 @@ class DecoderB(nn.Module):
                 pred_labels, attributes, name='attr_' + shared_from)
             pred_labels = torch.round(torch.exp(pred_labels))
             if 'cross' in shared_from:
-                acc = (pred_labels == attributes).sum() / self.zShared_dim
+                acc = (pred_labels == attributes).sum() / self.num_attr
         return p, acc
