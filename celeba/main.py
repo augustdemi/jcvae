@@ -581,7 +581,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         test_elbo, test_accuracy, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
 
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA,
