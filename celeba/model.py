@@ -72,7 +72,7 @@ class EncoderA(nn.Module):
                  scale=stdPrivate,
                  name='privateA')
         # attributes
-        for i in range(sum(self.zShared_dim)):
+        for i in range(self.zShared_dim):
             q.concrete(logits=shared_logit[:, :, i * 2:(i + 1) * 2],
                        temperature=self.digit_temp,
                        name='sharedA' + str(i))
@@ -198,7 +198,7 @@ class EncoderB(nn.Module):
 
         # attributes
 
-        for i in range(sum(self.zShared_dim)):
+        for i in range(self.zShared_dim):
             q.concrete(logits=shared_attr_logit[:, :, i * 2:(i + 1) * 2],
                        temperature=self.digit_temp,
                        name='sharedB' + str(i))
@@ -262,5 +262,5 @@ class DecoderB(nn.Module):
                 pred_labels, attributes, name='attr_' + shared_from)
             pred_labels = torch.round(torch.exp(pred_labels))
             if 'cross' in shared_from:
-                acc = (pred_labels == attributes).sum() / sum(self.zShared_dim)
+                acc = (pred_labels == attributes).sum() / self.zShared_dim
         return p, acc
