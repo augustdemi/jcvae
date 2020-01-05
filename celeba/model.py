@@ -213,7 +213,7 @@ class DecoderB(nn.Module):
         self.seed = seed
 
         self.dec_hidden = nn.Sequential(
-            nn.Linear(zShared_dim, num_hidden),
+            nn.Linear(2 * zShared_dim, num_hidden),
             nn.ReLU())
         self.dec_label = nn.Sequential(
             nn.Linear(num_hidden, num_attr))
