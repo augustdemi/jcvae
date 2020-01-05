@@ -260,6 +260,9 @@ class DecoderB(nn.Module):
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
                 pred_labels, attributes, name='attr_' + shared_from)
             pred_labels = torch.round(torch.exp(pred_labels))
+            from sklearn.metrics import f1_score
             if 'cross' in shared_from:
                 acc = (pred_labels == attributes).sum() / self.num_attr
-        return p, acc
+                f1 = f1_score(attributes.data.to('cpu'), pred_labels.data.to('cpu'), average="samples")
+                print(f1)
+        return p, acc, f1
