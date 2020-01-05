@@ -449,22 +449,32 @@ def test(data, encA, decA, encB, decB, epoch, bias):
     epoch_acc = 0
     epoch_f1 = 0
     N = 0
-    for b, (images, labels) in enumerate(data):
+    for b, (images, attributes) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
                 images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
+                attributes = attributes.cuda()
+
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
-                      num_samples=NUM_SAMPLES)
-            pB, acc, f1 = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
-                               num_samples=NUM_SAMPLES, train=False)
+            q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
+
+            # decode
+            sharedA_attr = []
+            sharedB_attr = []
+
+            for i in range(N_ATTR):
+                sharedA_attr.append('sharedA' + str(i))
+                sharedB_attr.append('sharedB' + str(i))
+
+            # decode attr
+            shared_dist = {'own': sharedB_attr}
+            pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+
+            # decode img
+            shared_dist = {'own': sharedA_attr}
+            pA, acc, f1 = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
 
