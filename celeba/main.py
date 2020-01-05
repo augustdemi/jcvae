@@ -172,7 +172,7 @@ train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='.
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
-test_data = torch.utils.data.DataLoader(datasets(partition='teset', data_dir='../../data/celeba',
+test_data = torch.utils.data.DataLoader(datasets(partition='test', data_dir='../../data/celeba',
                                                  image_transform=preprocess_data), batch_size=args.batch_size,
                                         shuffle=False)
 val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
@@ -430,7 +430,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                                                                                                    epoch_rec_crB / pair_cnt], label_mask
 
 
-def test(data, encA, decA, encB, decB, epoch):
+def test(data, encA, decA, encB, decB, epoch, bias):
     encA.eval()
     decA.eval()
     encB.eval()
@@ -456,7 +456,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pB, acc = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
                            num_samples=NUM_SAMPLES, train=False)
 
-            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
@@ -550,11 +550,11 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
 
     val_start = time.time()
-    val_elbo, val_accuracy = test(val_data, encA, decA, encB, decB, e)
+    val_elbo, val_accuracy = test(val_data, encA, decA, encB, decB, e, BIAS_VAL)
     val_end = time.time()
 
     test_start = time.time()
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e, BIAS_TEST)
     test_end = time.time()
 
     if args.viz_on:
