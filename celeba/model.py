@@ -264,5 +264,4 @@ class DecoderB(nn.Module):
             if 'cross' in shared_from:
                 acc = (pred_labels == attributes).sum() / self.num_attr
                 f1 = f1_score(attributes.data.to('cpu'), pred_labels.data.to('cpu'), average="samples")
-                print(f1)
         return p, acc, f1

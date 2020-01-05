@@ -119,11 +119,14 @@ def visualize_line():
     val_acc = torch.Tensor(data['val_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
     val_total_loss = torch.Tensor(data['val_total_loss'])
+    test_f1 = torch.Tensor(data['test_f1'])
+    val_f1 = torch.Tensor(data['val_f1'])
 
     llA = torch.tensor(np.stack([recon_A, recon_poeA, recon_crA], -1))
     llB = torch.tensor(np.stack([recon_B, recon_poeB, recon_crB], -1))
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss, val_total_loss], -1))
     acc = torch.tensor(np.stack([test_acc, val_acc], -1))
+    f1 = torch.tensor(np.stack([test_f1, val_f1], -1))
 
     VIZ.line(
         X=epoch, Y=llA, env=MODEL_NAME + '/lines',
@@ -146,6 +149,13 @@ def visualize_line():
     )
 
     VIZ.line(
+        X=epoch, Y=f1, env=MODEL_NAME + '/lines',
+        win=WIN_ID['f1'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='F1 score', legend=['test_f1', 'val_f1'])
+    )
+
+    VIZ.line(
         X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
         win=WIN_ID['total_losses'], update='append',
         opts=dict(xlabel='epoch', ylabel='loss',
@@ -159,7 +169,7 @@ if args.viz_on:
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
-        'total_loss', 'test_total_loss', 'test_acc', 'val_total_loss', 'val_acc'
+        'total_loss', 'test_total_loss', 'test_acc', 'val_total_loss', 'val_acc', 'test_f1', 'val_f1'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -168,7 +178,7 @@ preprocess_data = transforms.Compose([transforms.Resize(64),
                                       transforms.CenterCrop(64),
                                       transforms.ToTensor()])
 
-train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba',
+train_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
@@ -312,7 +322,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
             # decode attr
             shared_dist = {'poe': poe_attr, 'cross': sharedA_attr, 'own': sharedB_attr}
-            pB, acc = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
             shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
@@ -361,7 +371,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
                 # decode attr
                 shared_dist = {'poe': poe_attr, 'cross': sharedA_attr, 'own': sharedB_attr}
-                pB, acc = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+                pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
                 # decode img
                 shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
@@ -392,7 +402,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
                 # decode attr
                 shared_dist = {'own': sharedB_attr}
-                pB, acc = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+                pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
                 # decode img
                 shared_dist = {'own': sharedA_attr}
@@ -436,7 +446,8 @@ def test(data, encA, decA, encB, decB, epoch, bias):
     encB.eval()
     decB.eval()
     epoch_elbo = 0.0
-    epoch_correct = 0
+    epoch_acc = 0
+    epoch_f1 = 0
     N = 0
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
@@ -452,8 +463,8 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB, acc = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
-                           num_samples=NUM_SAMPLES, train=False)
+            pB, acc, f1 = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
+                               num_samples=NUM_SAMPLES, train=False)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
 
@@ -461,14 +472,15 @@ def test(data, encA, decA, encB, decB, epoch, bias):
                 batch_elbo = batch_elbo.cpu()
                 acc = acc.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_correct += acc.item()
+            epoch_acc += acc.item()
+            epoch_f1 += f1
 
     if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
         # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
         #                               output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
         #                               fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
         save_ckpt(e + 1)
-    return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
+    return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
 
 
 def save_ckpt(e):
@@ -549,15 +561,17 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
 
     val_start = time.time()
-    val_elbo, val_accuracy = test(val_data, encA, decA, encB, decB, e, BIAS_VAL)
+    val_elbo, val_accuracy, val_f1 = test(val_data, encA, decA, encB, decB, e, BIAS_VAL)
     val_end = time.time()
 
     test_start = time.time()
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e, BIAS_TEST)
+    test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, e, BIAS_TEST)
     test_end = time.time()
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
+                           test_f1=test_f1,
+                           val_f1=val_f1,
                            test_acc=test_accuracy,
                            val_acc=val_accuracy,
                            test_total_loss=test_elbo,
