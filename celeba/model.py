@@ -89,7 +89,7 @@ class DecoderA(nn.Module):
         self.seed = seed
 
         self.fc = nn.Sequential(
-            nn.Linear(zPrivate_dim + 2 * sum(zShared_dim), 256 * 5 * 5),
+            nn.Linear(zPrivate_dim + 2 * zShared_dim, 256 * 5 * 5),
             nn.ReLU()
         )
 
