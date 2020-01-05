@@ -193,8 +193,8 @@ def cuda_tensors(obj):
             setattr(obj, attr, value.cuda())
 
 
-encA = EncoderA(args.wseed, zPrivate_dim=args.n_private)
-decA = DecoderA(args.wseed, zPrivate_dim=args.n_private)
+encA = EncoderA(args.wseed, zPrivate_dim=args.n_private, zShared_dim=18)
+decA = DecoderA(args.wseed, zPrivate_dim=args.n_private, zShared_dim=18)
 encB = EncoderB(args.wseed, num_attr=18, num_hidden=256, zShared_dim=18)
 decB = DecoderB(args.wseed, num_attr=18, num_hidden=256, zShared_dim=18)
 if CUDA:

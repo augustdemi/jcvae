@@ -15,7 +15,7 @@ TEMP = 0.66
 
 class EncoderA(nn.Module):
     def __init__(self, seed,
-                 zShared_dim=10,
+                 zShared_dim=18,
                  zPrivate_dim=50):
         super(self.__class__, self).__init__()
         self.digit_temp = torch.tensor(TEMP)
@@ -58,7 +58,6 @@ class EncoderA(nn.Module):
 
         hiddens = self.enc_hidden(x)
         hiddens = hiddens.view(hiddens.size(0), -1)
-        print(hiddens.shape)
         stats = self.fc(hiddens)
         stats = stats.unsqueeze(0)
 
@@ -81,7 +80,7 @@ class EncoderA(nn.Module):
 
 class DecoderA(nn.Module):
     def __init__(self, seed,
-                 zShared_dim=10,
+                 zShared_dim=18,
                  zPrivate_dim=50):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
@@ -197,7 +196,6 @@ class EncoderB(nn.Module):
         shared_attr_logit = self.fc(hiddens)
 
         # attributes
-
         for i in range(self.zShared_dim):
             q.concrete(logits=shared_attr_logit[:, :, i * 2:(i + 1) * 2],
                        temperature=self.digit_temp,
