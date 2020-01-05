@@ -51,7 +51,6 @@ class EncoderA(nn.Module):
             else:
                 kaiming_init(self._modules[m], self.seed)
 
-    @expand_inputs
     def forward(self, x, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
