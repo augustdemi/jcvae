@@ -150,6 +150,7 @@ class DecoderA(nn.Module):
             hiddens = self.fc(torch.cat(latents, -1))
             hiddens = hiddens.view(-1, 256, 5, 5)
             images_mean = self.hallucinate(hiddens)
+            images_mean = images_mean.view(images_mean.size(0), -1)
             images = images.view(images.size(0), -1)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
