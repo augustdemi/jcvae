@@ -41,9 +41,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=200,
+    parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.2,
+    parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=10000.,
                         help='multipler for text reconstruction [default: 10]')
@@ -490,7 +490,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             epoch_elbo += batch_elbo.item()
 
             pred = pred_attr.detach().numpy()
-            pred = np.round(pred)
+            pred = np.round(np.exp(pred))
             target = attributes.detach().numpy()
             epoch_acc += (pred == target).mean()
             epoch_f1 += f1_score(target, pred, average="samples")
