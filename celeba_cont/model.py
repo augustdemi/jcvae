@@ -229,6 +229,7 @@ class DecoderB(nn.Module):
     def forward(self, attributes, shared, q=None, p=None, num_samples=None, train=True, CUDA=False):
         shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
         shared_std = torch.ones_like(q['sharedB'].dist.scale)
+        pred = {}
 
         p = probtorch.Trace()
 
@@ -247,5 +248,5 @@ class DecoderB(nn.Module):
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
                 pred_labels, attributes, name='attr_' + shared_from)
-
-        return p, pred_labels
+            pred.update({shared_from: pred_labels})
+        return p, pred['cross']

@@ -78,6 +78,11 @@ MODEL_NAME = 'celeba_cont-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_fr
     args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
     args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
+
+MODEL_NAME = 'celeba_cont-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
+    args.beta2, args.seed,
+    args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
 
 if not os.path.isdir(args.ckpt_path):
@@ -193,6 +198,9 @@ val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../..
                                        shuffle=False)
 
 print('>>> data loaded')
+print('train: ', len(train_data.dataset))
+print('val: ', len(val_data.dataset))
+print('test: ', len(test_data.dataset))
 
 BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
 BIAS_VAL = (len(val_data.dataset) - 1) / (args.batch_size - 1)
@@ -432,11 +440,11 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
 
             # decode attr
-            shared_dist = {'own': 'sharedB'}
+            shared_dist = {'own': 'sharedB', 'cross': 'sharedA'}
             pB, pred_attr = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
-            shared_dist = {'own': 'sharedA'}
+            shared_dist = {'own': 'sharedA', 'cross': 'sharedB'}
             pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
@@ -453,11 +461,6 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             epoch_acc += (pred == target).mean()
             epoch_f1 += f1_score(target, pred, average="samples")
 
-    if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
-        # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
-        #                               output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS,
-        #                               fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99])
-        save_ckpt(e + 1)
     return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
 
 
@@ -565,19 +568,33 @@ for e in range(args.ckpt_epochs, args.epochs):
         visualize_line()
         LINE_GATHER.flush()
 
+    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
+        save_ckpt(e + 1)
+        util.evaluation.save_traverse_celeba_cont(e, train_data, encA, decA, CUDA, MODEL_NAME,
+                                                  fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
+                                                              95555],
+                                                  private=False)
+        util.evaluation.save_traverse_celeba_cont(e, test_data, encA, decA, CUDA, MODEL_NAME,
+                                                  fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
+                                                  private=False)
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start, val_elbo, val_end - val_start,
             test_elbo, test_accuracy, test_f1, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    # test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    # print('test_accuracy:', test_accuracy)
+    # print('test_f1:', test_f1)
 
-    # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
-    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA,
-                                  fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME,
-                                  flatten_pixel=NUM_PIXELS)
-    # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_traverse_celeba_cont(args.ckpt_epochs, train_data, encA, decA, CUDA, MODEL_NAME,
+                                              fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
+                                                          95555],  # 086893, 086858, 086854, 051697, 051577, 008779
+                                              private=False)
+    util.evaluation.save_traverse_celeba_cont(args.ckpt_epochs, test_data, encA, decA, CUDA, MODEL_NAME,
+                                              fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
+                                              # 086893, 086858, 086854, 051697, 051577, 008779
+                                              private=False)
 
 else:
     save_ckpt(args.epochs)
