@@ -194,7 +194,7 @@ print('>>> data loaded')
 
 BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
 BIAS_VAL = (len(val_data.dataset) - 1) / (args.batch_size - 1)
-BIAS_TEST = (len(test_data.datase) - 1) / (args.batch_size - 1)
+BIAS_TEST = (len(test_data.dataset) - 1) / (args.batch_size - 1)
 
 
 def cuda_tensors(obj):
