@@ -583,9 +583,9 @@ for e in range(args.ckpt_epochs, args.epochs):
             test_elbo, test_accuracy, test_f1, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    # test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
-    # print('test_accuracy:', test_accuracy)
-    # print('test_f1:', test_f1)
+    test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    print('test_accuracy:', test_accuracy)
+    print('test_f1:', test_f1)
 
     util.evaluation.save_traverse_celeba_cont(args.ckpt_epochs, train_data, encA, decA, CUDA, MODEL_NAME,
                                               fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
