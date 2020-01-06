@@ -436,7 +436,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
-        if b % 2000 == 0:
+        if b % 1000 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
                 e, b * args.batch_size, len(data.dataset),
                    b * float(args.batch_size) / len(data.dataset)))
@@ -493,7 +493,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             pred = np.round(pred)
             target = attributes.detach().numpy()
             epoch_acc += (pred == target).mean()
-            epoch_f1 += f1_score(target.numpy(), pred.numpy(), average="samples")
+            epoch_f1 += f1_score(target, pred, average="samples")
 
     if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
         # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
