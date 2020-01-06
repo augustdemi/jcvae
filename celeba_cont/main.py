@@ -24,19 +24,19 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=25, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=18,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=10,
+    parser.add_argument('--n_private', type=int, default=100,
                         help='size of the latent embedding of private')
-    parser.add_argument('--batch_size', type=int, default=200, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -45,7 +45,7 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=10000.,
+    parser.add_argument('--lambda_text', type=float, default=2000.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/celeba_cont/',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/celeba_cont/1',
                         help='save and load path for ckpt')
 
     # visdom
@@ -74,8 +74,9 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'celeba_cont-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
-    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
+MODEL_NAME = 'celeba_cont-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+    args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
+    args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
 
@@ -570,7 +571,7 @@ for e in range(args.ckpt_epochs, args.epochs):
             test_elbo, test_accuracy, test_f1, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
 
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA,
