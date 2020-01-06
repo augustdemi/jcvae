@@ -79,10 +79,10 @@ MODEL_NAME = 'celeba_cont-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_fr
     args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
 
-MODEL_NAME = 'celeba_cont-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
-    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
-    args.beta2, args.seed,
-    args.batch_size, args.wseed, args.lr)
+# MODEL_NAME = 'celeba_cont-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+#     args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
+#     args.beta2, args.seed,
+#     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
 
 if not os.path.isdir(args.ckpt_path):
@@ -568,7 +568,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         visualize_line()
         LINE_GATHER.flush()
 
-    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_celeba_cont(e, train_data, encA, decA, CUDA, MODEL_NAME,
                                                   fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,

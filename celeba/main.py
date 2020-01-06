@@ -74,8 +74,9 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'celeba-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
-    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
+MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+    args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
+    args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
 
@@ -437,7 +438,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
-        if b % 1000 == 0:
+        if b % 100 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
                 e, b * args.batch_size, len(data.dataset),
                    b * float(args.batch_size) / len(data.dataset)))
@@ -602,7 +603,7 @@ for e in range(args.ckpt_epochs, args.epochs):
                            )
         visualize_line()
         LINE_GATHER.flush()
-    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
                                              fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
