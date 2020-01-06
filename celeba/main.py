@@ -166,7 +166,7 @@ def visualize_line():
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', test_acc='win_acc', total_losses='win_total_losses'
+        llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses', f1='win_f1'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
