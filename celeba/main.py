@@ -74,8 +74,8 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
-    args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
+MODEL_NAME = 'celeba-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
     args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
@@ -441,7 +441,7 @@ def train(data, encA, decA, encB, decB, optimizer,
         if b % 100 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
                 e, b * args.batch_size, len(data.dataset),
-                   b * float(args.batch_size) / len(data.dataset)))
+                   100. * b * args.batch_size / len(data.dataset)))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
                                                                                                    epoch_rec_crB / pair_cnt], label_mask
@@ -564,6 +564,10 @@ if args.ckpt_epochs > 0:
                                         map_location=torch.device('cpu')))
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
+    MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+        args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
+        args.beta2, args.seed,
+        args.batch_size, args.wseed, args.lr)
 
 mask = {}
 fixed_imgs = None
