@@ -608,9 +608,11 @@ for e in range(args.ckpt_epochs, args.epochs):
         visualize_line()
         LINE_GATHER.flush()
 
-    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
-        e, train_elbo, train_end - train_start,
-        test_elbo, test_accuracy, test_end - test_start))
+    print(
+        '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
+            e, train_elbo, train_end - train_start, val_elbo, val_end - val_start,
+            test_elbo, test_accuracy, test_f1, test_end - test_start))
+
 
 if args.ckpt_epochs == args.epochs:
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
