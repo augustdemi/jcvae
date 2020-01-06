@@ -92,7 +92,7 @@ class DecoderA(nn.Module):
         self.seed = seed
 
         self.fc = nn.Sequential(
-            nn.Linear(zPrivate_dim + 2 * zShared_dim, 256 * 5 * 5),
+            nn.Linear(zPrivate_dim + zShared_dim, 256 * 5 * 5),
             nn.ReLU()
         )
 
@@ -139,8 +139,8 @@ class DecoderA(nn.Module):
             # prior for z_shared_atrr
             zShared = p.normal(shared_mean,
                                shared_std,
-                               value=shared[shared_from],
-                               name=shared_from)
+                               value=q[shared[shared_from]],
+                               name=shared[shared_from])
             latents.append(zShared)
             hiddens = self.fc(torch.cat(latents, -1))
             hiddens = hiddens.view(-1, 256, 5, 5)
@@ -212,7 +212,7 @@ class DecoderB(nn.Module):
         self.seed = seed
 
         self.dec_hidden = nn.Sequential(
-            nn.Linear(2 * zShared_dim, num_hidden),
+            nn.Linear(zShared_dim, num_hidden),
             nn.ReLU())
         self.dec_label = nn.Sequential(
             nn.Linear(num_hidden, num_attr))
@@ -236,8 +236,8 @@ class DecoderB(nn.Module):
             # prior for z_shared_atrr
             zShared = p.normal(shared_mean,
                                shared_std,
-                               value=shared[shared_from],
-                               name=shared_from)
+                               value=q[shared[shared_from]],
+                               name=shared[shared_from])
             hiddens = self.dec_hidden(zShared)
             pred_labels = self.dec_label(hiddens)
             pred_labels = pred_labels.squeeze(0)

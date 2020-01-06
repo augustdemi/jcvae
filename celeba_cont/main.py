@@ -180,7 +180,7 @@ preprocess_data = transforms.Compose([transforms.Resize(64),
                                       transforms.CenterCrop(64),
                                       transforms.ToTensor()])
 
-train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba',
+train_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
@@ -401,10 +401,10 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
-        if b % 1000 == 0:
+        if b % 100 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
                 e, b * args.batch_size, len(data.dataset),
-                   b * float(args.batch_size) / len(data.dataset)))
+                   100. * b * args.batch_size / len(data.dataset)))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
                                                                                                    epoch_rec_crB / pair_cnt], label_mask
@@ -430,20 +430,12 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
 
-            # decode
-            sharedA_attr = []
-            sharedB_attr = []
-
-            for i in range(N_ATTR):
-                sharedA_attr.append('sharedA' + str(i))
-                sharedB_attr.append('sharedB' + str(i))
-
             # decode attr
-            shared_dist = {'own': sharedB_attr}
+            shared_dist = {'own': 'sharedB'}
             pB, pred_attr = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
-            shared_dist = {'own': sharedA_attr}
+            shared_dist = {'own': 'sharedA'}
             pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
