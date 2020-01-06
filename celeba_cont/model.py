@@ -227,8 +227,8 @@ class DecoderB(nn.Module):
                 kaiming_init(self._modules[m], self.seed)
 
     def forward(self, attributes, shared, q=None, p=None, num_samples=None, train=True, CUDA=False):
-        shared_mean = torch.zeros_like(q['sharedA'].dist.loc)
-        shared_std = torch.ones_like(q['sharedA'].dist.scale)
+        shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
+        shared_std = torch.ones_like(q['sharedB'].dist.scale)
 
         p = probtorch.Trace()
 
