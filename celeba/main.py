@@ -179,7 +179,7 @@ preprocess_data = transforms.Compose([transforms.Resize(64),
                                       transforms.CenterCrop(64),
                                       transforms.ToTensor()])
 
-train_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
+train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba',
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
@@ -192,9 +192,9 @@ val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../..
 
 print('>>> data loaded')
 
-BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
-BIAS_VAL = (val_data.dataset.__len__() - 1) / (args.batch_size - 1)
-BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
+BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
+BIAS_VAL = (len(val_data.dataset) - 1) / (args.batch_size - 1)
+BIAS_TEST = (len(test_data.datase) - 1) / (args.batch_size - 1)
 
 
 def cuda_tensors(obj):
@@ -436,6 +436,10 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
+        if b % 2000 == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
+                e, b * args.batch_size, len(data.dataset),
+                   b * float(args.batch_size) / len(data.dataset)))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
                                                                                                    epoch_rec_crB / pair_cnt], label_mask
