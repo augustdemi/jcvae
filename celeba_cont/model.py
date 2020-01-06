@@ -64,7 +64,9 @@ class EncoderA(nn.Module):
         stdPrivate = torch.sqrt(torch.exp(logvarPrivate) + EPS)
 
         muShared = stats[:, :, (2 * self.zPrivate_dim):(2 * self.zPrivate_dim + self.zShared_dim)]
-        stdShared = stats[:, :, (2 * self.zPrivate_dim + self.zShared_dim):]
+        logvarShared = stats[:, :, (2 * self.zPrivate_dim + self.zShared_dim):]
+        stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
+
 
         q.normal(loc=muPrivate,
                  scale=stdPrivate,
@@ -189,7 +191,9 @@ class EncoderB(nn.Module):
         stats = self.fc(hiddens)
 
         muShared = stats[:, :, :self.zShared_dim]
-        stdShared = stats[:, :, self.zShared_dim:]
+        logvarShared = stats[:, :, self.zShared_dim:]
+        stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
+
 
         # attributes
         q.normal(loc=muShared,
