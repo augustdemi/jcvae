@@ -180,7 +180,7 @@ preprocess_data = transforms.Compose([transforms.Resize(64),
                                       transforms.CenterCrop(64),
                                       transforms.ToTensor()])
 
-train_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
+train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba',
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
