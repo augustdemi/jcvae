@@ -9,6 +9,7 @@ import numpy as np
 
 from model import EncoderA, EncoderB, DecoderA, DecoderB
 from datasets import datasets
+from sklearn.metrics import f1_score
 
 import sys
 
@@ -322,7 +323,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
             # decode attr
             shared_dist = {'poe': poe_attr, 'cross': sharedA_attr, 'own': sharedB_attr}
-            pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
             shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
@@ -371,7 +372,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
                 # decode attr
                 shared_dist = {'poe': poe_attr, 'cross': sharedA_attr, 'own': sharedB_attr}
-                pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+                pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
                 # decode img
                 shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
@@ -402,7 +403,7 @@ def train(data, encA, decA, encB, decB, optimizer,
 
                 # decode attr
                 shared_dist = {'own': sharedB_attr}
-                pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+                pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
                 # decode img
                 shared_dist = {'own': sharedA_attr}
@@ -470,20 +471,24 @@ def test(data, encA, decA, encB, decB, epoch, bias):
 
             # decode attr
             shared_dist = {'own': sharedB_attr}
-            pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB, pred_attr = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
             shared_dist = {'own': sharedA_attr}
-            pA, acc, f1 = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
-                acc = acc.cpu()
+                pred_attr = pred_attr.cpu()
             epoch_elbo += batch_elbo.item()
-            epoch_acc += acc.item()
-            epoch_f1 += f1
+
+            pred_attr = pred_attr.numpy()
+            pred_attr = np.round(pred_attr)
+            attributes = attributes.numpy()
+            epoch_acc += (pred_attr == attributes).mean()
+            epoch_f1 += f1_score(attributes.numpy(), pred_attr.numpy(), average="samples")
 
     if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
         # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,

@@ -1,7 +1,6 @@
-import numpy as np
+
 import torch
 import torch.nn as nn
-from sklearn.metrics import f1_score
 import sys
 
 sys.path.append('../')
@@ -228,7 +227,7 @@ class DecoderB(nn.Module):
             else:
                 kaiming_init(self._modules[m], self.seed)
 
-    def forward(self, attributes, shared, q=None, p=None, num_samples=None, train=True):
+    def forward(self, attributes, shared, q=None, p=None, num_samples=None, train=True, CUDA=False):
         p = probtorch.Trace()
         acc = 0
 
@@ -259,9 +258,5 @@ class DecoderB(nn.Module):
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
                 pred_labels, attributes, name='attr_' + shared_from)
-            pred_labels = torch.round(torch.exp(pred_labels))
 
-            if 'cross' in shared_from:
-                acc = (pred_labels == attributes).sum() / self.num_attr
-                f1 = f1_score(attributes.data.to('cpu'), pred_labels.data.to('cpu'), average="samples")
-        return p, acc, f1
+        return p, pred_labels
