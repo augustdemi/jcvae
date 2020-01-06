@@ -28,7 +28,7 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=10,
+    parser.add_argument('--n_shared', type=int, default=18,
                         help='size of the latent embedding of shared')
     parser.add_argument('--n_private', type=int, default=10,
                         help='size of the latent embedding of private')
