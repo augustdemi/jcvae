@@ -484,11 +484,11 @@ def test(data, encA, decA, encB, decB, epoch, bias):
                 pred_attr = pred_attr.cpu()
             epoch_elbo += batch_elbo.item()
 
-            pred_attr = pred_attr.numpy()
-            pred_attr = np.round(pred_attr)
-            attributes = attributes.numpy()
-            epoch_acc += (pred_attr == attributes).mean()
-            epoch_f1 += f1_score(attributes.numpy(), pred_attr.numpy(), average="samples")
+            pred = pred_attr.detach().numpy()
+            pred = np.round(pred)
+            target = attributes.detach().numpy()
+            epoch_acc += (pred == target).mean()
+            epoch_f1 += f1_score(target.numpy(), pred.numpy(), average="samples")
 
     if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
         # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
