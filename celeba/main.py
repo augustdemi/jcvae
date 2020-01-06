@@ -179,7 +179,7 @@ preprocess_data = transforms.Compose([transforms.Resize(64),
                                       transforms.CenterCrop(64),
                                       transforms.ToTensor()])
 
-train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba',
+train_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
@@ -486,6 +486,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
                 pred_attr = pred_attr.cpu()
+                attributes = attributes.cpu()
             epoch_elbo += batch_elbo.item()
 
             pred = pred_attr.detach().numpy()
