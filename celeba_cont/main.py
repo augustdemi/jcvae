@@ -7,7 +7,7 @@ import os
 import visdom
 import numpy as np
 
-from model import EncoderA, EncoderB, DecoderA, DecoderB
+from model_their_decB import EncoderA, EncoderB, DecoderA, DecoderB
 from datasets import datasets
 from sklearn.metrics import f1_score
 
