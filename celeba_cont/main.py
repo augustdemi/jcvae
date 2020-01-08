@@ -568,7 +568,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         if args.attr:
-            util.evaluation.save_cross_celeba_cont(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+            util.evaluation.save_cross_celeba_cont(e, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
                                                    args.n_shared, CUDA, MODEL_NAME)
         util.evaluation.save_traverse_celeba_cont(e, train_data, encA, decA, CUDA, MODEL_NAME,
                                                   fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
