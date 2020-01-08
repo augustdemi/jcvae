@@ -1410,3 +1410,147 @@ def save_traverse_celeba(iters, data_loader, enc, dec, zS_dim, cuda, output_dir_
     grid2gif(
         out_dir, str(os.path.join(out_dir, 'traverse_shared' + '.gif')), delay=10
     )
+
+
+import random
+from datasets import ATTR_IX_TO_KEEP, N_ATTRS
+from datasets import ATTR_TO_IX_DICT, IX_TO_ATTR_DICT
+
+
+def save_cross_celeba(iters, train_loader, encA, decA, encB, gt_attr, n_samples, zS_dim, cuda, output_dir):
+    output_dir = '../output/' + output_dir
+    mkdirs(output_dir)
+
+    # attr shared
+    attrs = torch.zeros(zS_dim)
+    attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+    attrs[attr_ix] = 1
+    zS = []
+    if cuda:
+        attrs = attrs.cuda()
+    attrs = attrs.repeat((n_samples, 1))
+    q = encB(attrs, num_samples=1)
+    for i in range(zS_dim):
+        zS.append(q['sharedB' + str(i)].value)
+
+    # img private
+    n_batch = 10
+    fixed_idxs = random.sample(range(len(train_loader.dataset)), 100 * n_batch)
+    fixed_XA = [0] * 100 * n_batch
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], _ = train_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+
+    zA_mean = 0
+    zA_std = 0
+    # zS_ori_sum = np.zeros(zS_dim)
+    for idx in range(n_batch):
+        q = encA(fixed_XA[100 * idx:100 * (idx + 1)], num_samples=1)
+        zA_mean += q['privateA'].dist.loc
+        zA_std += q['privateA'].dist.scale
+        # zS_ori = []
+        # for i in range(zS_dim):
+        #     zS_ori.append(q['sharedA' + str(i)].value)
+        # zS_ori_sum += np.array(zS_ori)
+
+    zA_mean = zA_mean.mean(dim=1)
+    zA_std = zA_std.mean(dim=1)
+
+    q.normal(loc=zA_mean,
+             scale=zA_std,
+             name='sample')
+    zA = []
+    for _ in range(n_samples):
+        zA.append(q['sample'].dist.sample().unsqueeze(1))
+    zA = torch.cat(zA, dim=1)
+
+    latents = [zA] + zS
+    recon_img = decA.forward2(latents, cuda)
+    save_image(recon_img.view(n_samples, 3, 64, 64),
+               str(os.path.join(output_dir, gt_attr + '_image_iter' + str(iters) + '.png')))
+
+
+def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir):
+    output_dir = '../output/' + output_dir + '/cross/'
+    mkdirs(output_dir)
+
+    #############################################
+    # # using training stat
+    # # img private
+    # n_batch = 10
+    # fixed_idxs = random.sample(range(len(data_loader.dataset)), 100 * n_batch)
+    # fixed_XA = [0] * 100 * n_batch
+    # for i, idx in enumerate(fixed_idxs):
+    #     fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+    #     if cuda:
+    #         fixed_XA[i] = fixed_XA[i].cuda()
+    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
+    # fixed_XA = torch.stack(fixed_XA, dim=0)
+    #
+    # zA_mean = 0
+    # zA_std = 0
+    # # zS_ori_sum = np.zeros(zS_dim)
+    # for idx in range(n_batch):
+    #     q = encA(fixed_XA[100*idx:100*(idx+1)], num_samples=1)
+    #     zA_mean += q['privateA'].dist.loc
+    #     zA_std += q['privateA'].dist.scale
+    #     # zS_ori = []
+    #     # for i in range(zS_dim):
+    #     #     zS_ori.append(q['sharedA' + str(i)].value)
+    #     # zS_ori_sum += np.array(zS_ori)
+    # zA_mean = zA_mean.mean(dim=1)
+    # zA_std = zA_std.mean(dim=1)
+    #
+    # q.normal(loc=zA_mean,
+    #              scale=zA_std,
+    #              name='sample')
+    # zA = []
+    # for _ in range(n_samples):
+    #     zA.append(q['sample'].dist.sample().unsqueeze(1))
+    # zA = torch.cat(zA, dim=1)
+    #############################################
+
+
+    ########################
+    # using test
+    # img private
+    n_batch = 10
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    save_image(fixed_XA.view(n_samples, 3, 64, 64),
+               str(os.path.join(output_dir, 'gt_image_iter' + str(iters) + '.png')))
+
+    q = encA(fixed_XA, num_samples=1)
+    zA = q['privateA'].dist.loc
+    ########################
+
+    gt_attrs = ['recon'] + gt_attrs
+    for gt_attr in gt_attrs:
+        if 'recon' in gt_attr:
+            # img shared
+            zS = q['sharedA'].dist.loc
+        else:
+            # attr shared
+            attrs = torch.zeros(zS_dim)
+            if 'off' not in gt_attr:
+                attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+                attrs[attr_ix] = 1
+            if cuda:
+                attrs = attrs.cuda()
+            attrs = attrs.repeat((n_samples, 1))
+            q = encB(attrs, num_samples=1)
+            zS = q['sharedB'].dist.loc
+
+        latents = [zA, zS]
+        recon_img = decA.forward2(latents, cuda)
+        save_image(recon_img.view(n_samples, 3, 64, 64),
+                   str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
