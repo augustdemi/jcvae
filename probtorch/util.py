@@ -243,9 +243,7 @@ def transform(image, resize=None):
     return image
 
 
-
-
-def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB, std_sharedB):
+def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=None):
     '''
     induce zS = encAB(xA,xB) via POE, that is,
         q(zI,zT,zS|xI,xT) := qI(zI|xI) * qT(zT|xT) * q(zS|xI,xT)
@@ -257,14 +255,25 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB, std_sharedB):
         ZERO = ZERO.cuda()
 
     logvar_sharedA = torch.log(std_sharedA ** 2)
-    logvar_sharedB = torch.log(std_sharedB ** 2)
-    logvarS = -torch.logsumexp(
-        torch.stack((ZERO, -logvar_sharedA, -logvar_sharedB), dim=2),
-        dim=2
-    )
+
+    if mu_sharedB is not None and std_sharedB is not None:
+        logvar_sharedB = torch.log(std_sharedB ** 2)
+        logvarS = -torch.logsumexp(
+            torch.stack((ZERO, -logvar_sharedA, -logvar_sharedB), dim=2),
+            dim=2
+        )
+    else:
+        logvarS = -torch.logsumexp(
+            torch.stack((ZERO, -logvar_sharedA), dim=2),
+            dim=2
+        )
     stdS = torch.sqrt(torch.exp(logvarS))
-    muS = (mu_sharedA / (std_sharedA ** 2) +
-           mu_sharedB / (std_sharedB ** 2)) * (stdS ** 2)
+
+    if mu_sharedB is not None and std_sharedB is not None:
+        muS = (mu_sharedA / (std_sharedA ** 2) +
+               mu_sharedB / (std_sharedB ** 2)) * (stdS ** 2)
+    else:
+        muS = (mu_sharedA / (std_sharedA ** 2)) * (stdS ** 2)
 
     return muS, stdS
 
