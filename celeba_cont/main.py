@@ -7,7 +7,7 @@ import os
 import visdom
 import numpy as np
 
-from model_their_decB import EncoderA, EncoderB, DecoderA, DecoderB
+from model import EncoderA, EncoderB, DecoderA, DecoderB
 from datasets import datasets
 from sklearn.metrics import f1_score
 
@@ -58,8 +58,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/celeba_cont/1',
                         help='save and load path for ckpt')
-    parser.add_argument('--attr', type=str, default='Eyeglasses',
-                        help='save cross gen img from attr')
+
     # visdom
     parser.add_argument('--viz_on',
                         default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
@@ -567,9 +566,8 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        if args.attr:
-            util.evaluation.save_cross_celeba_cont(e, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
-                                                   args.n_shared, CUDA, MODEL_NAME)
+        util.evaluation.save_cross_celeba_cont(e, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+                                               args.n_shared, CUDA, MODEL_NAME)
         util.evaluation.save_traverse_celeba_cont(e, train_data, encA, decA, CUDA, MODEL_NAME,
                                                   fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
                                                               95555],
@@ -583,9 +581,8 @@ for e in range(args.ckpt_epochs, args.epochs):
             test_elbo, test_accuracy, test_f1, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    if args.attr:
-        util.evaluation.save_cross_celeba_cont(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
-                                               args.n_shared, CUDA, MODEL_NAME)
+    util.evaluation.save_cross_celeba_cont(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+                                           args.n_shared, CUDA, MODEL_NAME)
 
     test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
 
