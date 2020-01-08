@@ -1560,7 +1560,6 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, zS_dim, cuda,
     output_dir = '../output/' + output_dir + '/cross/'
     mkdirs(output_dir)
 
-    gt_attrs = ['recon'] + gt_attrs
     for gt_attr in gt_attrs:
         # attr shared
         attrs = torch.zeros(zS_dim)
