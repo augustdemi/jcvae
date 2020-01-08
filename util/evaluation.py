@@ -1569,7 +1569,7 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, zS_dim, cuda,
         if cuda:
             attrs = attrs.cuda()
         attrs = attrs.repeat((n_samples, 1))
-        q = encB(attrs, num_samples=1)
+        q = encB(attrs, cuda, num_samples=1)
         zS = q['sharedB'].dist.loc
 
         recon_img = decA.forward2(zS, cuda)
