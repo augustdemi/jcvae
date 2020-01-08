@@ -1554,3 +1554,25 @@ def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_sam
         recon_img = decA.forward2(latents, cuda)
         save_image(recon_img.view(n_samples, 3, 64, 64),
                    str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
+
+
+def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir):
+    output_dir = '../output/' + output_dir + '/cross/'
+    mkdirs(output_dir)
+
+    gt_attrs = ['recon'] + gt_attrs
+    for gt_attr in gt_attrs:
+        # attr shared
+        attrs = torch.zeros(zS_dim)
+        if 'off' not in gt_attr:
+            attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+            attrs[attr_ix] = 1
+        if cuda:
+            attrs = attrs.cuda()
+        attrs = attrs.repeat((n_samples, 1))
+        q = encB(attrs, num_samples=1)
+        zS = q['sharedB'].dist.loc
+
+        recon_img = decA.forward2(zS, cuda)
+        save_image(recon_img.view(n_samples, 3, 64, 64),
+                   str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
