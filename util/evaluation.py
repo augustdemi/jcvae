@@ -1556,13 +1556,13 @@ def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_sam
                    str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
 
 
-def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir):
+def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda, output_dir):
     output_dir = '../output/' + output_dir + '/cross/'
     mkdirs(output_dir)
 
     for gt_attr in gt_attrs:
         # attr shared
-        attrs = torch.zeros(zS_dim)
+        attrs = torch.zeros(n_attr)
         if 'off' not in gt_attr:
             attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
             attrs[attr_ix] = 1

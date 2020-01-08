@@ -227,6 +227,7 @@ optimizer = torch.optim.Adam(
 
 
 def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+
     muA_own = q['sharedA'].dist.loc.squeeze(0)
     stdA_own = q['sharedA'].dist.scale.squeeze(0)
     muB_own = q['sharedB'].dist.loc.squeeze(0)
@@ -545,7 +546,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         save_ckpt(e + 1)
         if args.attr:
             util.evaluation.save_cross_celeba_mvae(e, decA, encB, ATTR_TO_PLOT, 64,
-                                                   args.n_shared, CUDA, MODEL_NAME)
+                                                   N_ATTR, CUDA, MODEL_NAME)
 
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
@@ -555,7 +556,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 if args.ckpt_epochs == args.epochs:
     if args.attr:
         util.evaluation.save_cross_celeba_mvae(args.ckpt_epochs, decA, encB, ATTR_TO_PLOT, 64,
-                                               args.n_shared, CUDA, MODEL_NAME)
+                                               N_ATTR, CUDA, MODEL_NAME)
 
     test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
 
