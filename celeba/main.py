@@ -34,9 +34,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=35, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--epochs', type=int, default=35, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -59,6 +59,9 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt_path', type=str, default='../weights/celeba/1',
                         help='save and load path for ckpt')
 
+    parser.add_argument('--attr', type=str, default='Male',
+                        help='save cross gen img from attr')
+
     # visdom
     parser.add_argument('--viz_on',
                         default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
@@ -74,8 +77,8 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'celeba-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
-    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
+MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+    args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
     args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
@@ -95,6 +98,7 @@ NUM_PIXELS = 784
 TEMP = 0.66
 NUM_SAMPLES = 1
 N_ATTR = 18
+ATTR_TO_PLOT = ['Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling', 'Straight_Hair', 'Eyeglasses', 'Bangs', 'off']
 
 
 # visdom setup
@@ -564,10 +568,7 @@ if args.ckpt_epochs > 0:
                                         map_location=torch.device('cpu')))
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
-    MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
-        args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
-        args.beta2, args.seed,
-        args.batch_size, args.wseed, args.lr)
+
 
 mask = {}
 fixed_imgs = None
@@ -609,6 +610,8 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
+        util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+                                          args.n_shared, CUDA, MODEL_NAME)
         util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
                                              fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
                                                          95555],
@@ -624,6 +627,10 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 
 if args.ckpt_epochs == args.epochs:
+    util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
+                                      CUDA, MODEL_NAME)
+
+
     test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
     print('test_accuracy:', test_accuracy)
     print('test_f1:', test_f1)
