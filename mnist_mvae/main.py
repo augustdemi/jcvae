@@ -405,7 +405,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             pair_cnt += 1
 
         if b % 100 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.000f})'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
                 e, b * args.batch_size, len(data.dataset),
                    100. * b * args.batch_size / len(data.dataset), annealing_factor))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
