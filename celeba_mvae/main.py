@@ -275,7 +275,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     for b, (images, attributes) in enumerate(data):
         if epoch < args.annealing_epochs:
             # compute the KL annealing factor for the current mini-batch in the current epoch
-            annealing_factor = (float(b + (epoch - 1) * len(train_data) + 1) /
+            annealing_factor = (float(b + epoch * len(train_data) + 1) /
                                 float(args.annealing_epochs * len(train_data)))
         else:
             # by default the KL annealing factor is unity
@@ -413,9 +413,9 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             pair_cnt += 1
 
         if b % 100 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
                 e, b * args.batch_size, len(data.dataset),
-                   100. * b * args.batch_size / len(data.dataset)))
+                   100. * b * args.batch_size / len(data.dataset), annealing_factor))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
                                                                          epoch_rec_poeB / pair_cnt], label_mask
 
