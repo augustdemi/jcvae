@@ -268,7 +268,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             fixed_imgs_batch = fixed_imgs[shuffled_idx]
             fixed_labels_batch = fixed_labels[shuffled_idx]
             images = fixed_imgs_batch.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, 10)
             labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             optimizer.zero_grad()
@@ -305,7 +305,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
         else:
             N += 1
             images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, 10)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
@@ -406,7 +406,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
         if images.size()[0] == args.batch_size:
             N += 1
             images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, 10)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
