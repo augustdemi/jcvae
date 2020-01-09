@@ -28,13 +28,13 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=18,
+    parser.add_argument('--n_shared', type=int, default=100,
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=70, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=90, metavar='N',
+    parser.add_argument('--epochs', type=int, default=70, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -43,7 +43,7 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=3000.,
+    parser.add_argument('--lambda_text', type=float, default=10.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -544,9 +544,10 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        if args.attr:
-            util.evaluation.save_cross_celeba_mvae(e, decA, encB, ATTR_TO_PLOT, 64,
-                                                   N_ATTR, CUDA, MODEL_NAME)
+        encB.eval()
+        decA.eval()
+        util.evaluation.save_cross_celeba_mvae(e, decA, encB, ATTR_TO_PLOT, 64,
+                                               N_ATTR, CUDA, MODEL_NAME)
 
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
@@ -554,9 +555,10 @@ for e in range(args.ckpt_epochs, args.epochs):
             test_elbo, test_accuracy, test_f1, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    if args.attr:
-        util.evaluation.save_cross_celeba_mvae(args.ckpt_epochs, decA, encB, ATTR_TO_PLOT, 64,
-                                               N_ATTR, CUDA, MODEL_NAME)
+    encB.eval()
+    decA.eval()
+    util.evaluation.save_cross_celeba_mvae(args.ckpt_epochs, decA, encB, ATTR_TO_PLOT, 64,
+                                           N_ATTR, CUDA, MODEL_NAME)
 
     test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
 
