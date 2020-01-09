@@ -446,12 +446,12 @@ def test(data, encA, decA, encB, decB, epoch, bias):
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
-                pred_laebls = pred_labels.cpu()
+                pred_labels = pred_labels.cpu()
                 labels = labels.cpu()
             epoch_elbo += batch_elbo.item()
 
-            pred = pred_laebls.detach().numpy()
-            pred = np.round(np.exp(pred))
+            pred = pred_labels.max(-1)[1]
+            pred = pred.detach().numpy()
             target = labels.detach().numpy()
             epoch_acc += (pred == target).mean()
 
@@ -552,7 +552,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         visualize_line()
         LINE_GATHER.flush()
 
-    if (e + 1) % 5 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 20 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         decA.eval()
         encB.eval()
