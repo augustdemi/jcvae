@@ -45,10 +45,8 @@ class EncoderA(nn.Module):
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
-        mu_poe, std_poe = probtorch.util.apply_poe(cuda, muShared, stdShared)
-
-        q.normal(loc=mu_poe,
-                 scale=std_poe,
+        q.normal(loc=muShared,
+                 scale=stdShared,
                  name='sharedA')
         return q
 
@@ -69,6 +67,10 @@ class DecoderA(nn.Module):
         self.fc2 = nn.Linear(512, 512)
         self.fc3 = nn.Linear(512, 512)
         self.fc4 = nn.Linear(512, 784)
+
+        self.dec_image = nn.Sequential(
+            nn.Linear(512, 784),
+            nn.Sigmoid())
         self.swish = Swish()
 
         self.weight_init()
@@ -97,8 +99,7 @@ class DecoderA(nn.Module):
             h = self.swish(self.fc1(zShared.squeeze(0)))
             h = self.swish(self.fc2(h))
             h = self.swish(self.fc3(h))
-            images_mean = self.fc4(h)
-            images_mean = F.sigmoid(images_mean)
+            images_mean = self.dec_image(h)
             images = images.view(images.size(0), -1)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
@@ -110,8 +111,7 @@ class DecoderA(nn.Module):
         h = self.swish(self.fc1(zShared.squeeze(0)))
         h = self.swish(self.fc2(h))
         h = self.swish(self.fc3(h))
-        images_mean = self.fc4(h)
-        images_mean = F.sigmoid(images_mean)
+        images_mean = self.dec_image(h)
         return images_mean
 
 
@@ -149,10 +149,8 @@ class EncoderB(nn.Module):
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
-        mu_poe, std_poe = probtorch.util.apply_poe(cuda, muShared, stdShared)
-        # attributes
-        q.normal(loc=mu_poe,
-                 scale=std_poe,
+        q.normal(loc=muShared,
+                 scale=stdShared,
                  name='sharedB')
         return q
 

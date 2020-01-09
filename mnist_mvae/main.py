@@ -282,6 +282,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             q = encB(labels, CUDA, q=q)
 
             ## poe ##
+            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            q['sharedA'].dist.loc = muA
+            q['sharedA'].dist.scale = stdA
+
+            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q['sharedB'].dist.loc = muB
+            q['sharedB'].dist.scale = stdB
+
             mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
                                                        q['sharedB'].dist.loc, q['sharedB'].dist.scale)
             q.normal(mu_poe,
@@ -323,6 +331,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 q = encB(labels, CUDA, q=q)
 
                 ## poe ##
+                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                q['sharedA'].dist.loc = muA
+                q['sharedA'].dist.scale = stdA
+
+                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q['sharedB'].dist.loc = muB
+                q['sharedB'].dist.scale = stdB
+
                 mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
                                                            q['sharedB'].dist.loc, q['sharedB'].dist.scale)
                 q.normal(mu_poe,
