@@ -56,8 +56,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/celeba_mvae/1',
                         help='save and load path for ckpt')
-    parser.add_argument('--attr', type=str, default='Eyeglasses',
-                        help='save cross gen img from attr')
+    parser.add_argument('--annealing-epochs', type=int, default=20, metavar='N',
+                        help='number of epochs to anneal KL for [default: 20]')
     # visdom
     parser.add_argument('--viz_on',
                         default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
@@ -226,7 +226,7 @@ optimizer = torch.optim.Adam(
     lr=args.lr)
 
 
-def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
 
     muA_own = q['sharedA'].dist.loc.squeeze(0)
     stdA_own = q['sharedA'].dist.scale.squeeze(0)
@@ -248,16 +248,16 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
         reconst_loss_poeB = pB['attr_poe'].loss.mean()
         kl_poe = -0.5 * torch.sum(1 + torch.log(stdB_poe ** 2) - mu_poe.pow(2) - torch.log(stdB_poe ** 2).exp(), dim=1)
         kl_poe = kl_poe.mean()
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + (
-        reconst_loss_poeA + reconst_loss_poeB - kl_poe)
+        loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
+            reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
-        loss = 2 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+        loss = 2 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B))
 
     return -loss, [reconst_loss_A, reconst_loss_poeA], [reconst_loss_B, reconst_loss_poeB]
 
 
-def train(data, encA, decA, encB, decB, optimizer,
+def train(data, encA, decA, encB, decB, epoch, optimizer,
           label_mask={}, fixed_imgs=None, fixed_attr=None):
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
@@ -270,6 +270,14 @@ def train(data, encA, decA, encB, decB, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, attributes) in enumerate(data):
+        if epoch < args.annealing_epochs:
+            # compute the KL annealing factor for the current mini-batch in the current epoch
+            annealing_factor = (float(b + (epoch - 1) * len(train_data) + 1) /
+                                float(args.annealing_epochs * len(train_data)))
+        else:
+            # by default the KL annealing factor is unity
+            annealing_factor = 1.0
+
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += 1
@@ -289,6 +297,13 @@ def train(data, encA, decA, encB, decB, optimizer,
             q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
             ## poe ##
+            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            q['sharedA'].dist.loc = muA
+            q['sharedA'].dist.scale = stdA
+
+            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q['sharedB'].dist.loc = muB
+            q['sharedB'].dist.scale = stdB
             mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
                                                        q['sharedB'].dist.loc, q['sharedB'].dist.scale)
             q.normal(mu_poe,
@@ -308,7 +323,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             for param in decB.parameters():
                 param.requires_grad = True
             # loss
-            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+            loss, recA, recB = elbo(q, pA, pB, annealing_factor=annealing_factor)
         else:
             N += 1
             if CUDA:
@@ -325,6 +340,13 @@ def train(data, encA, decA, encB, decB, optimizer,
                 q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
                 ## poe ##
+                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                q['sharedA'].dist.loc = muA
+                q['sharedA'].dist.scale = stdA
+
+                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q['sharedB'].dist.loc = muB
+                q['sharedB'].dist.scale = stdB
                 mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
                                                            q['sharedB'].dist.loc, q['sharedB'].dist.scale)
                 q.normal(mu_poe,
@@ -344,7 +366,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 for param in decB.parameters():
                     param.requires_grad = True
                 # loss
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
             else:
                 shuffled_idx = list(range(args.batch_size))
                 random.shuffle(shuffled_idx)
@@ -365,7 +387,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                     param.requires_grad = False
                 for param in decB.parameters():
                     param.requires_grad = False
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
 
         loss.backward()
         optimizer.step()
@@ -423,7 +445,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             shared_dist = {'own': 'sharedA', 'cross': 'sharedB'}
             pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
-            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
+            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()

@@ -21,22 +21,22 @@ class EncoderA(nn.Module):
 
         self.enc_hidden = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1, bias=False),
-            nn.ReLU(),
+            Swish(),
             nn.Conv2d(32, 64, 4, 2, 1, bias=False),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
+            Swish(),
             nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.BatchNorm2d(128),
-            nn.ReLU(),
+            Swish(),
             nn.Conv2d(128, 256, 4, 1, 0, bias=False),
             nn.BatchNorm2d(256),
-            nn.ReLU())
+            Swish())
 
         self.fc = nn.Sequential(
             nn.Linear(256 * 5 * 5, 512),
-            nn.ReLU(),
+            Swish(),
             nn.Dropout(p=0.1),
-            nn.Linear(512, 2 * zShared_dim))
+            nn.Linear(512, zShared_dim * 2))
 
         self.weight_init()
 
@@ -61,11 +61,9 @@ class EncoderA(nn.Module):
         logvarShared = stats[:, :, self.zShared_dim:]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
-        mu_poe, std_poe = probtorch.util.apply_poe(cuda, muShared, stdShared)
-
         # attributes
-        q.normal(loc=mu_poe,
-                 scale=std_poe,
+        q.normal(loc=muShared,
+                 scale=stdShared,
                  name='sharedA')
         return q
 
@@ -80,22 +78,21 @@ class DecoderA(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Linear(zShared_dim, 256 * 5 * 5),
-            nn.ReLU()
+            Swish()
         )
 
         self.hallucinate = nn.Sequential(
             nn.ConvTranspose2d(256, 128, 4, 1, 0, bias=False),
             nn.BatchNorm2d(128),
-            nn.ReLU(),
+            Swish(),
             nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
+            Swish(),
             nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
             nn.BatchNorm2d(32),
-            nn.ReLU(),
+            Swish(),
             nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=False),
-            nn.Sigmoid()
-        )
+            nn.Sigmoid())
 
         self.weight_init()
 
@@ -176,10 +173,9 @@ class EncoderB(nn.Module):
         logvarShared = stats[:, self.zShared_dim:].unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
-        mu_poe, std_poe = probtorch.util.apply_poe(cuda, muShared, stdShared)
         # attributes
-        q.normal(loc=mu_poe,
-                 scale=std_poe,
+        q.normal(loc=muShared,
+                 scale=stdShared,
                  name='sharedB')
         return q
 
