@@ -19,8 +19,12 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
         self.seed = seed
 
-        self.fc1 = nn.Linear(784, 512)
-        self.fc2 = nn.Linear(512, 512)
+        self.enc_hidden = nn.Sequential(
+            nn.Linear(784, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU())
+
         self.fc31 = nn.Linear(512, zShared_dim)
         self.fc32 = nn.Linear(512, zShared_dim)
         self.weight_init()
@@ -37,9 +41,7 @@ class EncoderA(nn.Module):
         if q is None:
             q = probtorch.Trace()
 
-        h = nn.ReLU(self.fc1(x.view(-1, 784)))
-        h = nn.ReLU(self.fc2(h))
-
+        h = self.enc_hidden(x.view(-1, 784))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -58,14 +60,14 @@ class DecoderA(nn.Module):
         self.num_digits = zShared_dim
         self.seed = seed
 
-        self.fc = nn.Sequential(
-            nn.Linear(zShared_dim, 256 * 5 * 5),
+        self.dec_hidden = nn.Sequential(
+            nn.Linear(zShared_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
             nn.ReLU()
         )
-        self.fc1 = nn.Linear(zShared_dim, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, 512)
-        self.fc4 = nn.Linear(512, 784)
 
         self.dec_image = nn.Sequential(
             nn.Linear(512, 784),
@@ -94,9 +96,7 @@ class DecoderA(nn.Module):
                                value=q[shared[shared_from]],
                                name=shared[shared_from])
 
-            h = nn.ReLU(self.fc1(zShared.squeeze(0)))
-            h = nn.ReLU(self.fc2(h))
-            h = nn.ReLU(self.fc3(h))
+            h = self.dec_hidden(zShared.squeeze(0))
             images_mean = self.dec_image(h)
             images = images.view(images.size(0), -1)
             # define reconstruction loss (log prob of bernoulli dist)
@@ -121,8 +121,13 @@ class EncoderB(nn.Module):
         self.zShared_dim = zShared_dim
         self.seed = seed
 
-        self.fc1 = nn.Embedding(10, 512)
-        self.fc2 = nn.Linear(512, 512)
+        self.enc_hidden = nn.Sequential(
+            nn.Embedding(10, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU()
+        )
+
         self.fc31 = nn.Linear(512, zShared_dim)
         self.fc32 = nn.Linear(512, zShared_dim)
 
@@ -139,8 +144,7 @@ class EncoderB(nn.Module):
     def forward(self, labels, cuda, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
-        h = nn.ReLU(self.fc1(labels))
-        h = nn.ReLU(self.fc2(h))
+        h = self.enc_hidden(labels)
 
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
@@ -159,9 +163,15 @@ class DecoderB(nn.Module):
         self.digit_temp = TEMP
         self.seed = seed
 
-        self.fc1 = nn.Linear(zShared_dim, 512)
-        self.fc2 = nn.Linear(512, 512)
-        self.fc3 = nn.Linear(512, 512)
+        self.dec_hidden = nn.Sequential(
+            nn.Linear(zShared_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU()
+        )
+
         self.fc4 = nn.Linear(512, 10)
         self.weight_init()
 
@@ -187,9 +197,7 @@ class DecoderB(nn.Module):
                                value=q[shared[shared_from]],
                                name=shared[shared_from])
 
-            h = nn.ReLU(self.fc1(zShared.squeeze(0)))
-            h = nn.ReLU(self.fc2(h))
-            h = nn.ReLU(self.fc3(h))
+            h = self.dec_hidden(zShared.squeeze(0))
             pred_labels = self.fc4(h)
 
             pred_labels = F.log_softmax(pred_labels + EPS, dim=1)
