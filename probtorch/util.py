@@ -249,15 +249,15 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=No
         q(zI,zT,zS|xI,xT) := qI(zI|xI) * qT(zT|xT) * q(zS|xI,xT)
             where q(zS|xI,xT) \propto p(zS) * qI(zS|xI) * qT(zS|xT)
     '''
-
+    EPS = 1e-9
     ZERO = torch.zeros(std_sharedA.shape)
     if use_cuda:
         ZERO = ZERO.cuda()
 
-    logvar_sharedA = torch.log(std_sharedA ** 2)
+    logvar_sharedA = torch.log(std_sharedA ** 2) + EPS
 
     if mu_sharedB is not None and std_sharedB is not None:
-        logvar_sharedB = torch.log(std_sharedB ** 2)
+        logvar_sharedB = torch.log(std_sharedB ** 2) + EPS
         logvarS = -torch.logsumexp(
             torch.stack((ZERO, -logvar_sharedA, -logvar_sharedB), dim=2),
             dim=2
