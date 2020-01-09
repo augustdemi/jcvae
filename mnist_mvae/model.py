@@ -106,9 +106,7 @@ class DecoderA(nn.Module):
         return p
 
     def forward2(self, zShared, cuda):
-        h = nn.ReLU(self.fc1(zShared.squeeze(0)))
-        h = nn.ReLU(self.fc2(h))
-        h = nn.ReLU(self.fc3(h))
+        h = self.dec_hidden(zShared.squeeze(0))
         images_mean = self.dec_image(h)
         return images_mean
 
