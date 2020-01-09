@@ -274,6 +274,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
+                labels = labels.cuda()
                 labels_onehot = labels_onehot.cuda()
 
             # encode
@@ -309,6 +310,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
                 images = images.cuda()
+                labels = labels.cuda()
                 labels_onehot = labels_onehot.cuda()
             optimizer.zero_grad()
 
@@ -409,6 +411,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
                 images = images.cuda()
+                labels = labels.cuda()
                 labels_onehot = labels_onehot.cuda()
 
             # encode
