@@ -1568,10 +1568,37 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda,
             attrs[attr_ix] = 1
         if cuda:
             attrs = attrs.cuda()
-        attrs = attrs.repeat((n_samples, 1))
-        q = encB(attrs, cuda, num_samples=1)
-        zS = q['sharedB'].dist.loc
+        attrs = attrs.unsqueeze(dim=0)
+        q = encB(attrs, cuda)
+
+        torch.manual_seed(0)
+        zS = []
+        for _ in range(n_samples):
+            zS.append(q['sharedB'].dist.sample().squeeze(0))
+        zS = torch.cat(zS, dim=0)
 
         recon_img = decA.forward2(zS, cuda)
         save_image(recon_img.view(n_samples, 3, 64, 64),
                    str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
+
+
+def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
+    output_dir = '../output/' + output_dir + '/cross/'
+    mkdirs(output_dir)
+
+    for i in range(10):
+        label = torch.tensor(i)
+        if cuda:
+            label = label.cuda()
+        label = label.unsqueeze(0)
+        q = encB(label, cuda, num_samples=1)
+
+        torch.manual_seed(0)
+        zS = []
+        for _ in range(n_samples):
+            zS.append(q['sharedB'].dist.sample().squeeze(0))
+        zS = torch.cat(zS, dim=0)
+
+        recon_img = decA.forward2(zS, cuda)
+        save_image(recon_img.view(n_samples, 1, 28, 28),
+                   str(os.path.join(output_dir, str(i) + '_image_iter.png')))
