@@ -215,10 +215,12 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
 
     # from each of modality
     reconst_loss_A = pA['images_own'].loss.mean()
-    kl_A = -0.5 * torch.sum(1 + torch.log(stdA_own ** 2) - muA_own.pow(2) - torch.log(stdA_own ** 2).exp(), dim=1)
+    kl_A = -0.5 * torch.sum(1 + torch.log(stdA_own ** 2 + EPS) - muA_own.pow(2) - torch.log(stdA_own ** 2 + EPS).exp(),
+                            dim=1)
     kl_A = kl_A.mean()
     reconst_loss_B = pB['label_own'].loss.mean()
-    kl_B = -0.5 * torch.sum(1 + torch.log(stdB_own ** 2) - muB_own.pow(2) - torch.log(stdB_own ** 2).exp(), dim=1)
+    kl_B = -0.5 * torch.sum(1 + torch.log(stdB_own ** 2 + EPS) - muB_own.pow(2) - torch.log(stdB_own ** 2 + EPS).exp(),
+                            dim=1)
     kl_B = kl_B.mean()
 
     if q['poe'] is not None:
@@ -226,7 +228,8 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
         stdB_poe = q['poe'].dist.scale.squeeze(0)
         reconst_loss_poeA = pA['images_poe'].loss.mean()
         reconst_loss_poeB = pB['label_poe'].loss.mean()
-        kl_poe = -0.5 * torch.sum(1 + torch.log(stdB_poe ** 2) - mu_poe.pow(2) - torch.log(stdB_poe ** 2).exp(), dim=1)
+        kl_poe = -0.5 * torch.sum(
+            1 + torch.log(stdB_poe ** 2 + EPS) - mu_poe.pow(2) - torch.log(stdB_poe ** 2 + EPS).exp(), dim=1)
         kl_poe = kl_poe.mean()
         loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
             reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
