@@ -1518,6 +1518,7 @@ def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_sam
     # using test
     # img private
     n_batch = 10
+    torch.manual_seed(0)
     fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
     fixed_XA = [0] * n_samples
     for i, idx in enumerate(fixed_idxs):
@@ -1530,7 +1531,7 @@ def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_sam
                str(os.path.join(output_dir, 'gt_image_iter' + str(iters) + '.png')))
 
     q = encA(fixed_XA, num_samples=1)
-    zA = q['privateA'].dist.loc
+    zA = q['privateA'].dist.sample()
     ########################
 
     gt_attrs = ['recon'] + gt_attrs
@@ -1548,7 +1549,7 @@ def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_sam
                 attrs = attrs.cuda()
             attrs = attrs.repeat((n_samples, 1))
             q = encB(attrs, num_samples=1)
-            zS = q['sharedB'].dist.loc
+            zS = q['sharedB'].dist.sample()
 
         latents = [zA, zS]
         recon_img = decA.forward2(latents, cuda)
