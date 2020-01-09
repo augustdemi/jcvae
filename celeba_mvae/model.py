@@ -62,9 +62,13 @@ class EncoderA(nn.Module):
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
         # attributes
-        q.normal(loc=muShared,
-                 scale=stdShared,
-                 name='sharedA')
+        try:
+            q.normal(loc=muShared,
+                     scale=stdShared,
+                     name='sharedA')
+        except:
+            print('muShared', muShared)
+            print('stdShared', stdShared)
         return q
 
 
