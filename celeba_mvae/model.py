@@ -21,20 +21,20 @@ class EncoderA(nn.Module):
 
         self.enc_hidden = nn.Sequential(
             nn.Conv2d(3, 32, 4, 2, 1, bias=False),
-            Swish(),
+            nn.ReLU(),
             nn.Conv2d(32, 64, 4, 2, 1, bias=False),
             nn.BatchNorm2d(64),
-            Swish(),
+            nn.ReLU(),
             nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.BatchNorm2d(128),
-            Swish(),
+            nn.ReLU(),
             nn.Conv2d(128, 256, 4, 1, 0, bias=False),
             nn.BatchNorm2d(256),
-            Swish())
+            nn.ReLU())
 
         self.fc = nn.Sequential(
             nn.Linear(256 * 5 * 5, 512),
-            Swish(),
+            nn.ReLU(),
             nn.Dropout(p=0.1),
             nn.Linear(512, zShared_dim * 2))
 
@@ -82,19 +82,19 @@ class DecoderA(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Linear(zShared_dim, 256 * 5 * 5),
-            Swish()
+            nn.ReLU()
         )
 
         self.hallucinate = nn.Sequential(
             nn.ConvTranspose2d(256, 128, 4, 1, 0, bias=False),
             nn.BatchNorm2d(128),
-            Swish(),
+            nn.ReLU(),
             nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
             nn.BatchNorm2d(64),
-            Swish(),
+            nn.ReLU(),
             nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
             nn.BatchNorm2d(32),
-            Swish(),
+            nn.ReLU(),
             nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=False),
             nn.Sigmoid())
 
@@ -149,10 +149,10 @@ class EncoderB(nn.Module):
         self.enc_hidden = nn.Sequential(
             nn.Linear(num_attr, num_hidden),
             nn.BatchNorm1d(512),
-            Swish(),
+            nn.ReLU(),
             nn.Linear(num_hidden, num_hidden),
             nn.BatchNorm1d(512),
-            Swish(),
+            nn.ReLU(),
         )
 
         self.fc = nn.Linear(num_hidden, 2 * zShared_dim)
@@ -196,13 +196,13 @@ class DecoderB(nn.Module):
         self.dec_hidden = nn.Sequential(
             nn.Linear(zShared_dim, num_hidden),
             nn.BatchNorm1d(512),
-            Swish(),
+            nn.ReLU(),
             nn.Linear(num_hidden, num_hidden),
             nn.BatchNorm1d(512),
-            Swish(),
+            nn.ReLU(),
             nn.Linear(num_hidden, num_hidden),
             nn.BatchNorm1d(512),
-            Swish(),
+            nn.ReLU(),
         )
         self.dec_label = nn.Sequential(
             nn.Linear(num_hidden, num_attr))
@@ -245,9 +245,3 @@ class DecoderB(nn.Module):
             predicted_attr = pred['cross']
         return p, predicted_attr
 
-
-class Swish(nn.Module):
-    """https://arxiv.org/abs/1710.05941"""
-
-    def forward(self, x):
-        return x * F.sigmoid(x)
