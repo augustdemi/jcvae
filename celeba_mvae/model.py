@@ -67,8 +67,8 @@ class EncoderA(nn.Module):
                      scale=stdShared,
                      name='sharedA')
         except:
-            print('muShared', muShared)
-            print('stdShared', stdShared)
+            print('muShared', muShared.mean())
+            print('stdShared', stdShared.mean())
         return q
 
 
