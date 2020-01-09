@@ -535,7 +535,7 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB,
+    train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB, e,
                                                    optimizer, mask, fixed_imgs=fixed_imgs, fixed_attr=fixed_attr)
     train_end = time.time()
 
