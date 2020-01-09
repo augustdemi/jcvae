@@ -38,9 +38,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=100,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=3000.,
                         help='multipler for text reconstruction [default: 10]')
@@ -229,7 +229,7 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
         kl_poe = -0.5 * torch.sum(1 + torch.log(stdB_poe ** 2) - mu_poe.pow(2) - torch.log(stdB_poe ** 2).exp(), dim=1)
         kl_poe = kl_poe.mean()
         loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
-            reconst_loss_poeA + reconst_loss_poeB - annealing_factor * kl_poe)
+            reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
         loss = 2 * ((reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B))
