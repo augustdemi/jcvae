@@ -34,9 +34,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=90, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=90, metavar='N',
+    parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -47,7 +47,7 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=3000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=1.,
+    parser.add_argument('--beta1', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -581,20 +581,42 @@ for e in range(args.ckpt_epochs, args.epochs):
             test_elbo, test_accuracy, test_f1, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.save_cross_celeba_cont(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
-                                           args.n_shared, CUDA, MODEL_NAME)
+    # util.evaluation.save_cross_celeba_cont(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+    #                                        args.n_shared, CUDA, MODEL_NAME)
 
-    test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    ### for stat
+    n_batch = 10
+    random.seed = 0
+    fixed_idxs = random.sample(range(len(train_data.dataset)), 100 * n_batch)
+    fixed_XA = [0] * 100 * n_batch
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], _ = train_data.dataset.__getitem__(idx)[:2]
+        if CUDA:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
 
-    util.evaluation.save_traverse_celeba_cont(args.ckpt_epochs, train_data, encA, decA, CUDA, MODEL_NAME,
-                                              fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
-                                                          95555],
-                                              private=False)
+    zS_mean = 0
+    # zS_ori_sum = np.zeros(zS_dim)
+    for idx in range(n_batch):
+        q = encA(fixed_XA[100 * idx:100 * (idx + 1)], num_samples=1)
+        zS_mean += q['sharedA'].dist.loc
+        # zS_std += q['sharedA'].dist.scale
+    zS_mean = zS_mean.squeeze(0)
+    min = zS_mean.min(dim=0)[0].detach().cpu().numpy()
+    max = zS_mean.max(dim=0)[0].detach().cpu().numpy()
+    ##############
+
+    # util.evaluation.save_traverse_celeba_cont(args.ckpt_epochs, train_data, encA, decA, CUDA, MODEL_NAME,
+    #                                           fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
+    #                                                       95555],
+    #                                           private=False)
     util.evaluation.save_traverse_celeba_cont(args.ckpt_epochs, test_data, encA, decA, CUDA, MODEL_NAME,
                                               fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
-                                              private=False)
-    print('test_accuracy:', test_accuracy)
-    print('test_f1:', test_f1)
+                                              private=False, min=min, max=max)
+    # test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    # print('test_accuracy:', test_accuracy)
+    # print('test_f1:', test_f1)
 
 else:
     save_ckpt(args.epochs)
