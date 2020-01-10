@@ -34,20 +34,20 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=35, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=55, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=35, metavar='N',
+    parser.add_argument('--epochs', type=int, default=55, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
+    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
     parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=2000.,
+    parser.add_argument('--lambda_text', type=float, default=3000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=1.,
+    parser.add_argument('--beta1', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -610,16 +610,16 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64,
-                                          args.n_shared, CUDA, MODEL_NAME)
-        util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-                                             fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
-                                                         95555],
-                                             private=False)
-
-        util.evaluation.save_traverse_celeba(e, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-                                             fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
-                                             private=False)
+        # util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+        #                                   args.n_shared, CUDA, MODEL_NAME)
+        # util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+        #                                      fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
+        #                                                  95555],
+        #                                      private=False)
+        #
+        # util.evaluation.save_traverse_celeba(e, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+        #                                      fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
+        #                                      private=False)
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start, val_elbo, val_end - val_start,
@@ -631,10 +631,6 @@ if args.ckpt_epochs == args.epochs:
                                       CUDA, MODEL_NAME)
 
 
-    test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
-    print('test_accuracy:', test_accuracy)
-    print('test_f1:', test_f1)
-
     util.evaluation.save_traverse_celeba(args.ckpt_epochs, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
                                          fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555, 95555],
                                          private=False)
@@ -642,6 +638,12 @@ if args.ckpt_epochs == args.epochs:
     util.evaluation.save_traverse_celeba(args.ckpt_epochs, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
                                          fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
                                          private=False)
+
+
+    # test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    # print('test_accuracy:', test_accuracy)
+    # print('test_f1:', test_f1)
+
 
 else:
     save_ckpt(args.epochs)

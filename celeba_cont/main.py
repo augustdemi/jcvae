@@ -566,15 +566,15 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        util.evaluation.save_cross_celeba_cont(e, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
-                                               args.n_shared, CUDA, MODEL_NAME)
-        util.evaluation.save_traverse_celeba_cont(e, train_data, encA, decA, CUDA, MODEL_NAME,
-                                                  fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
-                                                              95555],
-                                                  private=False)
-        util.evaluation.save_traverse_celeba_cont(e, test_data, encA, decA, CUDA, MODEL_NAME,
-                                                  fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
-                                                  private=False)
+        # util.evaluation.save_cross_celeba_cont(e, test_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+        #                                        args.n_shared, CUDA, MODEL_NAME)
+        # util.evaluation.save_traverse_celeba_cont(e, train_data, encA, decA, CUDA, MODEL_NAME,
+        #                                           fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
+        #                                                       95555],
+        #                                           private=False)
+        # util.evaluation.save_traverse_celeba_cont(e, test_data, encA, decA, CUDA, MODEL_NAME,
+        #                                           fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
+        #                                           private=False)
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start, val_elbo, val_end - val_start,
