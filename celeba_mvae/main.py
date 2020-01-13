@@ -24,7 +24,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=2, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -32,9 +32,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=70, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=70, metavar='N',
+    parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -79,6 +79,22 @@ MODEL_NAME = 'celeba_mvae-run_id%d-shared%02ddim-label_frac%s-sup_frac%s-lamb_te
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
 ATTR_TO_PLOT = ['Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling', 'Straight_Hair', 'Eyeglasses', 'Bangs', 'off']
+
+ATTR_TO_IX_DICT = {'Sideburns': 30, 'Black_Hair': 8, 'Wavy_Hair': 33, 'Young': 39, 'Heavy_Makeup': 18,
+                   'Blond_Hair': 9, 'Attractive': 2, '5_o_Clock_Shadow': 0, 'Wearing_Necktie': 38,
+                   'Blurry': 10, 'Double_Chin': 14, 'Brown_Hair': 11, 'Mouth_Slightly_Open': 21,
+                   'Goatee': 16, 'Bald': 4, 'Pointy_Nose': 27, 'Gray_Hair': 17, 'Pale_Skin': 26,
+                   'Arched_Eyebrows': 1, 'Wearing_Hat': 35, 'Receding_Hairline': 28, 'Straight_Hair': 32,
+                   'Big_Nose': 7, 'Rosy_Cheeks': 29, 'Oval_Face': 25, 'Bangs': 5, 'Male': 20, 'Mustache': 22,
+                   'High_Cheekbones': 19, 'No_Beard': 24, 'Eyeglasses': 15, 'Bags_Under_Eyes': 3,
+                   'Wearing_Necklace': 37, 'Wearing_Lipstick': 36, 'Big_Lips': 6, 'Narrow_Eyes': 23,
+                   'Chubby': 13, 'Smiling': 31, 'Bushy_Eyebrows': 12, 'Wearing_Earrings': 34}
+# we only keep 18 of the more visually distinctive features
+# See [1] Perarnau, Guim, et al. "Invertible conditional gans for
+#         image editing." arXiv preprint arXiv:1611.06355 (2016).
+ATTR_IX_TO_KEEP = [4, 5, 8, 9, 11, 12, 15, 17, 18, 20, 21, 22, 26, 28, 31, 32, 33, 35]
+IX_TO_ATTR_DICT = {v: k for k, v in ATTR_TO_IX_DICT.items()}
+
 
 if not os.path.isdir(args.ckpt_path):
     os.makedirs(args.ckpt_path)
@@ -300,6 +316,12 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
             ## poe ##
+            mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                       q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q.normal(mu_poe,
+                     std_poe,
+                     name='poe')
+
             muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
             q['sharedA'].dist.loc = muA
             q['sharedA'].dist.scale = stdA
@@ -307,11 +329,6 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
             q['sharedB'].dist.loc = muB
             q['sharedB'].dist.scale = stdB
-            mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                       q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            q.normal(mu_poe,
-                     std_poe,
-                     name='poe')
 
             # decode attr
             shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -343,6 +360,12 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
                 ## poe ##
+                mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                           q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q.normal(mu_poe,
+                         std_poe,
+                         name='poe')
+
                 muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
                 q['sharedA'].dist.loc = muA
                 q['sharedA'].dist.scale = stdA
@@ -350,11 +373,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
                 q['sharedB'].dist.loc = muB
                 q['sharedB'].dist.scale = stdB
-                mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                           q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                q.normal(mu_poe,
-                         std_poe,
-                         name='poe')
+
 
                 # decode attr
                 shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -378,6 +397,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 # encode
                 q = encA(images, CUDA, num_samples=NUM_SAMPLES)
                 q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
+
+                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                q['sharedA'].dist.loc = muA
+                q['sharedA'].dist.scale = stdA
+
+                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q['sharedB'].dist.loc = muB
+                q['sharedB'].dist.scale = stdB
 
                 # decode attr
                 shared_dist = {'own': 'sharedB'}
@@ -429,6 +456,8 @@ def test(data, encA, decA, encB, decB, epoch, bias):
     epoch_acc = 0
     epoch_f1 = 0
     N = 0
+    all_pred = []
+    all_target = []
     for b, (images, attributes) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
@@ -439,6 +468,16 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             # encode
             q = encA(images, CUDA, num_samples=NUM_SAMPLES)
             q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
+
+            # poe for each modal
+            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            q['sharedA'].dist.loc = muA
+            q['sharedA'].dist.scale = stdA
+
+            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q['sharedB'].dist.loc = muB
+            q['sharedB'].dist.scale = stdB
+
 
             # decode attr
             shared_dist = {'own': 'sharedB', 'cross': 'sharedA'}
@@ -462,6 +501,22 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             epoch_acc += (pred == target).mean()
             epoch_f1 += f1_score(target, pred, average="samples")
 
+            if N == 1:
+                all_pred = pred
+                all_target = target
+            else:
+                all_pred = np.concatenate((all_pred, pred), axis=0)
+                all_target = np.concatenate((all_target, target), axis=0)
+
+    f1 = []
+    for i in range(18):
+        f1.append(f1_score(all_target[:, i], all_pred[:, i], average="binary"))
+
+    f1 = list(enumerate(f1))
+    f1.sort(key=lambda f1: f1[1])
+
+    for i in range(18):
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[f1[i][0]]], f1[i][1])
     return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
 
 
@@ -582,8 +637,8 @@ for e in range(args.ckpt_epochs, args.epochs):
 if args.ckpt_epochs == args.epochs:
     encB.eval()
     decA.eval()
-    util.evaluation.save_cross_celeba_mvae(args.ckpt_epochs, decA, encB, ATTR_TO_PLOT, 64,
-                                           N_ATTR, CUDA, MODEL_NAME)
+    # util.evaluation.save_cross_celeba_mvae(args.ckpt_epochs, decA, encB, ATTR_TO_PLOT, 64,
+    #                                        N_ATTR, CUDA, MODEL_NAME)
 
     test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
 
