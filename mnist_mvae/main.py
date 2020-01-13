@@ -42,7 +42,7 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=2000.,
+    parser.add_argument('--lambda_text', type=float, default=10.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -330,14 +330,23 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                          name='poe')
 
                 muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
                 q['sharedA'].dist.loc = muA
                 q['sharedA'].dist.scale = stdA
-
-                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
                 q['sharedB'].dist.loc = muB
                 q['sharedB'].dist.scale = stdB
 
-
+                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                # mu, logvar = probtorch.util.prior_expert((1, args.batch_size, args.n_shared),
+                #                           use_cuda=CUDA)
+                #
+                #
+                # mu = torch.cat((mu, muA), dim=0)
+                # logvar = torch.cat((logvar, torch.log(stdA ** 2 + EPS)), dim=0)
+                #
+                # mu = torch.cat((mu, muB), dim=0)
+                # logvar = torch.cat((logvar, torch.log(stdB ** 2 + EPS)), dim=0)
 
                 # decode attr
                 shared_dist = {'poe': 'poe', 'own': 'sharedB'}

@@ -98,7 +98,6 @@ class DecoderA(nn.Module):
 
             h = self.dec_hidden(zShared.squeeze(0))
             images_mean = self.dec_image(h)
-            images = images.view(images.size(0), -1)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
                                       torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
@@ -201,7 +200,7 @@ class DecoderB(nn.Module):
             pred_labels = F.log_softmax(pred_labels + EPS, dim=1)
 
             p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
-                   pred_labels, labels.unsqueeze(0), name='label_' + shared_from)
+                   pred_labels, labels, name='label_' + shared_from)
             pred.update({shared_from: pred_labels})
 
         if train:
