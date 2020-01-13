@@ -1673,7 +1673,7 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda,
 
 
 def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
-    output_dir = '../output/' + output_dir + '/cross/'
+    output_dir = '../output/' + output_dir + '/cross/' + str(iters) + '/'
     mkdirs(output_dir)
 
     for i in range(10):
@@ -1682,6 +1682,10 @@ def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
             label = label.cuda()
         label = label.unsqueeze(0)
         q = encB(label, cuda, num_samples=1)
+
+        muB, stdB = probtorch.util.apply_poe(cuda, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+        q['sharedB'].dist.loc = muB
+        q['sharedB'].dist.scale = stdB
 
         torch.manual_seed(0)
         zS = []

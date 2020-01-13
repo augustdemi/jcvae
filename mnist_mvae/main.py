@@ -23,26 +23,26 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=1, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=10,
+    parser.add_argument('--n_shared', type=int, default=64,
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=90, metavar='N',
+    parser.add_argument('--epochs', type=int, default=80, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
+    parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=100,
+    parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.4,
+    parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=3000.,
+    parser.add_argument('--lambda_text', type=float, default=2000.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -73,9 +73,8 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist_mvae-run_id%d-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
-    args.run_id, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
-    args.beta2, args.seed,
+MODEL_NAME = 'mnist_mvae-run_id%d-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-seed%s-bs%s-wseed%s-lr%s' % (
+    args.run_id, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.seed,
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
 
@@ -87,14 +86,9 @@ if len(args.run_desc) > 1:
     with open(desc_file, 'w') as outfile:
         outfile.write(args.run_desc)
 
-BETA1 = (1., args.beta1, 1.)
-BETA2 = (1., args.beta2, 1.)
 # model parameters
 NUM_PIXELS = 784
 TEMP = 0.66
-NUM_SAMPLES = 1
-N_ATTR = 18
-
 
 # visdom setup
 def viz_init():
@@ -177,10 +171,6 @@ print('>>> data loaded')
 print('train: ', len(train_data.dataset))
 print('test: ', len(test_data.dataset))
 
-BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
-BIAS_TEST = (len(test_data.dataset) - 1) / (args.batch_size - 1)
-
-
 def cuda_tensors(obj):
     for attr in dir(obj):
         value = getattr(obj, attr)
@@ -215,27 +205,26 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
 
     # from each of modality
     reconst_loss_A = pA['images_own'].loss.mean()
-    kl_A = -0.5 * torch.sum(1 + torch.log(stdA_own ** 2 + EPS) - muA_own.pow(2) - torch.log(stdA_own ** 2 + EPS).exp(),
-                            dim=1)
-    kl_A = kl_A.mean()
+    kl_A = 0.5 * torch.sum(1 + torch.log(stdA_own ** 2 + EPS) - muA_own ** 2 - stdA_own ** 2,
+                           dim=1).mean()
+
     reconst_loss_B = pB['label_own'].loss.mean()
-    kl_B = -0.5 * torch.sum(1 + torch.log(stdB_own ** 2 + EPS) - muB_own.pow(2) - torch.log(stdB_own ** 2 + EPS).exp(),
-                            dim=1)
-    kl_B = kl_B.mean()
+    kl_B = 0.5 * torch.sum(1 + torch.log(stdB_own ** 2 + EPS) - muB_own ** 2 - stdB_own ** 2,
+                           dim=1).mean()
 
     if q['poe'] is not None:
         mu_poe = q['poe'].dist.loc.squeeze(0)
-        stdB_poe = q['poe'].dist.scale.squeeze(0)
+        std_poe = q['poe'].dist.scale.squeeze(0)
         reconst_loss_poeA = pA['images_poe'].loss.mean()
         reconst_loss_poeB = pB['label_poe'].loss.mean()
-        kl_poe = -0.5 * torch.sum(
-            1 + torch.log(stdB_poe ** 2 + EPS) - mu_poe.pow(2) - torch.log(stdB_poe ** 2 + EPS).exp(), dim=1)
-        kl_poe = kl_poe.mean()
-        loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
-            reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
+        kl_poe = 0.5 * torch.sum(
+            1 + torch.log(std_poe ** 2 + EPS) - mu_poe.pow(2) - std_poe ** 2, dim=1).mean()
+
+        loss = (reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B) + (
+            reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
-        loss = 2 * ((reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B))
+        loss = 2 * ((reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B))
 
     return -loss, [reconst_loss_A, reconst_loss_poeA], [reconst_loss_B, reconst_loss_poeB]
 
@@ -243,8 +232,8 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
 def train(data, encA, decA, encB, decB, epoch, optimizer,
           label_mask={}, fixed_imgs=None, fixed_labels=None):
     epoch_elbo = 0.0
-    epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
-    epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
+    epoch_recA = epoch_rec_poeA = 0.0
+    epoch_recB = epoch_rec_poeB = 0.0
     pair_cnt = 0
     encA.train()
     encB.train()
@@ -285,6 +274,12 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             q = encB(labels, CUDA, q=q)
 
             ## poe ##
+            mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                       q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q.normal(mu_poe,
+                     std_poe,
+                     name='poe')
+
             muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
             q['sharedA'].dist.loc = muA
             q['sharedA'].dist.scale = stdA
@@ -292,12 +287,6 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
             q['sharedB'].dist.loc = muB
             q['sharedB'].dist.scale = stdB
-
-            mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                       q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            q.normal(mu_poe,
-                     std_poe,
-                     name='poe')
 
             # decode attr
             shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -334,6 +323,12 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 q = encB(labels, CUDA, q=q)
 
                 ## poe ##
+                mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                           q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q.normal(mu_poe,
+                         std_poe,
+                         name='poe')
+
                 muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
                 q['sharedA'].dist.loc = muA
                 q['sharedA'].dist.scale = stdA
@@ -342,11 +337,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 q['sharedB'].dist.loc = muB
                 q['sharedB'].dist.scale = stdB
 
-                mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                           q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                q.normal(mu_poe,
-                         std_poe,
-                         name='poe')
+
 
                 # decode attr
                 shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -374,6 +365,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 # decode attr
                 shared_dist = {'own': 'sharedB'}
                 pB, _ = decB(labels_onehot, shared_dist, q=q)
+
+                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                q['sharedA'].dist.loc = muA
+                q['sharedA'].dist.scale = stdA
+
+                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q['sharedB'].dist.loc = muB
+                q['sharedB'].dist.scale = stdB
 
                 # decode img
                 shared_dist = {'own': 'sharedA'}
@@ -412,14 +411,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                                                                          epoch_rec_poeB / pair_cnt], label_mask
 
 
-def test(data, encA, decA, encB, decB, epoch, bias):
+def test(data, encA, decA, encB, decB):
     encA.eval()
     decA.eval()
     encB.eval()
     decB.eval()
     epoch_elbo = 0.0
     epoch_acc = 0
-    epoch_f1 = 0
     N = 0
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
@@ -436,6 +434,15 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             # encode
             q = encA(images, CUDA)
             q = encB(labels, CUDA, q=q)
+
+            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            q['sharedA'].dist.loc = muA
+            q['sharedA'].dist.scale = stdA
+
+            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q['sharedB'].dist.loc = muB
+            q['sharedB'].dist.scale = stdB
+
 
             # decode attr
             shared_dist = {'own': 'sharedB', 'cross': 'sharedA'}
@@ -539,7 +546,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
 
     test_start = time.time()
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e, BIAS_TEST)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB)
     test_end = time.time()
 
     if args.viz_on:
