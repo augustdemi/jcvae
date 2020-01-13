@@ -33,7 +33,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=80, metavar='N',
+    parser.add_argument('--epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -590,7 +590,7 @@ if args.ckpt_epochs == args.epochs:
     util.evaluation.save_cross_mnist_mvae(args.ckpt_epochs, decA, encB, 64,
                                           CUDA, MODEL_NAME)
 
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB)
 
     print('test_accuracy:', test_accuracy)
 
