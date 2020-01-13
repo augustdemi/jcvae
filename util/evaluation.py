@@ -1677,10 +1677,11 @@ def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
     mkdirs(output_dir)
 
     for i in range(10):
+        # label = torch.zeros(n_samples, dtype=torch.int64) + i
         label = torch.tensor(i)
         if cuda:
             label = label.cuda()
-        label = label.unsqueeze(0)
+        # label = label.unsqueeze(0)
         q = encB(label, cuda, num_samples=1)
 
         muB, stdB = probtorch.util.apply_poe(cuda, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
@@ -1690,9 +1691,10 @@ def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
         torch.manual_seed(0)
         zS = []
         for _ in range(n_samples):
-            zS.append(q['sharedB'].dist.sample().squeeze(0))
-        zS = torch.cat(zS, dim=0)
+            zS.append(q['sharedB'].dist.sample().unsqueeze(0))
+        zS = torch.cat(zS, dim=1)
 
         recon_img = decA.forward2(zS, cuda)
+        # recon_img = decA.forward2(muB, cuda)
         save_image(recon_img.view(n_samples, 1, 28, 28),
                    str(os.path.join(output_dir, str(i) + '_image_iter.png')))
