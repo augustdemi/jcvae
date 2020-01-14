@@ -191,18 +191,20 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-preprocess_data = transforms.Compose([transforms.Resize(64),
-                                      transforms.CenterCrop(64),
-                                      transforms.ToTensor()])
+preprocess_data = transforms.Compose([
+    transforms.CenterCrop((168, 178)),
+    transforms.Resize((64, 64)),
+    transforms.ToTensor(),
+])
 
-train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba',
+train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba2',
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
-test_data = torch.utils.data.DataLoader(datasets(partition='test', data_dir='../../data/celeba',
+test_data = torch.utils.data.DataLoader(datasets(partition='test', data_dir='../../data/celeba2',
                                                  image_transform=preprocess_data), batch_size=args.batch_size,
                                         shuffle=False)
-val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
+val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba2',
                                                 image_transform=preprocess_data), batch_size=args.batch_size,
                                        shuffle=False)
 
@@ -267,10 +269,8 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
         kl_poe = -0.5 * torch.sum(
             1 + torch.log(stdB_poe ** 2 + EPS) - mu_poe.pow(2) - torch.log(stdB_poe ** 2 + EPS).exp(), dim=1)
         kl_poe = kl_poe.mean()
-        # loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
-        #     reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + (
-            reconst_loss_poeA + reconst_loss_poeB - kl_poe)
+        loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
+            reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
         loss = 2 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B))
@@ -323,14 +323,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             q.normal(mu_poe,
                      std_poe,
                      name='poe')
-            #
-            # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-            # q['sharedA'].dist.loc = muA
-            # q['sharedA'].dist.scale = stdA
-            #
-            # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            # q['sharedB'].dist.loc = muB
-            # q['sharedB'].dist.scale = stdB
+
+            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            q['sharedA'].dist.loc = muA
+            q['sharedA'].dist.scale = stdA
+
+            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q['sharedB'].dist.loc = muB
+            q['sharedB'].dist.scale = stdB
 
             # decode attr
             shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -368,13 +368,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                          std_poe,
                          name='poe')
 
-                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                # q['sharedA'].dist.loc = muA
-                # q['sharedA'].dist.scale = stdA
-                #
-                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                # q['sharedB'].dist.loc = muB
-                # q['sharedB'].dist.scale = stdB
+                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                q['sharedA'].dist.loc = muA
+                q['sharedA'].dist.scale = stdA
+
+                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q['sharedB'].dist.loc = muB
+                q['sharedB'].dist.scale = stdB
 
 
                 # decode attr
@@ -400,13 +400,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 q = encA(images, CUDA, num_samples=NUM_SAMPLES)
                 q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
-                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                # q['sharedA'].dist.loc = muA
-                # q['sharedA'].dist.scale = stdA
-                #
-                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                # q['sharedB'].dist.loc = muB
-                # q['sharedB'].dist.scale = stdB
+                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                q['sharedA'].dist.loc = muA
+                q['sharedA'].dist.scale = stdA
+
+                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                q['sharedB'].dist.loc = muB
+                q['sharedB'].dist.scale = stdB
 
                 # decode attr
                 shared_dist = {'own': 'sharedB'}
@@ -472,13 +472,13 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
             # poe for each modal
-            # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-            # q['sharedA'].dist.loc = muA
-            # q['sharedA'].dist.scale = stdA
-            #
-            # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            # q['sharedB'].dist.loc = muB
-            # q['sharedB'].dist.scale = stdB
+            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            q['sharedA'].dist.loc = muA
+            q['sharedA'].dist.scale = stdA
+
+            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            q['sharedB'].dist.loc = muB
+            q['sharedB'].dist.scale = stdB
 
 
             # decode attr
