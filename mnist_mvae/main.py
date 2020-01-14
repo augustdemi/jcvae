@@ -23,7 +23,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=1, metavar='N',
+    parser.add_argument('--run_id', type=int, default=2, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -31,9 +31,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=180, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=180, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -42,7 +42,7 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=10.,
+    parser.add_argument('--lambda_text', type=float, default=50.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -220,8 +220,9 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
         kl_poe = 0.5 * torch.sum(
             1 + torch.log(std_poe ** 2 + EPS) - mu_poe.pow(2) - std_poe ** 2, dim=1).mean()
 
-        loss = (reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B) + (
-            reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
+        # loss = (reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B) + (
+        #     reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
+        loss = (reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
         loss = 2 * ((reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B))
