@@ -1687,9 +1687,9 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda,
         attrs = attrs.unsqueeze(dim=0)
         q = encB(attrs, cuda)
 
-        # muB, stdB = probtorch.util.apply_poe(cuda, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-        # q['sharedB'].dist.loc = muB
-        # q['sharedB'].dist.scale = stdB
+        muB, stdB = probtorch.util.apply_poe(cuda, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+        q['sharedB'].dist.loc = muB
+        q['sharedB'].dist.scale = stdB
 
         torch.manual_seed(0)
         zS = []
