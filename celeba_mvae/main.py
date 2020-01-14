@@ -323,14 +323,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             q.normal(mu_poe,
                      std_poe,
                      name='poe')
-
-            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-            q['sharedA'].dist.loc = muA
-            q['sharedA'].dist.scale = stdA
-
-            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            q['sharedB'].dist.loc = muB
-            q['sharedB'].dist.scale = stdB
+            #
+            # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            # q['sharedA'].dist.loc = muA
+            # q['sharedA'].dist.scale = stdA
+            #
+            # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            # q['sharedB'].dist.loc = muB
+            # q['sharedB'].dist.scale = stdB
 
             # decode attr
             shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -368,13 +368,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                          std_poe,
                          name='poe')
 
-                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                q['sharedA'].dist.loc = muA
-                q['sharedA'].dist.scale = stdA
-
-                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                q['sharedB'].dist.loc = muB
-                q['sharedB'].dist.scale = stdB
+                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                # q['sharedA'].dist.loc = muA
+                # q['sharedA'].dist.scale = stdA
+                #
+                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                # q['sharedB'].dist.loc = muB
+                # q['sharedB'].dist.scale = stdB
 
 
                 # decode attr
@@ -400,13 +400,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 q = encA(images, CUDA, num_samples=NUM_SAMPLES)
                 q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
-                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                q['sharedA'].dist.loc = muA
-                q['sharedA'].dist.scale = stdA
-
-                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                q['sharedB'].dist.loc = muB
-                q['sharedB'].dist.scale = stdB
+                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                # q['sharedA'].dist.loc = muA
+                # q['sharedA'].dist.scale = stdA
+                #
+                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                # q['sharedB'].dist.loc = muB
+                # q['sharedB'].dist.scale = stdB
 
                 # decode attr
                 shared_dist = {'own': 'sharedB'}
@@ -472,13 +472,13 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             q = encB(attributes, CUDA, num_samples=NUM_SAMPLES, q=q)
 
             # poe for each modal
-            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-            q['sharedA'].dist.loc = muA
-            q['sharedA'].dist.scale = stdA
-
-            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            q['sharedB'].dist.loc = muB
-            q['sharedB'].dist.scale = stdB
+            # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            # q['sharedA'].dist.loc = muA
+            # q['sharedA'].dist.scale = stdA
+            #
+            # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            # q['sharedB'].dist.loc = muB
+            # q['sharedB'].dist.scale = stdB
 
 
             # decode attr

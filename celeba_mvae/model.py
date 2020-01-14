@@ -61,14 +61,13 @@ class EncoderA(nn.Module):
         logvarShared = stats[:, :, self.zShared_dim:]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
+        mu_poe, std_poe = probtorch.util.apply_poe(cuda, muShared, stdShared)
+
         # attributes
-        try:
-            q.normal(loc=muShared,
-                     scale=stdShared,
-                     name='sharedA')
-        except:
-            print('muShared', muShared.mean())
-            print('stdShared', stdShared.mean())
+        q.normal(loc=mu_poe,
+                 scale=std_poe,
+                 name='sharedA')
+
         return q
 
 
@@ -177,9 +176,11 @@ class EncoderB(nn.Module):
         logvarShared = stats[:, self.zShared_dim:].unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
+        mu_poe, std_poe = probtorch.util.apply_poe(cuda, muShared, stdShared)
+
         # attributes
-        q.normal(loc=muShared,
-                 scale=stdShared,
+        q.normal(loc=mu_poe,
+                 scale=std_poe,
                  name='sharedB')
         return q
 

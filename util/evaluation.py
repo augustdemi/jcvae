@@ -112,11 +112,25 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
     )
 
     # digit trv imgs
+    ### orginal img ###
+    digit_trv = []
+    fixed_XA = fixed_XA.view(-1, 1, 28, 28)
+    digit_trv.append((torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0))
+    sampleA = dec.forward2(zA_ori, zS_ori, cuda)
+    if flatten_pixel is not None:
+        sampleA = sampleA.view(-1, 1, 28, 28)
+    digit_trv.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+    WS = torch.ones(digit_trv[0].shape)
+    # WS = torch.ones((sampleA.shape[0], 1, 1,1))
+    if cuda:
+        WS = WS.cuda()
+    digit_trv.append(WS)
+    digit_trv.extend(tempS)
     mkdirs(out_dir + '/digit/')
     save_image(
-        tensor=(torch.cat(tempS, dim=0)).cpu(),
+        tensor=(torch.cat(digit_trv, dim=0)).cpu(),
         filename=os.path.join(out_dir + '/digit/', 'digit.jpg'),
-        nrow=1 + zS_dim,
+        nrow=3 + zS_dim,
         pad_value=1)
 
 
@@ -278,8 +292,7 @@ def save_traverse_both(iters, data_loader, encA, decA, encB, decB, cuda, output_
 
 
 def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_dir_trvsl, flatten_pixel=None):
-
-    output_dir_trvsl = '../output/' + output_dir_trvsl
+    output_dir_trvsl = '../output/base_' + output_dir_trvsl
     tr_range = 2
     out_dir = os.path.join(output_dir_trvsl, str(iters) +'_'+ str(-tr_range) + '~' + str(tr_range))
 
@@ -321,6 +334,7 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
         tempA.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
     tempS = []
+
     for i in range(zS_dim):
         zS = np.zeros((1, 1, zS_dim))
         zS[0, 0, i % zS_dim] = 1.
@@ -355,13 +369,29 @@ def save_traverse_base(iters, data_loader, enc, dec, cuda, fixed_idxs, output_di
     )
 
     # digit trv imgs
+
+    ### orginal img ###
+    digit_trv = []
+    fixed_XA = fixed_XA.view(-1, 1, 28, 28)
+    digit_trv.append((torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0))
+    sampleA = dec.forward2(zS_ori, zA_ori, cuda)
+    if flatten_pixel is not None:
+        sampleA = sampleA.view(-1, 1, 28, 28)
+    digit_trv.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+    WS = torch.ones(digit_trv[0].shape)
+    # WS = torch.ones((sampleA.shape[0], 1, 1,1))
+    if cuda:
+        WS = WS.cuda()
+    digit_trv.append(WS)
+    digit_trv.extend(tempS)
+
     mkdirs(out_dir + '/digit/')
     save_image(
-        tensor=(torch.cat(tempS, dim=0)).cpu(),
+        tensor=(torch.cat(digit_trv, dim=0)).cpu(),
         filename=os.path.join(out_dir + '/digit/', 'digit.jpg'),
-        nrow=1 + zS_dim,
+        nrow=3 + zS_dim,
         pad_value=1)
-
+    #########
 
 def mutual_info(data_loader, enc, cuda, flatten_pixel=None, baseline=False, plot=False):
     # fixed_idxs = [3, 2, 1, 18, 4, 15, 11, 17, 61, 99]
@@ -1657,9 +1687,9 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda,
         attrs = attrs.unsqueeze(dim=0)
         q = encB(attrs, cuda)
 
-        muB, stdB = probtorch.util.apply_poe(cuda, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-        q['sharedB'].dist.loc = muB
-        q['sharedB'].dist.scale = stdB
+        # muB, stdB = probtorch.util.apply_poe(cuda, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+        # q['sharedB'].dist.loc = muB
+        # q['sharedB'].dist.scale = stdB
 
         torch.manual_seed(0)
         zS = []
@@ -1673,6 +1703,34 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda,
 
 
 def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
+    output_dir = '../output/' + output_dir + '/cross/' + str(iters) + '/'
+    mkdirs(output_dir)
+
+    for i in range(10):
+        # label = torch.zeros(n_samples, dtype=torch.int64) + i
+        label = torch.tensor(i)
+        if cuda:
+            label = label.cuda()
+        # label = label.unsqueeze(0)
+        q = encB(label, cuda, num_samples=1)
+
+        muB, stdB = probtorch.util.apply_poe(cuda, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+        q['sharedB'].dist.loc = muB
+        q['sharedB'].dist.scale = stdB
+
+        torch.manual_seed(0)
+        zS = []
+        for _ in range(n_samples):
+            zS.append(q['sharedB'].dist.sample().unsqueeze(0))
+        zS = torch.cat(zS, dim=1)
+
+        recon_img = decA.forward2(zS, cuda)
+        # recon_img = decA.forward2(muB, cuda)
+        save_image(recon_img.view(n_samples, 1, 28, 28),
+                   str(os.path.join(output_dir, str(i) + '_image_iter.png')))
+
+
+def save_cross_mnist_base(iters, decA, encB, n_samples, cuda, output_dir):
     output_dir = '../output/' + output_dir + '/cross/' + str(iters) + '/'
     mkdirs(output_dir)
 
