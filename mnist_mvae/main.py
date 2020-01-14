@@ -220,10 +220,9 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
         kl_poe = 0.5 * torch.sum(
             1 + torch.log(std_poe ** 2 + EPS) - mu_poe.pow(2) - std_poe ** 2, dim=1).mean()
 
-        # loss = (reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B) + (
-        #     reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
-        loss = (reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe) + (
-        lamb * reconst_loss_B + annealing_factor * kl_B)
+        loss = (reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B) + (
+            reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
+
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
         loss = 2 * ((reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B))
@@ -244,14 +243,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if epoch < args.annealing_epochs:
-            # compute the KL annealing factor for the current mini-batch in the current epoch
-            annealing_factor = (float(b + epoch * len(train_data) + 1) /
-                                float(args.annealing_epochs * len(train_data)))
-        else:
-            # by default the KL annealing factor is unity
-            annealing_factor = 1.0
-
+        # if epoch < args.annealing_epochs:
+        #     # compute the KL annealing factor for the current mini-batch in the current epoch
+        #     annealing_factor = (float(b + epoch * len(train_data) + 1) /
+        #                         float(args.annealing_epochs * len(train_data)))
+        # else:
+        #     # by default the KL annealing factor is unity
+        #     annealing_factor = 1.0
+        annealing_factor = 1
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += 1
