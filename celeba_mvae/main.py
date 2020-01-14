@@ -270,7 +270,7 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
         # loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
         #     reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
         loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + (
-            reconst_loss_poeA + lamb * reconst_loss_poeB - kl_poe)
+            reconst_loss_poeA + reconst_loss_poeB - kl_poe)
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
         loss = 2 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B))
