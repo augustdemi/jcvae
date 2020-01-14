@@ -267,8 +267,10 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
         kl_poe = -0.5 * torch.sum(
             1 + torch.log(stdB_poe ** 2 + EPS) - mu_poe.pow(2) - torch.log(stdB_poe ** 2 + EPS).exp(), dim=1)
         kl_poe = kl_poe.mean()
-        loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
-            reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
+        # loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
+        #     reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
+        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + (
+            reconst_loss_poeA + lamb * reconst_loss_poeB - kl_poe)
     else:
         reconst_loss_poeA = reconst_loss_poeB = None
         loss = 2 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B))
