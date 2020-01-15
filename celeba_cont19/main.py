@@ -239,12 +239,15 @@ for _ in range(N_ATTR):
 if CUDA:
     encA.cuda()
     decA.cuda()
-    encB.cuda()
-    decB.cuda()
     cuda_tensors(encA)
     cuda_tensors(decA)
-    cuda_tensors(encB)
-    cuda_tensors(decB)
+
+    for i in range(N_ATTR):
+        encB[i].cuda()
+        decB[i].cuda()
+        cuda_tensors(encB[i])
+        cuda_tensors(decB[i])
+
 
 attr_params = []
 for i in range(N_ATTR):
