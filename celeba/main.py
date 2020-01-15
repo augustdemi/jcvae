@@ -82,6 +82,20 @@ MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-
     args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
+ATTR_TO_IX_DICT = {'Sideburns': 30, 'Black_Hair': 8, 'Wavy_Hair': 33, 'Young': 39, 'Heavy_Makeup': 18,
+                   'Blond_Hair': 9, 'Attractive': 2, '5_o_Clock_Shadow': 0, 'Wearing_Necktie': 38,
+                   'Blurry': 10, 'Double_Chin': 14, 'Brown_Hair': 11, 'Mouth_Slightly_Open': 21,
+                   'Goatee': 16, 'Bald': 4, 'Pointy_Nose': 27, 'Gray_Hair': 17, 'Pale_Skin': 26,
+                   'Arched_Eyebrows': 1, 'Wearing_Hat': 35, 'Receding_Hairline': 28, 'Straight_Hair': 32,
+                   'Big_Nose': 7, 'Rosy_Cheeks': 29, 'Oval_Face': 25, 'Bangs': 5, 'Male': 20, 'Mustache': 22,
+                   'High_Cheekbones': 19, 'No_Beard': 24, 'Eyeglasses': 15, 'Bags_Under_Eyes': 3,
+                   'Wearing_Necklace': 37, 'Wearing_Lipstick': 36, 'Big_Lips': 6, 'Narrow_Eyes': 23,
+                   'Chubby': 13, 'Smiling': 31, 'Bushy_Eyebrows': 12, 'Wearing_Earrings': 34}
+# we only keep 18 of the more visually distinctive features
+# See [1] Perarnau, Guim, et al. "Invertible conditional gans for
+#         image editing." arXiv preprint arXiv:1611.06355 (2016).
+ATTR_IX_TO_KEEP = [4, 5, 8, 9, 11, 12, 15, 17, 18, 20, 21, 22, 26, 28, 31, 32, 33, 35]
+IX_TO_ATTR_DICT = {v: k for k, v in ATTR_TO_IX_DICT.items()}
 
 if not os.path.isdir(args.ckpt_path):
     os.makedirs(args.ckpt_path)
@@ -98,9 +112,8 @@ NUM_PIXELS = 784
 TEMP = 0.66
 NUM_SAMPLES = 1
 N_ATTR = 18
-ATTR_TO_PLOT = ['Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling', 'Straight_Hair', 'Eyeglasses', 'Bangs', 'off']
-
-
+ATTR_TO_PLOT = ['Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling', 'Straight_Hair', 'Eyeglasses', 'Bangs', 'off',
+                'Wavy_Hair']
 # visdom setup
 def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
@@ -181,18 +194,20 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-preprocess_data = transforms.Compose([transforms.Resize(64),
-                                      transforms.CenterCrop(64),
-                                      transforms.ToTensor()])
+preprocess_data = transforms.Compose([
+    transforms.CenterCrop((168, 178)),
+    transforms.Resize((64, 64)),
+    transforms.ToTensor(),
+])
 
-train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba',
+train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba2',
                                                   image_transform=preprocess_data), batch_size=args.batch_size,
                                          shuffle=True)
 
-test_data = torch.utils.data.DataLoader(datasets(partition='test', data_dir='../../data/celeba',
+test_data = torch.utils.data.DataLoader(datasets(partition='test', data_dir='../../data/celeba2',
                                                  image_transform=preprocess_data), batch_size=args.batch_size,
                                         shuffle=False)
-val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba',
+val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba2',
                                                 image_transform=preprocess_data), batch_size=args.batch_size,
                                        shuffle=False)
 
@@ -460,6 +475,8 @@ def test(data, encA, decA, encB, decB, epoch, bias):
     epoch_acc = 0
     epoch_f1 = 0
     N = 0
+    all_pred = []
+    all_target = []
     for b, (images, attributes) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
@@ -500,6 +517,24 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             target = attributes.detach().numpy()
             epoch_acc += (pred == target).mean()
             epoch_f1 += f1_score(target, pred, average="samples")
+
+            if N == 1:
+                all_pred = pred
+                all_target = target
+            else:
+                all_pred = np.concatenate((all_pred, pred), axis=0)
+                all_target = np.concatenate((all_target, target), axis=0)
+
+    all_acc = []
+    for i in range(18):
+        acc = (all_target[:, i] == all_pred[:, i]).mean()
+        all_acc.append(acc)
+
+    all_acc = list(enumerate(all_acc))
+    all_acc.sort(key=lambda all_acc: all_acc[1])
+
+    for i in range(18):
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[all_acc[i][0]]], all_acc[i][1])
 
     return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
 
@@ -610,16 +645,16 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        # util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64,
-        #                                   args.n_shared, CUDA, MODEL_NAME)
-        # util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-        #                                      fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
-        #                                                  95555],
-        #                                      private=False)
-        #
-        # util.evaluation.save_traverse_celeba(e, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-        #                                      fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
-        #                                      private=False)
+        util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+                                          args.n_shared, CUDA, MODEL_NAME)
+        util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+                                             fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
+                                                         95555],
+                                             private=False)
+
+        util.evaluation.save_traverse_celeba(e, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+                                             fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
+                                             private=False)
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start, val_elbo, val_end - val_start,
@@ -627,6 +662,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 
 if args.ckpt_epochs == args.epochs:
+
     util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
                                       CUDA, MODEL_NAME)
 
