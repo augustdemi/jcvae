@@ -278,6 +278,35 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=No
     return muS, stdS
 
 
+def apply_poe18(use_cuda, mu_shared, std_shared):
+    '''
+    induce zS = encAB(xA,xB) via POE, that is,
+        q(zI,zT,zS|xI,xT) := qI(zI|xI) * qT(zT|xT) * q(zS|xI,xT)
+            where q(zS|xI,xT) \propto p(zS) * qI(zS|xI) * qT(zS|xT)
+    '''
+    EPS = 1e-9
+    ZERO = torch.zeros(std_shared[0].shape)
+    if use_cuda:
+        ZERO = ZERO.cuda()
+
+    logvar_shared = [ZERO]
+    for std in std_shared:
+        logvar_shared.append(-torch.log(std ** 2) + EPS)
+
+    logvarS = -torch.logsumexp(
+        torch.stack(logvar_shared, dim=2),
+        dim=2
+    )
+    stdS = torch.sqrt(torch.exp(logvarS))
+    muS = 0
+    for i in range(len(mu_shared)):
+        muS += mu_shared[i] / (std_shared[i] ** 2)
+    muS = muS * (stdS ** 2)
+
+    return muS, stdS
+
+
+
 class DataGather(object):
     '''
     create (array)lists, one for each category, eg,
@@ -309,3 +338,32 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+def ProductOfExperts(mu, logvar, eps=1e-8):
+    var = torch.exp(logvar) + eps
+    # precision of i-th Gaussian expert at point x
+    T = 1. / (var + eps)
+    pd_mu = torch.sum(mu * T, dim=0) / torch.sum(T, dim=0)
+    pd_var = 1. / torch.sum(T, dim=0)
+    pd_logvar = torch.log(pd_var + eps)
+    return pd_mu, pd_logvar
+
+
+from torch.autograd import Variable
+
+
+def prior_expert(size, use_cuda=False):
+    """Universal prior expert. Here we use a spherical
+    Gaussian: N(0, 1).
+
+    @param size: integer
+                 dimensionality of Gaussian
+    @param use_cuda: boolean [default: False]
+                     cast CUDA on variables
+    """
+    mu = Variable(torch.zeros(size))
+    logvar = Variable(torch.log(torch.ones(size)))
+    if use_cuda:
+        mu, logvar = mu.cuda(), logvar.cuda()
+    return mu, logvar
