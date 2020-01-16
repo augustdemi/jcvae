@@ -509,7 +509,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             else:
                 all_pred = np.concatenate((all_pred, pred), axis=0)
                 all_target = np.concatenate((all_target, target), axis=0)
-
+    print('---------------------f1------------------------')
     f1 = []
     for i in range(18):
         f1.append(f1_score(all_target[:, i], all_pred[:, i], average="binary"))
@@ -519,6 +519,19 @@ def test(data, encA, decA, encB, decB, epoch, bias):
 
     for i in range(18):
         print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[f1[i][0]]], f1[i][1])
+    print('---------------------acc------------------------')
+
+    all_acc = []
+    for i in range(18):
+        acc = (all_target[:, i] == all_pred[:, i]).mean()
+        all_acc.append(acc)
+
+    all_acc = list(enumerate(all_acc))
+    all_acc.sort(key=lambda all_acc: all_acc[1])
+
+    for i in range(18):
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[all_acc[i][0]]], all_acc[i][1])
+    print('-----------------------------------------------')
     return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
 
 
