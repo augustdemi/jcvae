@@ -24,7 +24,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=1, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -34,9 +34,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=100, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=5, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N',
+    parser.add_argument('--epochs', type=int, default=5, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -45,9 +45,9 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=3000.,
+    parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=5.,
+    parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -486,15 +486,16 @@ def test(data, encA, decA, encB, decB, epoch, bias):
                 all_pred = np.concatenate((all_pred, pred), axis=0)
                 all_target = np.concatenate((all_target, target), axis=0)
 
-    f1 = []
+    all_acc = []
     for i in range(18):
-        f1.append(f1_score(all_target[:, i], all_pred[:, i], average="binary"))
+        acc = (all_target[:, i] == all_pred[:, i]).mean()
+        all_acc.append(acc)
 
-    f1 = list(enumerate(f1))
-    f1.sort(key=lambda f1: f1[1])
+    all_acc = list(enumerate(all_acc))
+    all_acc.sort(key=lambda all_acc: all_acc[1])
 
     for i in range(18):
-        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[f1[i][0]]], f1[i][1])
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[all_acc[i][0]]], all_acc[i][1])
 
     return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
 
