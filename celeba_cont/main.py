@@ -34,16 +34,16 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=5, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=5, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=0.5,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.5,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
@@ -246,7 +246,7 @@ optimizer = torch.optim.Adam(
     lr=args.lr)
 
 
-def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(q, pA, pB=None, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     sharedA = []
     sharedB = []
     poe = []
@@ -259,11 +259,12 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_own'], latents=['privateA', 'sharedA'],
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta1, bias=bias)
-    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_own'], latents=['sharedB'],
-                                                               sample_dim=0, batch_dim=1,
-                                                               beta=beta2, bias=bias)
 
-    if q['poe'] is not None:
+    if pB:
+        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_own'], latents=['sharedB'],
+                                                                   sample_dim=0, batch_dim=1,
+                                                                   beta=beta2, bias=bias)
+
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'],
                                                                          latents=['privateA', 'poe'], sample_dim=0,
                                                                          batch_dim=1,
@@ -285,8 +286,8 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
     else:
-        reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
-        loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
+        reconst_loss_poeA = reconst_loss_crA = reconst_loss_B = reconst_loss_poeB = reconst_loss_crB = None
+        loss = 3 * (reconst_loss_A - kl_A)
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
                                                                           reconst_loss_crB]
 
@@ -380,17 +381,8 @@ def train(data, encA, decA, encB, decB, optimizer,
                 # loss
                 loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
-                shuffled_idx = list(range(args.batch_size))
-                random.shuffle(shuffled_idx)
-                attributes = attributes[shuffled_idx]
-
                 # encode
                 q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
-
-                # decode attr
-                shared_dist = {'own': 'sharedB'}
-                pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
                 # decode img
                 shared_dist = {'own': 'sharedA'}
@@ -399,24 +391,25 @@ def train(data, encA, decA, encB, decB, optimizer,
                     param.requires_grad = False
                 for param in decB.parameters():
                     param.requires_grad = False
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                loss, recA, recB = elbo(q, pA, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
         if CUDA:
             loss = loss.cpu()
             recA[0] = recA[0].cpu()
-            recB[0] = recB[0].cpu()
 
         epoch_elbo += loss.item()
         epoch_recA += recA[0].item()
-        epoch_recB += recB[0].item()
+
 
         if recA[1] is not None:
             if CUDA:
+                recB[0] = recB[0].cpu()
                 for i in range(2):
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
+            epoch_recB += recB[0].item()
             epoch_rec_poeA += recA[1].item()
             epoch_rec_crA += recA[2].item()
             epoch_rec_poeB += recB[1].item()
@@ -527,39 +520,21 @@ def save_ckpt(e):
 
 
 def get_paired_data(paired_cnt, seed):
-    data = torch.utils.data.DataLoader(
-        datasets.MNIST(DATA_PATH, train=True, download=True,
-                       transform=transforms.ToTensor()),
-        batch_size=args.batch_size, shuffle=False)
-    tr_labels = data.dataset.targets
-
-    cnt = int(paired_cnt / 10)
-    assert cnt == paired_cnt / 10
-
-    label_idx = {}
-    for i in range(10):
-        label_idx.update({i: []})
-    for idx in range(len(tr_labels)):
-        label = int(tr_labels[idx].data.detach().cpu().numpy())
-        label_idx[label].append(idx)
-
-    total_random_idx = []
-    for i in range(10):
-        random.seed(seed)
-        per_label_random_idx = random.sample(label_idx[i], cnt)
-        total_random_idx.extend(per_label_random_idx)
+    data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba2',
+                                                image_transform=preprocess_data), batch_size=args.batch_size,
+                                       shuffle=False)
     random.seed(seed)
-    random.shuffle(total_random_idx)
+    total_random_idx = random.sample(range(len(data.dataset)), int(paired_cnt))
 
     imgs = []
-    labels = []
+    attrs = []
     for idx in total_random_idx:
-        img, label = data.dataset.__getitem__(idx)
+        img, attr = data.dataset.__getitem__(idx)
         imgs.append(img)
-        labels.append(torch.tensor(label))
+        attrs.append(torch.tensor(attr))
     imgs = torch.stack(imgs, dim=0)
-    labels = torch.stack(labels, dim=0)
-    return imgs, labels
+    attrs = torch.stack(attrs, dim=0)
+    return imgs, attrs
 
 
 if args.ckpt_epochs > 0:
