@@ -288,14 +288,14 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
             kl_poeB.append(kl)
 
         # # by cross
-        reconst_loss_crA, kl_crA = [], []
-        for i in range(N_ATTR):
-            reconst_loss, kl = probtorch.objectives.mws_tcvae.elbo(q, pB[i], pB[i]['images_cross' + str(i)],
-                                                                   latents=['sharedB' + str(i)],
-                                                                   sample_dim=0, batch_dim=1,
-                                                                   beta=beta2, bias=bias)
-            reconst_loss_crA.append(reconst_loss)
-            kl_crA.append(kl)
+        # reconst_loss_crA, kl_crA = [], []
+        # for i in range(N_ATTR):
+        #     reconst_loss, kl = probtorch.objectives.mws_tcvae.elbo(q, pB[i], pB[i]['images_cross' + str(i)],
+        #                                                            latents=['sharedB' + str(i)],
+        #                                                            sample_dim=0, batch_dim=1,
+        #                                                            beta=beta2, bias=bias)
+        #     reconst_loss_crA.append(reconst_loss)
+        #     kl_crA.append(kl)
 
 
         reconst_loss_crB, kl_crB = [], []
