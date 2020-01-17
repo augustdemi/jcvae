@@ -288,6 +288,16 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
             kl_poeB.append(kl)
 
         # # by cross
+        reconst_loss_crA, kl_crA = [], []
+        for i in range(N_ATTR):
+            reconst_loss, kl = probtorch.objectives.mws_tcvae.elbo(q, pB[i], pB[i]['images_cross' + str(i)],
+                                                                   latents=['sharedB' + str(i)],
+                                                                   sample_dim=0, batch_dim=1,
+                                                                   beta=beta2, bias=bias)
+            reconst_loss_crA.append(reconst_loss)
+            kl_crA.append(kl)
+
+
         reconst_loss_crB, kl_crB = [], []
         for i in range(N_ATTR):
             reconst_loss, kl = probtorch.objectives.mws_tcvae.elbo(q, pB[i], pB[i]['attr' + str(i) + '_cross'],
@@ -415,7 +425,10 @@ def train(data, encA, decA, encB, decB, optimizer,
                     pB.append(p)
 
                 # decode img
-                shared_dist = {'poe': 'poe', 'own': 'sharedA'}
+                sharedB = []
+                for i in range(N_ATTR):
+                    sharedB.append('sharedB' + str(i))
+                shared_dist = {'poe': 'poe', 'cross': sharedB, 'own': 'sharedA'}
                 pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
                 for i in range(N_ATTR):
@@ -435,16 +448,21 @@ def train(data, encA, decA, encB, decB, optimizer,
                 q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
 
                 # decode attr
-                shared_dist = {'own': 'sharedB'}
-                pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+                pB = []
+                for i in range(N_ATTR):
+                    shared_dist = {'own': 'sharedB' + str(i)}
+                    p, _ = decB[i](attributes[:, i].unsqueeze(1), shared_dist, i, q=q, num_samples=NUM_SAMPLES)
+                    pB.append(p)
 
                 # decode img
                 shared_dist = {'own': 'sharedA'}
                 pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = False
-                for param in decB.parameters():
-                    param.requires_grad = False
+
+                for i in range(N_ATTR):
+                    for param in encB[i].parameters():
+                        param.requires_grad = False
+                    for param in decB[i].parameters():
+                        param.requires_grad = False
                 loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
@@ -544,6 +562,18 @@ def test(data, encA, decA, encB, decB, epoch, bias):
                 all_pred = np.concatenate((all_pred, pred), axis=0)
                 all_target = np.concatenate((all_target, target), axis=0)
 
+    print('---------------------f1------------------------')
+    f1 = []
+    for i in range(18):
+        f1.append(f1_score(all_target[:, i], all_pred[:, i], average="binary"))
+
+    f1 = list(enumerate(f1))
+    f1.sort(key=lambda f1: f1[1])
+
+    for i in range(18):
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[f1[i][0]]], f1[i][1])
+    print('---------------------acc------------------------')
+
     all_acc = []
     for i in range(18):
         acc = (all_target[:, i] == all_pred[:, i]).mean()
@@ -554,7 +584,7 @@ def test(data, encA, decA, encB, decB, epoch, bias):
 
     for i in range(18):
         print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[all_acc[i][0]]], all_acc[i][1])
-
+    print('-----------------------------------------------')
     return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
 
 
@@ -565,10 +595,12 @@ def save_ckpt(e):
                '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
     torch.save(decA.state_dict(),
                '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(encB.state_dict(),
-               '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decB.state_dict(),
-               '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+
+    for i in range(N_ATTR):
+        torch.save(encB[i].state_dict(),
+                   '%s/%s-encB%s_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, i, e))
+        torch.save(decB[i].state_dict(),
+                   '%s/%s-decB%s_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, i, e))
 
 
 def get_paired_data(paired_cnt, seed):
