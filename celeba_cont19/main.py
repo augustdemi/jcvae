@@ -428,7 +428,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                 sharedB = []
                 for i in range(N_ATTR):
                     sharedB.append('sharedB' + str(i))
-                shared_dist = {'poe': 'poe', 'cross': sharedB, 'own': 'sharedA'}
+                shared_dist = {'poe': 'poe', 'own': 'sharedA'}
                 pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
                 for i in range(N_ATTR):
