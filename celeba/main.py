@@ -34,16 +34,16 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=55, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=55, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=100.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.5,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=3000.,
                         help='multipler for text reconstruction [default: 10]')
@@ -262,7 +262,7 @@ def elbo(q, pA, pB=None, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0),
         reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_own'], latents=sharedB,
                                                                    sample_dim=0, batch_dim=1,
                                                                    beta=beta2, bias=bias)
-    if q['poe'] is not None:
+    if q['poe0'] is not None:
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'],
                                                                          latents=np.concatenate(
                                                                              [['privateA'], poe]), sample_dim=0,
