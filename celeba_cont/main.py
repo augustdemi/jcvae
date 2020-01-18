@@ -287,7 +287,7 @@ def elbo(q, pA, pB=None, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0),
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
     else:
-        reconst_loss_poeA = reconst_loss_crA = reconst_loss_B = reconst_loss_poeB = reconst_loss_crB = None
+        reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
         if pB:
             loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
         else:
