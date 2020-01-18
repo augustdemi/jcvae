@@ -259,13 +259,10 @@ def elbo(q, pA, pB=None, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0),
                                                                beta=beta1, bias=bias)
 
     if pB:
-        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_own'], latents=['sharedB'],
-                                                                   sample_dim=0, batch_dim=1,
-                                                                   beta=beta2, bias=bias)
-    if q['poe'] is not None:
         reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_own'], latents=sharedB,
                                                                    sample_dim=0, batch_dim=1,
                                                                    beta=beta2, bias=bias)
+    if q['poe'] is not None:
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'],
                                                                          latents=np.concatenate(
                                                                              [['privateA'], poe]), sample_dim=0,
