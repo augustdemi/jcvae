@@ -51,11 +51,9 @@ class Encoder(nn.Module):
             nn.Conv2d(32, 64, 4, 2, 1, bias=False),
             nn.ReLU(),
             nn.Conv2d(64, 128, 4, 2, 1, bias=False),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, 4, 2, 1, bias=False),
             nn.ReLU()
         )
-        num_hidden = 256 * 2 * 2
+        num_hidden = 128 * 4 * 4
         self.digit_log_weights = nn.Linear(num_hidden, num_digits)
         self.digit_temp = torch.tensor(0.66)
         self.style_mean = nn.Linear(num_hidden + num_digits, num_style)
@@ -90,13 +88,11 @@ class Decoder(nn.Module):
         self.digit_temp = 0.66
         self.style_mean = torch.zeros(num_style)
         self.style_std = torch.ones(num_style)
-        num_hidden = 256 * 2 * 2
+        num_hidden = 128 * 4 * 4
         self.dec_hidden = nn.Sequential(
             nn.Linear(num_style + num_digits, num_hidden),
             nn.ReLU())
         self.dec_image = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
-            nn.ReLU(),
             nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
             nn.ReLU(),
             nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
@@ -115,7 +111,8 @@ class Decoder(nn.Module):
                           value=q['styles'],
                           name='styles')
         hiddens = self.dec_hidden(torch.cat([digits, styles], -1))
-        hiddens = hiddens.view(-1, 256, 2, 2)
+        hiddens = hiddens.view(-1, 128, 4, 4)
+        # hiddens = hiddens.view(-1, 256, 2, 2)
         images_mean = self.dec_image(hiddens)
 
         images_mean = images_mean.view(images_mean.size(0), -1).unsqueeze(0)
