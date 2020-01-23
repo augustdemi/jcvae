@@ -405,7 +405,7 @@ def save_ckpt(e):
 
 def get_paired_data(paired_cnt, seed):
     data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
-    tr_labels = data.dataset.targets
+    tr_labels = data.dataset.label
 
     cnt = int(paired_cnt / 10)
     assert cnt == paired_cnt / 10
@@ -414,7 +414,7 @@ def get_paired_data(paired_cnt, seed):
     for i in range(10):
         label_idx.update({i:[]})
     for idx in  range(len(tr_labels)):
-        label = int(tr_labels[idx].data.detach().cpu().numpy())
+        label = int(tr_labels[idx])
         label_idx[label].append(idx)
 
     total_random_idx = []
