@@ -159,7 +159,7 @@ if args.viz_on:
     viz_init()
 
 train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=True)
-test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=True)
+test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
 
 
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
