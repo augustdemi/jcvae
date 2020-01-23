@@ -404,10 +404,7 @@ def save_ckpt(e):
 
 
 def get_paired_data(paired_cnt, seed):
-    data = torch.utils.data.DataLoader(
-        datasets.MNIST(DATA_PATH, train=True, download=True,
-                       transform=transforms.ToTensor()),
-        batch_size=args.batch_size, shuffle=False)
+    data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
     tr_labels = data.dataset.targets
 
     cnt = int(paired_cnt / 10)
