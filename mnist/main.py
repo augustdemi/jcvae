@@ -381,9 +381,9 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_correct += pB['labels_sharedA'].loss.sum().item()
 
     if (epoch + 1) % 20 == 0 or epoch + 1 == args.epochs:
-        util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
-                                      fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99], output_dir_trvsl=MODEL_NAME,
-                                      flatten_pixel=NUM_PIXELS)
+        # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
+        #                               fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99], output_dir_trvsl=MODEL_NAME,
+        #                               flatten_pixel=NUM_PIXELS)
 
         save_ckpt(e + 1)
     return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
