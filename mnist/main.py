@@ -6,7 +6,7 @@ import torch
 import os
 import visdom
 import numpy as np
-
+from datasets import DIGIT
 from model import EncoderA, EncoderB, DecoderA, DecoderB
 
 import sys
@@ -29,7 +29,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -158,15 +158,8 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-
-train_data = torch.utils.data.DataLoader(
-                datasets.MNIST(DATA_PATH, train=True, download=True,
-                               transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=True)
-test_data = torch.utils.data.DataLoader(
-                datasets.MNIST(DATA_PATH, train=False, download=True,
-                               transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=True)
+train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=True)
+test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=True)
 
 
 BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
