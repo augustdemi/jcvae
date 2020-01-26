@@ -24,7 +24,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=1, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -34,18 +34,18 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=85, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=55, metavar='N',
+    parser.add_argument('--epochs', type=int, default=85, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=100.,
+    parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.5,
+    parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=3000.,
+    parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=5.,
                         help='multipler for TC [default: 10]')
@@ -112,8 +112,9 @@ NUM_PIXELS = 784
 TEMP = 0.66
 NUM_SAMPLES = 1
 N_ATTR = 18
-ATTR_TO_PLOT = ['Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling', 'Straight_Hair', 'Eyeglasses', 'Bangs', 'off',
-                'Wavy_Hair']
+ATTR_TO_PLOT = ['Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling', 'Blond_Hair', 'Eyeglasses', 'Bangs', 'off',
+                'Black_Hair', 'Wavy_Hair']
+
 # visdom setup
 def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
@@ -453,6 +454,9 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
+        if pair_cnt == 0:
+            pair_cnt = 1
+
         if b % 100 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
                 e, b * args.batch_size, len(data.dataset),
@@ -655,13 +659,12 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 if args.ckpt_epochs == args.epochs:
 
-    util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
+    util.evaluation.save_cross_celeba(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
                                       CUDA, MODEL_NAME)
 
-
-    util.evaluation.save_traverse_celeba(args.ckpt_epochs, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-                                         fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555, 95555],
-                                         private=False)
+    # util.evaluation.save_traverse_celeba(args.ckpt_epochs, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+    #                                      fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555, 95555],
+    #                                      private=False)
 
     util.evaluation.save_traverse_celeba(args.ckpt_epochs, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
                                          fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
@@ -671,7 +674,7 @@ if args.ckpt_epochs == args.epochs:
     # test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
     # print('test_accuracy:', test_accuracy)
     # print('test_f1:', test_f1)
-
+    #
 
 else:
     save_ckpt(args.epochs)
