@@ -77,6 +77,8 @@ if __name__ == "__main__":
 EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
+print('>>>CUDA:', CUDA)
+
 # path parameters
 MODEL_NAME = 'celeba_clf-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
     args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
@@ -366,19 +368,3 @@ if args.ckpt_epochs == args.epochs:
 else:
     save_ckpt(args.epochs)
 
-
-####
-def visualize_line_metrics(self, iters, metric1, metric2):
-    # prepare data to plot
-    iters = torch.tensor([iters], dtype=torch.int64).detach()
-    metric1 = torch.tensor([metric1])
-    metric2 = torch.tensor([metric2])
-    metrics = torch.stack([metric1.detach(), metric2.detach()], -1)
-
-    VIZ.line(
-        X=iters, Y=metrics, env=MODEL_NAME + '/lines',
-        win=WIN_ID['metrics'], update='append',
-        opts=dict(xlabel='iter', ylabel='metrics',
-                  title='Disentanglement metrics',
-                  legend=['metric1', 'metric2'])
-    )
