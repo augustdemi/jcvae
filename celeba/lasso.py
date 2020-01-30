@@ -268,6 +268,8 @@ def train(data, encA):
             attributes = attributes.cpu()
 
         features = torch.cat([features, priv.detach()], dim=1)
+        if CUDA:
+            features = features.cpu()
 
         for i in range(N_ATTR):
             clf[i].partial_fit(features, attributes[:, i], classes=[0, 1])
@@ -306,7 +308,7 @@ def test(data, encA, clf):
 
             pred = []
             for i in range(N_ATTR):
-                pred = clf[i].predict(features)
+                pred.append(np.expand_dims(clf[i].predict(features), axis=1))
 
             pred = np.concatenate(pred, axis=1)
 
