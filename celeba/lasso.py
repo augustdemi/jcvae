@@ -81,7 +81,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'celeba_lasso-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
     args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
     args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
@@ -310,30 +310,16 @@ def test(data, encA, clf):
                 all_target = np.concatenate((all_target, target), axis=0)
 
     print('---------------------f1------------------------')
-    f1 = []
-    for i in range(18):
-        f1.append(f1_score(all_target[:, i], all_pred[:, i], average="binary"))
+    f1 = f1_score(all_target, all_pred, average="binary")
 
-    f1 = list(enumerate(f1))
-    f1.sort(key=lambda f1: f1[1])
+    print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]], f1)
 
-    for i in range(18):
-        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[f1[i][0]]], f1[i][1])
     print('---------------------acc------------------------')
-
-    all_acc = []
-    for i in range(18):
-        acc = (all_target[:, i] == all_pred[:, i]).mean()
-        all_acc.append(acc)
-
-    all_acc = list(enumerate(all_acc))
-    all_acc.sort(key=lambda all_acc: all_acc[1])
-
-    for i in range(18):
-        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[all_acc[i][0]]], all_acc[i][1])
+    all_acc = (all_target == all_pred).mean()
+    print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]], all_acc)
     print('-----------------------------------------------')
 
-    return np.mean(all_acc[:, 1]), np.mean(f1[:, 1])
+    return f1, all_acc
 
 
 
