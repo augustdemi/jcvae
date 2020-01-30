@@ -240,7 +240,10 @@ if CUDA:
 def train(data, encA):
     encA.train()
     N = 0
-    clf = linear_model.SGDClassifier(max_iter=100000, tol=1e-3, penalty='l1')
+
+    clf = []
+    for i in range(N_ATTR):
+        clf.append(linear_model.SGDClassifier(max_iter=100000, tol=1e-3, penalty='l1'))
 
     for b, (images, attributes) in enumerate(data):
         N += 1
@@ -262,22 +265,18 @@ def train(data, encA):
         if CUDA:
             priv = priv.cpu()
             features = features.cpu()
+            attributes = attributes.cpu()
 
         features = torch.cat([features, priv.detach()], dim=1)
 
-        if CUDA:
-            features = features.cpu()
-
-        clf.partial_fit(features, attributes[:, args.attr_idx], classes=[0, 1])
+        for i in range(N_ATTR):
+            clf[i].partial_fit(features, attributes[:, i], classes=[0, 1])
 
     return clf
 
 
 def test(data, encA, clf):
     encA.eval()
-    epoch_elbo = 0.0
-    epoch_acc = 0
-    epoch_f1 = 0
     N = 0
     all_pred = []
     all_target = []
@@ -301,17 +300,17 @@ def test(data, encA, clf):
             if CUDA:
                 priv = priv.cpu()
                 features = features.cpu()
-
-            features = torch.cat([features, priv.detach()], dim=1)
-            if CUDA:
-                features = features.cpu()
-
-            pred = clf.predict(features)
-
-            if CUDA:
                 attributes = attributes.cpu()
 
-            target = attributes.detach().numpy()[:, args.attr_idx]
+            features = torch.cat([features, priv.detach()], dim=1)
+
+            pred = []
+            for i in range(N_ATTR):
+                pred = clf[i].predict(features)
+
+            pred = np.concatenate(pred, axis=1)
+
+            target = attributes.detach().numpy()
             if N == 1:
                 all_pred = pred
                 all_target = target
@@ -320,16 +319,30 @@ def test(data, encA, clf):
                 all_target = np.concatenate((all_target, target), axis=0)
 
     print('---------------------f1------------------------')
-    f1 = f1_score(all_target, all_pred, average="binary")
+    f1 = []
+    for i in range(18):
+        f1.append(f1_score(all_target[:, i], all_pred[:, i], average="binary"))
 
-    print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]], f1)
+    f1 = list(enumerate(f1))
+    f1.sort(key=lambda f1: f1[1])
 
+    for i in range(18):
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[f1[i][0]]], f1[i][1])
     print('---------------------acc------------------------')
-    all_acc = (all_target == all_pred).mean()
-    print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]], all_acc)
+
+    all_acc = []
+    for i in range(18):
+        acc = (all_target[:, i] == all_pred[:, i]).mean()
+        all_acc.append(acc)
+
+    all_acc = list(enumerate(all_acc))
+    all_acc.sort(key=lambda all_acc: all_acc[1])
+
+    for i in range(18):
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[all_acc[i][0]]], all_acc[i][1])
     print('-----------------------------------------------')
 
-    return f1, all_acc
+    return all_acc, f1
 
 
 
@@ -348,19 +361,20 @@ train_end = time.time()
 import matplotlib.pyplot as plt
 import pickle
 
-pickle.dump(clf, open(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]], 'wb'))
-
-abs_coeff = np.abs(clf.coef_.squeeze(0))
-np.save('coeff_' + IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]] + '.npy', clf.coef_.squeeze(0))
-plt.bar(range(118), abs_coeff)
-plt.xlabel('latent variables')
-plt.ylabel('abs coeff of ' + IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]])
-plt.show()
+for i in range(N_ATTR):
+    pickle.dump(clf[i], open(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]], 'wb'))
+    # loaded_model = pickle.load(open(filename, 'rb'))
+    abs_coeff = np.abs(clf[i].coef_.squeeze(0))
+    np.save('coeff_' + IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]] + '.npy', clf[i].coef_.squeeze(0))
+    plt.bar(range(118), abs_coeff)
+    plt.xlabel('latent variables')
+    plt.ylabel('abs coeff of ' + IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]])
+    plt.show()
 
 test_start = time.time()
 test_accuracy, test_f1 = test(test_data, encA, clf)
-print('acc:', test_accuracy)
-print('f1:', test_f1)
+print('acc:', np.mean(test_accuracy))
+print('f1:', np.mean(test_f1))
 test_end = time.time()
 
 
