@@ -265,6 +265,9 @@ def train(data, encA):
 
         features = torch.cat([features, priv.detach()], dim=1)
 
+        if CUDA:
+            features = features.cpu()
+
         clf.partial_fit(features, attributes[:, args.attr_idx], classes=[0, 1])
 
     return clf
@@ -300,6 +303,8 @@ def test(data, encA, clf):
                 features = features.cpu()
 
             features = torch.cat([features, priv.detach()], dim=1)
+            if CUDA:
+                features = features.cpu()
 
             pred = clf.predict(features)
 
