@@ -53,7 +53,7 @@ if __name__ == "__main__":
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--seed', type=int, default=0, metavar='N',
+    parser.add_argument('--attr_idx', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
@@ -230,74 +230,9 @@ def cuda_tensors(obj):
 
 
 encA = EncoderA(args.wseed, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
-decA = DecoderA(args.wseed, zPrivate_dim=args.n_private, zShared_dim=args.n_shared)
-encB = EncoderB(args.wseed, num_attr=N_ATTR, num_hidden=256, zShared_dim=args.n_shared)
-decB = DecoderB(args.wseed, num_attr=N_ATTR, num_hidden=256, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
-    decA.cuda()
-    encB.cuda()
-    decB.cuda()
     cuda_tensors(encA)
-    cuda_tensors(decA)
-    cuda_tensors(encB)
-    cuda_tensors(decB)
-
-optimizer = torch.optim.Adam(
-    list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
-    lr=args.lr)
-
-
-def elbo(q, pA, pB=None, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
-    sharedA = []
-    sharedB = []
-    poe = []
-    for i in range(N_ATTR):
-        sharedA.append('sharedA' + str(i))
-        sharedB.append('sharedB' + str(i))
-        poe.append('poe' + str(i))
-
-    # from each of modality
-    reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_own'], latents=np.concatenate(
-        [['privateA'], sharedA]), sample_dim=0, batch_dim=1,
-                                                               beta=beta1, bias=bias)
-
-    if pB:
-        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_own'], latents=sharedB,
-                                                                   sample_dim=0, batch_dim=1,
-                                                                   beta=beta2, bias=bias)
-    if q['poe0'] is not None:
-        reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'],
-                                                                         latents=np.concatenate(
-                                                                             [['privateA'], poe]), sample_dim=0,
-                                                                         batch_dim=1,
-                                                                         beta=beta1, bias=bias)
-        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_poe'], latents=poe,
-                                                                         sample_dim=0, batch_dim=1,
-                                                                         beta=beta2, bias=bias)
-
-        # # by cross
-        reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_cross'],
-                                                                       latents=np.concatenate(
-                                                                           [['privateA'], sharedB]), sample_dim=0,
-                                                                       batch_dim=1,
-                                                                       beta=beta1, bias=bias)
-        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['attr_cross'], latents=sharedA,
-                                                                       sample_dim=0, batch_dim=1,
-                                                                       beta=beta2, bias=bias)
-
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
-    else:
-        reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
-        if pB:
-            loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
-        else:
-            reconst_loss_B = None
-            loss = 3 * (reconst_loss_A - kl_A)
-    return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
-                                                                          reconst_loss_crB]
 
 
 def train(data, encA):
@@ -323,7 +258,7 @@ def train(data, encA):
         features = features.type(torch.FloatTensor)
         features = torch.cat([features, q['privateA'].value.squeeze(0).detach()], dim=1)
 
-        clf.partial_fit(features, attributes[:, 1], classes=[0, 1])
+        clf.partial_fit(features, attributes[:, args.attr_idx], classes=[0, 1])
 
     return clf
 
@@ -400,51 +335,12 @@ def test(data, encA, clf):
     return np.mean(all_acc[:, 1]), np.mean(f1[:, 1])
 
 
-def save_ckpt(e):
-    if not os.path.isdir(args.ckpt_path):
-        os.mkdir(args.ckpt_path)
-    torch.save(encA.state_dict(),
-               '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decA.state_dict(),
-               '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(encB.state_dict(),
-               '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decB.state_dict(),
-               '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-
-
-def get_paired_data(paired_cnt, seed):
-    data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba2',
-                                                image_transform=preprocess_data), batch_size=args.batch_size,
-                                       shuffle=False)
-    random.seed(seed)
-    total_random_idx = random.sample(range(len(data.dataset)), int(paired_cnt))
-
-    imgs = []
-    attrs = []
-    for idx in total_random_idx:
-        img, attr = data.dataset.__getitem__(idx)
-        imgs.append(img)
-        attrs.append(torch.tensor(attr))
-    imgs = torch.stack(imgs, dim=0)
-    attrs = torch.stack(attrs, dim=0)
-    return imgs, attrs
-
 
 if args.ckpt_epochs > 0:
     if CUDA:
         encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
     else:
         encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 
 train_start = time.time()
@@ -454,10 +350,10 @@ train_end = time.time()
 import matplotlib.pyplot as plt
 
 abs_coeff = np.abs(clf.coef_.squeeze(0))
-np.save('coeff.npy', clf.coef_.squeeze(0))
+np.save('coeff_' + IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]] + '.npy', clf.coef_.squeeze(0))
 plt.bar(range(118), abs_coeff)
 plt.xlabel('latent variables')
-plt.ylabel('abs_coeff')
+plt.ylabel('abs coeff of ' + IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]])
 plt.show()
 
 test_start = time.time()
@@ -466,41 +362,4 @@ print('acc:', test_accuracy)
 print('f1:', test_f1)
 test_end = time.time()
 
-if args.ckpt_epochs == args.epochs:
 
-    util.evaluation.save_cross_celeba(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
-                                      CUDA, MODEL_NAME)
-
-    # util.evaluation.save_traverse_celeba(args.ckpt_epochs, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-    #                                      fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555, 95555],
-    #                                      private=False)
-
-    util.evaluation.save_traverse_celeba(args.ckpt_epochs, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-                                         fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
-                                         private=False)
-
-
-    # test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
-    # print('test_accuracy:', test_accuracy)
-    # print('test_f1:', test_f1)
-    #
-
-else:
-    save_ckpt(args.epochs)
-
-
-####
-def visualize_line_metrics(self, iters, metric1, metric2):
-    # prepare data to plot
-    iters = torch.tensor([iters], dtype=torch.int64).detach()
-    metric1 = torch.tensor([metric1])
-    metric2 = torch.tensor([metric2])
-    metrics = torch.stack([metric1.detach(), metric2.detach()], -1)
-
-    VIZ.line(
-        X=iters, Y=metrics, env=MODEL_NAME + '/lines',
-        win=WIN_ID['metrics'], update='append',
-        opts=dict(xlabel='iter', ylabel='metrics',
-                  title='Disentanglement metrics',
-                  legend=['metric1', 'metric2'])
-    )
