@@ -55,6 +55,8 @@ if __name__ == "__main__":
                         help='multipler for TC [default: 10]')
     parser.add_argument('--attr_idx', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
+    parser.add_argument('--seed', type=int, default=0, metavar='N',
+                        help='random seed for weight')
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
