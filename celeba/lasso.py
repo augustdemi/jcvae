@@ -289,18 +289,12 @@ def test(data, encA, clf):
             features = features.type(torch.FloatTensor)
             features = torch.cat([features, q['privateA'].value.squeeze(0).detach()], dim=1)
 
-            pred_attr = clf.predict(features)
+            pred = clf.predict(features)
 
             if CUDA:
-                pred_attr = pred_attr.cpu()
                 attributes = attributes.cpu()
 
-            pred = pred_attr.detach().numpy()
-            pred = np.round(np.exp(pred))
-            target = attributes.detach().numpy()
-            epoch_acc += (pred == target).mean()
-            epoch_f1 += f1_score(target, pred, average="samples")
-
+            target = attributes.detach().numpy()[:, args.attr_idx]
             if N == 1:
                 all_pred = pred
                 all_target = target
