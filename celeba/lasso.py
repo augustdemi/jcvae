@@ -81,7 +81,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'celeba-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
+MODEL_NAME = 'celeba_lasso-run_id%d-priv%02ddim-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s-lr%s' % (
     args.run_id, args.n_private, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1,
     args.beta2, args.seed,
     args.batch_size, args.wseed, args.lr)
@@ -289,7 +289,12 @@ def test(data, encA, clf):
             features = torch.cat(features)
             features = torch.transpose(features, 1, 0)
             features = features.type(torch.FloatTensor)
-            features = torch.cat([features, q['privateA'].value.squeeze(0).detach()], dim=1)
+            priv = q['privateA'].value.squeeze(0)
+            if CUDA:
+                priv = priv.cpu()
+                features = features.cpu()
+
+            features = torch.cat([features, priv.detach()], dim=1)
 
             pred = clf.predict(features)
 
