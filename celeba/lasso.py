@@ -258,7 +258,12 @@ def train(data, encA):
         features = torch.cat(features)
         features = torch.transpose(features, 1, 0)
         features = features.type(torch.FloatTensor)
-        features = torch.cat([features, q['privateA'].value.squeeze(0).detach()], dim=1)
+        priv = q['privateA'].value.squeeze(0)
+        if CUDA:
+            priv = priv.cpu()
+            features = features.cpu()
+
+        features = torch.cat([features, priv.detach()], dim=1)
 
         clf.partial_fit(features, attributes[:, args.attr_idx], classes=[0, 1])
 
@@ -334,7 +339,11 @@ train_start = time.time()
 clf = train(train_data, encA)
 train_end = time.time()
 
+
 import matplotlib.pyplot as plt
+import pickle
+
+pickle.dump(clf, open(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]], 'wb'))
 
 abs_coeff = np.abs(clf.coef_.squeeze(0))
 np.save('coeff_' + IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[args.attr_idx]] + '.npy', clf.coef_.squeeze(0))
