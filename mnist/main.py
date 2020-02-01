@@ -29,20 +29,20 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=260, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=440, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=260, metavar='N',
+    parser.add_argument('--epochs', type=int, default=440, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=100.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=2000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=5.,
+    parser.add_argument('--beta1', type=float, default=3.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/1/',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/0.4/',
                         help='save and load path for ckpt')
 
     # visdom
@@ -343,6 +343,9 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
+    if pair_cnt == 0:
+        pair_cnt = 1
+
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
                                                                                                    epoch_rec_crB / pair_cnt], label_mask
@@ -490,11 +493,14 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 if args.ckpt_epochs == args.epochs:
     # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0)
-    # fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 62], output_dir_trvsl=MODEL_NAME,
+    # fixed_idxs=[28, 2, 35, 32, 4, 23, 21, 36, 84, 20], output_dir_trvsl=MODEL_NAME,
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA,
-                                  fixed_idxs=[28, 2, 35, 32, 4, 23, 21, 36, 84, 20], output_dir_trvsl=MODEL_NAME,
+                                  fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 20], output_dir_trvsl=MODEL_NAME,
                                   flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
+                                     args.n_shared, CUDA, MODEL_NAME, flatten_pixel=NUM_PIXELS)
+
     # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
 else:
