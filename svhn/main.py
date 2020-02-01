@@ -21,43 +21,43 @@ import visdom
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=10, metavar='N',
+    parser.add_argument('--run_id', type=int, default=36, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_shared', type=int, default=10,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--n_private', type=int, default=50,
+    parser.add_argument('--n_private', type=int, default=10,
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=380, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=200, metavar='N',
+    parser.add_argument('--epochs', type=int, default=380, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=1000.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=200.,
+    parser.add_argument('--lambda_text', type=float, default=3000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--beta2', type=float, default=3.,
+    parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/svhn',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/svhn/',
                         help='save and load path for ckpt')
     # visdom
     parser.add_argument('--viz_on',
-                        default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
+                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument('--viz_port',
                         default=8002, type=int, help='visdom port number')
     args = parser.parse_args()
@@ -274,10 +274,6 @@ def train(data, encA, decA, encB, decB, optimizer,
                           num_samples=NUM_SAMPLES)
                 pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                           num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = True
-                for param in decB.parameters():
-                    param.requires_grad = True
                 # loss
                 loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
@@ -309,10 +305,6 @@ def train(data, encA, decA, encB, decB, optimizer,
                     pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                               num_samples=NUM_SAMPLES)
 
-                    for param in encB.parameters():
-                        param.requires_grad = True
-                    for param in decB.parameters():
-                        param.requires_grad = True
                     # loss
                     loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
                 else:
@@ -325,10 +317,6 @@ def train(data, encA, decA, encB, decB, optimizer,
                               num_samples=NUM_SAMPLES)
                     pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                               num_samples=NUM_SAMPLES)
-                    for param in encB.parameters():
-                        param.requires_grad = False
-                    for param in decB.parameters():
-                        param.requires_grad = False
                     loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
             loss.backward()
@@ -506,9 +494,13 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
+                                     args.n_shared, CUDA, MODEL_NAME)
+    # fixed_idxs=[21, 2, 24836, 10, 14, 3236, 5, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
+    # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
     util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA,
-                                  fixed_idxs=[21, 2, 1, 10, 14, 25, 17, 86, 9, 50], output_dir_trvsl=MODEL_NAME,
+                                  fixed_idxs=[21, 15471, 24836, 68, 14, 36, 19116, 86, 24935, 50],
+                                  output_dir_trvsl=MODEL_NAME,
                                   flatten_pixel=NUM_PIXELS)
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
 else:
