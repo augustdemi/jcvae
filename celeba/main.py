@@ -356,10 +356,10 @@ def train(data, encA, decA, encB, decB, optimizer,
             shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
             pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
-            # for param in encB.parameters():
-            #     param.requires_grad = True
-            # for param in decB.parameters():
-            #     param.requires_grad = True
+            for param in encB.parameters():
+                param.requires_grad = True
+            for param in decB.parameters():
+                param.requires_grad = True
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
@@ -405,10 +405,10 @@ def train(data, encA, decA, encB, decB, optimizer,
                 shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
                 pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
-                # for param in encB.parameters():
-                #     param.requires_grad = True
-                # for param in decB.parameters():
-                #     param.requires_grad = True
+                for param in encB.parameters():
+                    param.requires_grad = True
+                for param in decB.parameters():
+                    param.requires_grad = True
                 # loss
                 loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
@@ -425,10 +425,10 @@ def train(data, encA, decA, encB, decB, optimizer,
                 # decode img
                 shared_dist = {'own': sharedA_attr}
                 pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
-                # for param in encB.parameters():
-                #     param.requires_grad = False
-                # for param in decB.parameters():
-                #     param.requires_grad = False
+                for param in encB.parameters():
+                    param.requires_grad = False
+                for param in decB.parameters():
+                    param.requires_grad = False
                 loss, recA, recB = elbo(q, pA, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
