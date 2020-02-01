@@ -34,9 +34,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=85, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=150, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=85, metavar='N',
+    parser.add_argument('--epochs', type=int, default=151, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -47,7 +47,7 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=5.,
+    parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -356,10 +356,10 @@ def train(data, encA, decA, encB, decB, optimizer,
             shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
             pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
-            for param in encB.parameters():
-                param.requires_grad = True
-            for param in decB.parameters():
-                param.requires_grad = True
+            # for param in encB.parameters():
+            #     param.requires_grad = True
+            # for param in decB.parameters():
+            #     param.requires_grad = True
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
@@ -405,10 +405,10 @@ def train(data, encA, decA, encB, decB, optimizer,
                 shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
                 pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
-                for param in encB.parameters():
-                    param.requires_grad = True
-                for param in decB.parameters():
-                    param.requires_grad = True
+                # for param in encB.parameters():
+                #     param.requires_grad = True
+                # for param in decB.parameters():
+                #     param.requires_grad = True
                 # loss
                 loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
             else:
@@ -425,10 +425,10 @@ def train(data, encA, decA, encB, decB, optimizer,
                 # decode img
                 shared_dist = {'own': sharedA_attr}
                 pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = False
-                for param in decB.parameters():
-                    param.requires_grad = False
+                # for param in encB.parameters():
+                #     param.requires_grad = False
+                # for param in decB.parameters():
+                #     param.requires_grad = False
                 loss, recA, recB = elbo(q, pA, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
@@ -641,16 +641,16 @@ for e in range(args.ckpt_epochs, args.epochs):
         LINE_GATHER.flush()
     if (e + 1) % 5 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64,
-                                          args.n_shared, CUDA, MODEL_NAME)
-        util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-                                             fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
-                                                         95555],
-                                             private=False)
-
-        util.evaluation.save_traverse_celeba(e, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-                                             fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
-                                             private=False)
+        # util.evaluation.save_cross_celeba(args.ckpt_epochs, train_data, encA, decA, encB, ATTR_TO_PLOT, 64,
+        #                                   args.n_shared, CUDA, MODEL_NAME)
+        # util.evaluation.save_traverse_celeba(e, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+        #                                      fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555,
+        #                                                  95555],
+        #                                      private=False)
+        #
+        # util.evaluation.save_traverse_celeba(e, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+        #                                      fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
+        #                                      private=False)
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Val: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f, F1-score %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start, val_elbo, val_end - val_start,
@@ -659,16 +659,18 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 if args.ckpt_epochs == args.epochs:
 
-    util.evaluation.save_cross_celeba(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
-                                      CUDA, MODEL_NAME)
+    util.evaluation.cross_acc_celeba(args.ckpt_epochs, test_data, encA, decA, encB, 1000, args.n_shared,
+                                     CUDA, MODEL_NAME)
+    # util.evaluation.save_cross_celeba(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
+    #                                   CUDA, MODEL_NAME)
 
     # util.evaluation.save_traverse_celeba(args.ckpt_epochs, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
     #                                      fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555, 95555],
     #                                      private=False)
 
-    util.evaluation.save_traverse_celeba(args.ckpt_epochs, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
-                                         fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
-                                         private=False)
+    # util.evaluation.save_traverse_celeba(args.ckpt_epochs, test_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
+    #                                      fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000],
+    #                                      private=False)
 
 
     # test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB, 0, BIAS_TEST)
