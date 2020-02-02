@@ -1676,11 +1676,19 @@ def cross_acc_celeba(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cu
         if cuda:
             fixed_XA[i] = fixed_XA[i].cuda()
         fixed_XA[i] = fixed_XA[i].squeeze(0)
-    fixed_XA = torch.stack(fixed_XA, dim=0)
 
-    q = encA(fixed_XA, num_samples=1)
-    zA = q['privateA'].dist.sample()
+    # q = encA(fixed_XA, num_samples=1)
+    # zA = q['privateA'].dist.sample()
+
+    zA = []
+    for i in range(int(n_samples / 100)):
+        fixed_XA100 = torch.stack(fixed_XA[i * 100: (i + 1) * 100], dim=0)
+
+        q = encA(fixed_XA100, num_samples=1)
+        zA.append(q['privateA'].dist.sample())
+    zA = torch.cat(zA, dim=1)
     ########################
+
 
 
     clf = load_classifier(cuda)
