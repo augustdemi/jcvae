@@ -36,7 +36,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=150, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=151, metavar='N',
+    parser.add_argument('--epochs', type=int, default=150, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -49,7 +49,7 @@ if __name__ == "__main__":
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--beta2', type=float, default=1.,
+    parser.add_argument('--beta2', type=float, default=3.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
@@ -659,7 +659,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 if args.ckpt_epochs == args.epochs:
 
-    util.evaluation.cross_acc_celeba(args.ckpt_epochs, test_data, encA, decA, encB, 1000, args.n_shared,
+    util.evaluation.cross_acc_celeba(args.ckpt_epochs, train_data, encA, decA, encB, 5000, args.n_shared,
                                      CUDA, MODEL_NAME)
     # util.evaluation.save_cross_celeba(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
     #                                   CUDA, MODEL_NAME)

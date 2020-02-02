@@ -9,7 +9,7 @@ import sys
 sys.path.append('../')
 from probtorch.util import grid2gif, mkdirs, apply_poe, transform
 import probtorch
-
+from sklearn.metrics import f1_score
 import random
 
 ATTR_TO_IX_DICT = {'Sideburns': 30, 'Black_Hair': 8, 'Wavy_Hair': 33, 'Young': 39, 'Heavy_Makeup': 18,
@@ -28,7 +28,7 @@ IX_TO_ATTR_DICT = {v: k for k, v in ATTR_TO_IX_DICT.items()}
 def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_pixel=None, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99]):
 
     output_dir_trvsl = '../output/' + output_dir_trvsl
-    tr_range = 2
+    tr_range = 5
     out_dir = os.path.join(output_dir_trvsl, str(iters) +'_'+ str(-tr_range) + '~' + str(tr_range))
 
     fixed_XA = [0] * len(fixed_idxs)
@@ -36,7 +36,7 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
 
     for i, idx in enumerate(fixed_idxs):
         fixed_XA[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
-        if flatten_pixel is not None:
+        if flatten_pixel:
             fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
         if cuda:
             fixed_XA[i] = fixed_XA[i].cuda()
@@ -69,7 +69,7 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
         for val in interpolation:
             zA[:, :, row] = val
             sampleA = dec.forward2(zA, zS_ori, cuda)
-            if flatten_pixel is not None:
+            if flatten_pixel:
                 sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
                 sampleA = torch.transpose(sampleA, 0,1)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
@@ -85,9 +85,8 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
         if cuda:
             zS = zS.cuda()
         sampleA = dec.forward2(zA_ori, zS, cuda)
-        if flatten_pixel is not None:
-            sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
-            sampleA = torch.transpose(sampleA, 0, 1)
+        if flatten_pixel:
+            sampleA = sampleA.view(-1, sampleA.shape[0], 28, 28)
         tempS.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
 
     tempA.append(torch.cat(tempS, dim=0).unsqueeze(0))
@@ -114,7 +113,8 @@ def save_traverse(iters, data_loader, enc, dec, cuda, output_dir_trvsl, flatten_
     # digit trv imgs
     ### orginal img ###
     digit_trv = []
-    fixed_XA = fixed_XA.view(-1, 1, 28, 28)
+    if flatten_pixel is not None:
+        fixed_XA = fixed_XA.view(-1, 1, 28, 28)
     digit_trv.append((torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0))
     sampleA = dec.forward2(zA_ori, zS_ori, cuda)
     if flatten_pixel is not None:
@@ -1493,15 +1493,238 @@ def save_traverse_celeba(iters, data_loader, enc, dec, zS_dim, cuda, output_dir_
             pad_value=1)
         # make animated gif
     grid2gif(
-        out_dir, str(os.path.join(out_dir, 'traverse_shared' + '.gif')), delay=10
+        out_dir, str(os.path.join(out_dir, 'traverse_shared' + '.gif')), delay=10, duration=0.5
     )
 
 
+def load_classifier(cuda):
+    sys.path.append('../')
+    from celeba_classifier.model import EncoderA
+    model_name = '../weights/celeba_clf/clf.rar'
+    encA = EncoderA(0, n_attr=18)
+    if cuda:
+        encA.load_state_dict(torch.load(model_name))
+    else:
+        encA.load_state_dict(torch.load(model_name,
+                                        map_location=torch.device('cpu')))
+    return encA
 
-def save_cross_celeba(iters, data_loader, encA, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir):
-    output_dir = '../output/' + output_dir
+
+def save_cross_celeba(iters, data_loader, encA, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir,
+                      acc_check=False):
+    output_dir = '../output/' + output_dir + '/cross_tr_priv' + str(iters)
     mkdirs(output_dir)
 
+    # # using training stat
+    # # img private
+    n_batch = 10
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), 100 * n_batch)
+    fixed_XA = [0] * 100 * n_batch
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+
+    zA_mean = 0
+    zA_std = 0
+    # zS_ori_sum = np.zeros(zS_dim)
+    for idx in range(n_batch):
+        q = encA(fixed_XA[100 * idx:100 * (idx + 1)], num_samples=1)
+        zA_mean += q['privateA'].dist.loc
+        zA_std += q['privateA'].dist.scale
+        # zS_ori = []
+        # for i in range(zS_dim):
+        #     zS_ori.append(q['sharedA' + str(i)].value)
+        # zS_ori_sum += np.array(zS_ori)
+    zA_mean = zA_mean.mean(dim=1)
+    zA_std = zA_std.mean(dim=1)
+
+    q.normal(loc=zA_mean,
+             scale=zA_std,
+             name='sample')
+    zA = []
+    for _ in range(n_samples):
+        zA.append(q['sample'].dist.sample().unsqueeze(1))
+    zA = torch.cat(zA, dim=1)
+    #############################################
+
+
+    ########################
+    # using test
+    # img private
+    # n_batch = 10
+    # torch.manual_seed(0)
+    # random.seed(0)
+    # fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    # fixed_XA = [0] * n_samples
+    # attributes = [0] * n_samples
+    # for i, idx in enumerate(fixed_idxs):
+    #     fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
+    #     if cuda:
+    #         fixed_XA[i] = fixed_XA[i].cuda()
+    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
+    # fixed_XA = torch.stack(fixed_XA, dim=0)
+    # attributes = torch.stack(attributes, dim=0)
+    #
+    #
+    # save_image(fixed_XA.view(n_samples, 3, 64, 64),
+    #            str(os.path.join(output_dir, 'gt_image.png')))
+    #
+    # q = encA(fixed_XA, num_samples=1)
+    # zA = q['privateA'].dist.sample()
+    # gt_attrs = ['recon'] + gt_attrs
+    ########################
+
+    # attr shared
+    for gt_attr in gt_attrs:
+        if 'recon' in gt_attr:
+            # img shared
+            zS = []
+            for i in range(zS_dim):
+                zS.append(q['sharedA' + str(i)].value)
+        else:
+            attrs = torch.zeros(zS_dim)
+            if 'off' not in gt_attr:
+                attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+                attrs[attr_ix] = 1
+            zS = []
+            if cuda:
+                attrs = attrs.cuda()
+            attrs = attrs.repeat((n_samples, 1))
+            q = encB(attrs, num_samples=1)
+            for i in range(zS_dim):
+                zS.append(q['sharedB' + str(i)].value)
+
+        latents = [zA] + zS
+        recon_img = decA.forward2(latents, cuda)
+        if acc_check:
+            if gt_attr not in ('recon', 'off'):
+                clf = load_classifier(cuda)
+                pred_attr = clf(recon_img, num_samples=1)
+
+                if cuda:
+                    pred_attr = pred_attr.cpu()
+
+                pred = pred_attr.detach().numpy()
+                pred = np.round(np.exp(pred))
+                target = np.ones_like(pred)
+                attr_idx = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+                acc = (pred[:, attr_idx] == target[:, attr_idx]).mean()
+                f1 = f1_score(target[:, attr_idx], pred[:, attr_idx], average="binary")
+                print('--------' + gt_attr + '--------')
+                print('acc:', acc)
+                print('f1:', f1)
+
+        else:
+            save_image(recon_img.view(n_samples, 3, 64, 64),
+                       str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
+
+
+def cross_acc_celeba(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cuda, output_dir):
+    output_dir = '../output/' + output_dir + '/cross' + str(iters)
+    mkdirs(output_dir)
+
+    # # using training stat
+    # img private
+    # n_batch = 10
+    # fixed_idxs = random.sample(range(len(data_loader.dataset)), 100 * n_batch)
+    # fixed_XA = [0] * 100 * n_batch
+    # for i, idx in enumerate(fixed_idxs):
+    #     fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+    #     if cuda:
+    #         fixed_XA[i] = fixed_XA[i].cuda()
+    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
+    # fixed_XA = torch.stack(fixed_XA, dim=0)
+    #
+    # zA_mean = 0
+    # zA_std = 0
+    # # zS_ori_sum = np.zeros(zS_dim)
+    # for idx in range(n_batch):
+    #     q = encA(fixed_XA[100*idx:100*(idx+1)], num_samples=1)
+    #     zA_mean += q['privateA'].dist.loc
+    #     zA_std += q['privateA'].dist.scale
+    #     # zS_ori = []
+    #     # for i in range(zS_dim):
+    #     #     zS_ori.append(q['sharedA' + str(i)].value)
+    #     # zS_ori_sum += np.array(zS_ori)
+    # zA_mean = zA_mean.mean(dim=1)
+    # zA_std = zA_std.mean(dim=1)
+    #
+    # q.normal(loc=zA_mean,
+    #              scale=zA_std,
+    #              name='sample')
+    # zA = []
+    # for _ in range(n_samples):
+    #     zA.append(q['sample'].dist.sample().unsqueeze(1))
+    # zA = torch.cat(zA, dim=1)
+    #############################################
+
+
+    ########################
+    # using test
+    # img private
+    n_batch = 10
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    attributes = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+
+    q = encA(fixed_XA, num_samples=1)
+    zA = q['privateA'].dist.sample()
+    ########################
+
+
+    clf = load_classifier(cuda)
+    # attr shared
+    all_acc = []
+    all_f1 = []
+
+    for attr_idx in range(18):
+        attrs = torch.zeros(18)
+        attrs[attr_idx] = 1
+        zS = []
+        if cuda:
+            attrs = attrs.cuda()
+        attrs = attrs.repeat((n_samples, 1))
+        q = encB(attrs, num_samples=1)
+        for i in range(zS_dim):
+            zS.append(q['sharedB' + str(i)].value)
+
+        latents = [zA] + zS
+        recon_img = decA.forward2(latents, cuda)
+        pred_attr = clf(recon_img, num_samples=1)
+
+        if cuda:
+            pred_attr = pred_attr.cpu()
+
+        pred = pred_attr.detach().numpy()
+        pred = np.round(np.exp(pred))
+        target = np.ones_like(pred)
+        acc = (pred[:, attr_idx] == target[:, attr_idx]).mean()
+        f1 = f1_score(target[:, attr_idx], pred[:, attr_idx], average="binary")
+        all_acc.append(acc)
+        all_f1.append(f1)
+    for i in range(18):
+        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]])
+    print(all_acc)
+    print(all_f1)
+
+
+
+def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir):
+    output_dir = '../output/' + output_dir + '/cross' + str(iters)
+    mkdirs(output_dir)
+
+    #############################################
     # # using training stat
     # # img private
     # n_batch = 10
@@ -1559,96 +1782,6 @@ def save_cross_celeba(iters, data_loader, encA, decA, encB, gt_attrs, n_samples,
     zA = q['privateA'].dist.sample()
     ########################
 
-    # attr shared
-
-    gt_attrs = ['recon'] + gt_attrs
-    for gt_attr in gt_attrs:
-        if 'recon' in gt_attr:
-            # img shared
-            zS = []
-            for i in range(zS_dim):
-                zS.append(q['sharedA' + str(i)].value)
-        else:
-            attrs = torch.zeros(zS_dim)
-            if 'off' not in gt_attr:
-                attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
-                attrs[attr_ix] = 1
-            zS = []
-            if cuda:
-                attrs = attrs.cuda()
-            attrs = attrs.repeat((n_samples, 1))
-            q = encB(attrs, num_samples=1)
-            for i in range(zS_dim):
-                zS.append(q['sharedB' + str(i)].value)
-
-        latents = [zA] + zS
-        recon_img = decA.forward2(latents, cuda)
-        save_image(recon_img.view(n_samples, 3, 64, 64),
-                   str(os.path.join(output_dir, gt_attr + '_image_iter' + str(iters) + '.png')))
-
-
-def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir):
-    output_dir = '../output/' + output_dir + '/cross/'
-    mkdirs(output_dir)
-
-    #############################################
-    # # using training stat
-    # # img private
-    # n_batch = 10
-    # fixed_idxs = random.sample(range(len(data_loader.dataset)), 100 * n_batch)
-    # fixed_XA = [0] * 100 * n_batch
-    # for i, idx in enumerate(fixed_idxs):
-    #     fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
-    #     if cuda:
-    #         fixed_XA[i] = fixed_XA[i].cuda()
-    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
-    # fixed_XA = torch.stack(fixed_XA, dim=0)
-    #
-    # zA_mean = 0
-    # zA_std = 0
-    # # zS_ori_sum = np.zeros(zS_dim)
-    # for idx in range(n_batch):
-    #     q = encA(fixed_XA[100*idx:100*(idx+1)], num_samples=1)
-    #     zA_mean += q['privateA'].dist.loc
-    #     zA_std += q['privateA'].dist.scale
-    #     # zS_ori = []
-    #     # for i in range(zS_dim):
-    #     #     zS_ori.append(q['sharedA' + str(i)].value)
-    #     # zS_ori_sum += np.array(zS_ori)
-    # zA_mean = zA_mean.mean(dim=1)
-    # zA_std = zA_std.mean(dim=1)
-    #
-    # q.normal(loc=zA_mean,
-    #              scale=zA_std,
-    #              name='sample')
-    # zA = []
-    # for _ in range(n_samples):
-    #     zA.append(q['sample'].dist.sample().unsqueeze(1))
-    # zA = torch.cat(zA, dim=1)
-    #############################################
-
-
-    ########################
-    # using test
-    # img private
-    n_batch = 10
-    torch.manual_seed(0)
-    random.seed(0)
-    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
-    fixed_XA = [0] * n_samples
-    for i, idx in enumerate(fixed_idxs):
-        fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
-        if cuda:
-            fixed_XA[i] = fixed_XA[i].cuda()
-        fixed_XA[i] = fixed_XA[i].squeeze(0)
-    fixed_XA = torch.stack(fixed_XA, dim=0)
-    save_image(fixed_XA.view(n_samples, 3, 64, 64),
-               str(os.path.join(output_dir, 'gt_image_iter' + str(iters) + '.png')))
-
-    q = encA(fixed_XA, num_samples=1)
-    zA = q['privateA'].dist.sample()
-    ########################
-
     gt_attrs = ['recon'] + gt_attrs
     for gt_attr in gt_attrs:
         if 'recon' in gt_attr:
@@ -1669,11 +1802,11 @@ def save_cross_celeba_cont(iters, data_loader, encA, decA, encB, gt_attrs, n_sam
         latents = [zA, zS]
         recon_img = decA.forward2(latents, cuda)
         save_image(recon_img.view(n_samples, 3, 64, 64),
-                   str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
+                   str(os.path.join(output_dir, gt_attr + '_image.png')))
 
 
 def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda, output_dir):
-    output_dir = '../output/' + output_dir + '/cross/'
+    output_dir = '../output/' + output_dir + '/cross' + str(iters)
     mkdirs(output_dir)
 
     for gt_attr in gt_attrs:
@@ -1699,11 +1832,11 @@ def save_cross_celeba_mvae(iters, decA, encB, gt_attrs, n_samples, n_attr, cuda,
 
         recon_img = decA.forward2(zS, cuda)
         save_image(recon_img.view(n_samples, 3, 64, 64),
-                   str(os.path.join(output_dir, gt_attr + '_image_iter.png')))
+                   str(os.path.join(output_dir, gt_attr + '_image.png')))
 
 
 def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
-    output_dir = '../output/' + output_dir + '/cross/' + str(iters) + '/'
+    output_dir = '../output/' + output_dir + '/cross' + str(iters)
     mkdirs(output_dir)
 
     for i in range(10):
@@ -1731,7 +1864,7 @@ def save_cross_mnist_mvae(iters, decA, encB, n_samples, cuda, output_dir):
 
 
 def save_cross_mnist_base(iters, decA, encB, n_samples, cuda, output_dir):
-    output_dir = '../output/' + output_dir + '/cross/' + str(iters) + '/'
+    output_dir = '../output/' + output_dir + '/cross' + str(iters)
     mkdirs(output_dir)
 
     for i in range(10):
@@ -1756,3 +1889,60 @@ def save_cross_mnist_base(iters, decA, encB, n_samples, cuda, output_dir):
         # recon_img = decA.forward2(muB, cuda)
         save_image(recon_img.view(n_samples, 1, 28, 28),
                    str(os.path.join(output_dir, str(i) + '_image_iter.png')))
+
+
+def save_cross_mnist(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cuda, output_dir, flatten_pixel=None):
+    output_dir = '../output/' + output_dir + '/cross' + str(iters)
+    mkdirs(output_dir)
+
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+
+    # fixed_XA = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+        if flatten_pixel is not None:
+            fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+
+    if flatten_pixel:
+        save_image(fixed_XA.view(n_samples, 1, 28, 28),
+                   str(os.path.join(output_dir, 'gt_image.png')))
+    else:
+        save_image(fixed_XA,
+                   str(os.path.join(output_dir, 'gt_image.png')))
+    q = encA(fixed_XA, num_samples=1)
+    zA = q['privateA'].dist.loc
+    ########################
+
+    # label shared
+    recon_img = decA.forward2(zA, q['sharedA'].value, cuda)
+    if flatten_pixel:
+        save_image(recon_img.view(n_samples, 1, 28, 28),
+                   str(os.path.join(output_dir, 'recon_image.png')))
+    else:
+        save_image(recon_img,
+                   str(os.path.join(output_dir, 'recon_image.png')))
+
+    for i in range(10):
+        label = torch.zeros(zS_dim)
+        label[i] = 1
+
+        if cuda:
+            label = label.cuda()
+        label = label.repeat((n_samples, 1))
+        q = encB(label, num_samples=1)
+        recon_img = decA.forward2(zA, q['sharedB'].value, cuda)
+        if flatten_pixel:
+            save_image(recon_img.view(n_samples, 1, 28, 28),
+                       str(os.path.join(output_dir, str(i) + '_image_iter.png')))
+        else:
+            save_image(recon_img,
+                       str(os.path.join(output_dir, str(i) + '_image_iter.png')))
