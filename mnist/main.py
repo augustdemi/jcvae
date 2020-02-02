@@ -316,9 +316,9 @@ def train(data, encA, decA, encB, decB, optimizer,
                 pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                           num_samples=NUM_SAMPLES)
                 for param in encB.parameters():
-                    param.requires_grad = True
+                    param.requires_grad = False
                 for param in decB.parameters():
-                    param.requires_grad = True
+                    param.requires_grad = False
                 loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
