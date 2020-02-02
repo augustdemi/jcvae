@@ -184,16 +184,6 @@ train_data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='.
 test_data = torch.utils.data.DataLoader(datasets(partition='test', data_dir='../../data/celeba2',
                                                  image_transform=preprocess_data), batch_size=args.batch_size,
                                         shuffle=False)
-val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../../data/celeba2',
-                                                image_transform=preprocess_data), batch_size=args.batch_size,
-                                       shuffle=False)
-
-print('>>> data loaded')
-
-BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
-BIAS_VAL = (len(val_data.dataset) - 1) / (args.batch_size - 1)
-BIAS_TEST = (len(test_data.dataset) - 1) / (args.batch_size - 1)
-
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -218,16 +208,17 @@ def train(data, encA, optimizer):
     total_loss = 0
     for b, (images, attributes) in enumerate(data):
         N += 1
+        optimizer.zero_grad()
         if CUDA:
             images = images.cuda()
             attributes = attributes.cuda()
-        optimizer.zero_grad()
 
         # encode
         pred_attr = encA(images, num_samples=NUM_SAMPLES)
 
         loss = F.binary_cross_entropy_with_logits(pred_attr, attributes, reduction='none').sum()
-
+        if CUDA:
+            loss = loss.cuda()
         loss.backward()
         optimizer.step()
         if CUDA:
