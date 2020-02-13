@@ -1978,3 +1978,32 @@ def save_recon_cub_ae(iters, data_loader, enc, dec, cuda, output_dir_trvsl, fixe
 
     save_image(recon_img,
                str(os.path.join(out_dir, 'recon_image.png')), nrow=int(np.sqrt(recon_img.shape[0])))
+
+
+def save_recon_cub_vae(iters, data_loader, enc, dec, cuda, output_dir_trvsl, fixed_idxs=[0]):
+    output_dir_trvsl = '../output/' + output_dir_trvsl
+
+    imgs = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        imgs[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            imgs[i] = imgs[i].cuda()
+            imgs[i] = imgs[i].squeeze(0)
+    imgs = torch.stack(imgs, dim=0)
+
+    # do traversal and collect generated images
+
+    sample, _, _ = enc(imgs, num_samples=1)
+
+    recon_img = dec.forward(sample)
+
+    # save the generated files, also the animated gifs
+
+    out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs))
+    mkdirs(out_dir)
+    save_image(imgs,
+               str(os.path.join(out_dir, 'gt_image.png')), nrow=int(np.sqrt(imgs.shape[0])))
+
+    save_image(recon_img,
+               str(os.path.join(out_dir, 'recon_image.png')), nrow=int(np.sqrt(recon_img.shape[0])))
