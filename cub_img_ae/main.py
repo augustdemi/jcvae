@@ -276,9 +276,6 @@ if args.ckpt_epochs > 0:
         decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
 
 for e in range(args.ckpt_epochs, args.epochs):
-    util.evaluation.save_recon_cub_ae(e, test_data, encA, decA, CUDA, MODEL_NAME,
-                                      fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
-                                                  1270, 2133, 2856, 2680, 1300])
     train_start = time.time()
     train_loss = train(train_data, encA, decA, optimizer)
     train_end = time.time()
