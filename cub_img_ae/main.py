@@ -252,7 +252,7 @@ def test(data, encA, decA):
             recon_images = decA(feature)
             recon_images = recon_images.view(recon_images.size(0), -1)
             images = images.view(images.size(0), -1)
-            loss = recon_loss(recon_images, images)
+            loss = recon_loss(recon_images, images).mean()
             if CUDA:
                 loss = loss.cpu()
             epoch_loss += loss.item()
