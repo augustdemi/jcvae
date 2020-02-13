@@ -208,8 +208,8 @@ optimizer = torch.optim.Adam(
 
 
 def recon_loss(recon, orig):
-    return (torch.log(recon + EPS) * orig +
-            torch.log(1 - recon + EPS) * (1 - orig)).sum(-1)
+    return -(torch.log(recon + EPS) * orig +
+             torch.log(1 - recon + EPS) * (1 - orig)).sum(-1)
 
 
 def train(data, encA, decA, optimizer):
