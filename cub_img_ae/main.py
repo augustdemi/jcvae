@@ -79,7 +79,8 @@ beta = [float(i) for i in args.beta.split(',')]
 lamb = [float(i) for i in args.lamb.split(',')]
 
 # path parameters
-MODEL_NAME = 'cub-img-ae-resnet50'
+MODEL_NAME = 'cub-img-ae-resnet50-run_id%d' % (
+    args.run_id)
 if len(args.run_desc) > 1:
     desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
     with open(desc_file, 'w') as outfile:
