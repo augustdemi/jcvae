@@ -17,7 +17,7 @@ class EncoderA(nn.Module):
     def __init__(self, seed):
         super(self.__class__, self).__init__()
         self.seed = seed
-        resnet = models.resnet50(pretrained=True)
+        resnet = models.resnet101(pretrained=True)
         modules = list(resnet.children())[:-1]  # we do not use the last fc layer.
         self.resnet = nn.Sequential(*modules)
         self.weight_init()
