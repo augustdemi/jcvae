@@ -24,20 +24,10 @@ from PIL import Image
 
 
 class datasets(Dataset):
-    def __init__(self, path, primary_attr_idx, train=True, crop=None):
-        self.filepaths, self.attributes, self.labels, self.boxes = load_data(train, path, primary_attr_idx)
+    def __init__(self, path, train=True, crop=None):
+        self.filepaths, self.labels, self.boxes = load_data(train, path)
         self.path = path
         self.crop = crop
-
-        # dataset = torchvision.datasets.ImageFolder(
-        #     root= self.filepaths,
-        #     transform=transforms.Compose([
-        #     transforms.Resize(64),
-        #     transforms.ToTensor()
-        # ])
-        # )
-        # path = '../../data/awa/Animals_with_Attributes2/'
-        # attributes = get_attr(dataset.targets, path)
 
     def __getitem__(self, index):
         """
@@ -52,7 +42,7 @@ class datasets(Dataset):
         # label:138
         # bding box: 13.0 39.0 476.0 458.0
         # attr: checked
-        img_path, attr, label, box = self.filepaths[index], self.attributes[index], self.labels[index], self.boxes[
+        img_path, label, box = self.filepaths[index], self.labels[index], self.boxes[
             index]
         # for i in range(len(self.labels)): #16,28 (10,0)
         #     if self.labels[i] == 10:
@@ -69,7 +59,7 @@ class datasets(Dataset):
 
         label = torch.tensor(label - 1, dtype=torch.int64)
         # attr = torch.FloatTensor(attr)
-        return crop_img, attr, label
+        return crop_img, label
 
     def __len__(self):
         return len(self.labels)
@@ -82,8 +72,6 @@ class datasets(Dataset):
         else:
             xmin, ymin, xmax, ymax = 0, 0, raw_dim[0], raw_dim[1]
         crop_img = img[ymin:ymax, xmin:xmax]
-        # if self._target_size is not None:
-        #     image = misc.imresize(image, self._target_size)
         return crop_img
 
     def _get_cropped_coordinates(self, index, raw_dim):
@@ -102,66 +90,37 @@ class datasets(Dataset):
         return xmin, ymin, xmax, ymax
 
 
-def load_data(train, path, primary_attr_idx):
+def load_data(train, path):
     boxes = []
-    for line in open(path + 'attributes/bounding_boxes.txt', 'r'):
+    for line in open(path + 'bounding_boxes.txt', 'r'):
         box = []
         for val in line.split(' ')[1:]:
             box.append(float(val))
         boxes.append(box)
     boxes = np.array(boxes)
     # boxes = [box for box, val in zip(boxes, is_selected) if val]
-    train_classes = np.genfromtxt(path + "attributes/trainvalids.txt", delimiter='\n', dtype=int)
+    trainval_classes = np.genfromtxt(path + "cvpr2016/trainvalids.txt", delimiter='\n', dtype=int)
     imgid_label = np.array([int(elt.split(' ')[1]) for elt in
-                            np.genfromtxt(path + "attributes/image_class_labels.txt", delimiter='\n', dtype=str)])
+                            np.genfromtxt(path + "image_class_labels.txt", delimiter='\n', dtype=str)])
+    # train_classes = [elt for elt in list(range(1,201)) if elt not in test_classes]
 
-    attributes = []
     if train:
-        # trainset - all modalities: img path, attr, label
-        tr_vec_attr = pickle.load(open(path + "attributes/vec_attr_trainval.pkl", "rb"))
-        for key in tr_vec_attr.keys():
-            attributes.append([tr_vec_attr[key][i] / tr_vec_attr[key][i].sum() for i in primary_attr_idx])
-        tr_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] in train_classes])
+        tr_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] in trainval_classes])
         labels = list(imgid_label[tr_imgidx])
         filepaths = np.array(
-            [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
+            [elt.split(' ')[1] for elt in np.genfromtxt(path + "images.txt", delimiter='\n', dtype=str)])[
             tr_imgidx]
         filepaths = list(filepaths)
         boxes = list(boxes[tr_imgidx])
 
-        # testset - only attributes and labels
-        # te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
-        # for key in te_vec_attr.keys():
-        #     attributes.append([te_vec_attr[key][i] for i in primary_attr_idx])
-        # te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
-        # labels.extend(list(imgid_label[te_imgidx]))
-        # filepaths.extend(list(np.array(
-        #     [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
-        #     te_imgidx]))
-        # filepaths.extend([None] * te_imgidx.shape[0])
     else:
-        te_vec_attr = pickle.load(open(path + "attributes/vec_attr_test.pkl", "rb"))
-        for key in te_vec_attr.keys():
-            attributes.append([te_vec_attr[key][i] / te_vec_attr[key][i].sum() for i in primary_attr_idx])
-        te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in train_classes])
+        te_imgidx = np.array([i for i in range(len(imgid_label)) if imgid_label[i] not in trainval_classes])
         labels = imgid_label[te_imgidx]
         filepaths = np.array(
-            [elt.split(' ')[1] for elt in np.genfromtxt(path + "attributes/images.txt", delimiter='\n', dtype=str)])[
+            [elt.split(' ')[1] for elt in np.genfromtxt(path + "images.txt", delimiter='\n', dtype=str)])[
             te_imgidx]
         boxes = list(boxes[te_imgidx])
-    return filepaths, attributes, labels, boxes
-
-
-def get_attr(labels, path):
-    attr_meta = list(np.genfromtxt(path + 'predicate-matrix-binary.txt', delimiter='\n', dtype=str))
-    for i in range(len(attr_meta)):
-        attr_meta[i] = attr_meta[i].split(' ')
-    attr_meta = np.array(attr_meta).astype(float)
-
-    attributes = []
-    for i in range(len(labels)):
-        attributes.append(attr_meta[labels[i]])
-    return np.array(attributes)
+    return filepaths, labels, boxes
 
 
 def pil_loader(path):

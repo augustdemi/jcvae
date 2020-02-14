@@ -180,3 +180,73 @@ class DecoderA2(nn.Module):
         x = features.view(features.size(0), 512, 2, 2)
         x = self.dec_image(x)
         return x
+
+
+class DecoderA2_simp(nn.Module):
+    def __init__(self, seed):
+        super(self.__class__, self).__init__()
+        self.seed = seed
+
+        self.dec_image = nn.Sequential(
+            nn.ConvTranspose2d(512, 256, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 32, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 32, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 3, 4, 2, 1),
+            nn.Sigmoid())
+
+        self.weight_init()
+
+    def weight_init(self):
+        for m in self._modules:
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
+    def forward(self, features):
+        x = features.view(features.size(0), 512, 2, 2)
+        x = self.dec_image(x)
+        return x
+
+
+class DecoderA2_comp(nn.Module):
+    def __init__(self, seed):
+        super(self.__class__, self).__init__()
+        self.seed = seed
+
+        self.dec_image = nn.Sequential(
+            nn.ConvTranspose2d(512, 512, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(512, 256, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 256, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 3, 4, 2, 1),
+            nn.Sigmoid())
+
+        self.weight_init()
+
+    def weight_init(self):
+        for m in self._modules:
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
+    def forward(self, features):
+        x = features.view(features.size(0), 512, 2, 2)
+        x = self.dec_image(x)
+        return x

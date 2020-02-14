@@ -5,7 +5,7 @@ import random
 import torch
 import os
 import numpy as np
-from model import EncoderA, DecoderA, DecoderA2
+from model import EncoderA, DecoderA, DecoderA2, DecoderA2_simp, DecoderA2_comp
 from datasets import datasets
 import torch.nn as nn
 import sys
@@ -93,48 +93,8 @@ NUM_SAMPLES = 1
 import pickle
 
 path = args.data_path
-ATTR_PRIOR = pickle.load(open(path + "attributes/attr_prior.pkl", "rb"))
-for i in range(len(ATTR_PRIOR)):
-    ATTR_PRIOR[i] = torch.FloatTensor(ATTR_PRIOR[i])
-    if CUDA:
-        ATTR_PRIOR[i] = ATTR_PRIOR[i].cuda()
 
-primary_attr = ['eye_color', 'bill_length', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
-                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
-                'breast_color', 'wing_color']
-# original
-primary_attr = ['eye_color', 'bill_length', 'size', 'shape', 'breast_pattern', 'belly_pattern', 'bill_shape',
-                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'underparts_color', 'primary_color',
-                'breast_color', 'wing_color']
-# regressor + stat 10
-primary_attr = ['eye_color', 'bill_length', 'leg_color', 'bill_shape',
-                'bill_color', 'throat_color', 'crown_color', 'forehead_color',
-                'belly_color', 'wing_color']
 
-# regressor + stat 13
-primary_attr = ['eye_color', 'bill_length', 'shape', 'bill_shape', 'head_pattern',
-                'bill_color', 'throat_color', 'crown_color', 'forehead_color', 'breast_color',
-                'belly_color', 'wing_color', 'leg_color']
-
-ATTR_IDX = []
-ATTR_DIM = []
-N_ATTR = len(primary_attr)
-TRAIN_CLASSES = np.genfromtxt(path + 'attributes/trainvalids.txt', delimiter='\n', dtype=int)
-
-attributes = np.genfromtxt(path + 'attributes/attr.txt', delimiter='\n', dtype=str)
-total_attr = []
-for i in range(attributes.shape[0]):
-    attr = attributes[i].split("::")[0]
-    total_attr.append(attr)
-    if attr in primary_attr:
-        ATTR_IDX.append(i)
-        ATTR_DIM.append(len(attributes[i].split("::")[1].split(',')) + 1)
-
-ATTR_PRIOR = [ATTR_PRIOR[i] for i in ATTR_IDX]
-print(primary_attr)
-print(ATTR_IDX)
-print(np.array(total_attr)[ATTR_IDX])
-print(len(ATTR_IDX))
 
 
 # visdom setup
@@ -170,15 +130,13 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-train_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=True, crop=1.2), batch_size=args.batch_size,
+train_data = torch.utils.data.DataLoader(datasets(path, train=True, crop=1.2), batch_size=args.batch_size,
                                          shuffle=True,
                                          num_workers=len(GPU))
-test_data = torch.utils.data.DataLoader(datasets(path, ATTR_IDX, train=False, crop=1.2), batch_size=args.batch_size,
+test_data = torch.utils.data.DataLoader(datasets(path, train=False, crop=1.2), batch_size=args.batch_size,
                                         shuffle=True,
                                         num_workers=len(GPU))
 
-BIAS_TRAIN = (train_data.dataset.__len__() - 1) / (args.batch_size - 1)
-BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 
 def cuda_tensors(obj):
@@ -189,7 +147,7 @@ def cuda_tensors(obj):
 
 
 encA = EncoderA(args.wseed)
-decA = DecoderA2(args.wseed)
+decA = DecoderA2_comp(args.wseed)
 
 if CUDA:
     encA.cuda()
@@ -220,7 +178,7 @@ def train(data, encA, decA, optimizer):
     N = 0
 
     torch.autograd.set_detect_anomaly(True)
-    for b, (images, _, _) in enumerate(data):
+    for b, (images, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
             optimizer.zero_grad()
@@ -244,7 +202,7 @@ def test(data, encA, decA):
     decA.eval()
     epoch_loss = 0.0
     N = 0
-    for b, (images, _, _) in enumerate(data):
+    for b, (images, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
             if CUDA:
