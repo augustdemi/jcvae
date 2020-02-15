@@ -99,7 +99,7 @@ def load_data(train, path):
         boxes.append(box)
     boxes = np.array(boxes)
     # boxes = [box for box, val in zip(boxes, is_selected) if val]
-    trainval_classes = np.genfromtxt(path + "cvpr2016/trainvalids.txt", delimiter='\n', dtype=int)
+    trainval_classes = np.genfromtxt(path + "cvpr2016/trainids.txt", delimiter='\n', dtype=int)
     imgid_label = np.array([int(elt.split(' ')[1]) for elt in
                             np.genfromtxt(path + "image_class_labels.txt", delimiter='\n', dtype=str)])
     # train_classes = [elt for elt in list(range(1,201)) if elt not in test_classes]

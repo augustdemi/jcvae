@@ -22,13 +22,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=2, metavar='N',
+    parser.add_argument('--run_id', type=int, default=100, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_privateA', type=int, default=636,
                         help='size of the latent embedding of privateA')
-    parser.add_argument('--batch_size', type=int, default=50, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -147,7 +147,7 @@ def cuda_tensors(obj):
 
 
 encA = EncoderA(args.wseed)
-decA = DecoderA2_comp(args.wseed)
+decA = DecoderA2(args.wseed)
 
 if CUDA:
     encA.cuda()
@@ -234,6 +234,9 @@ if args.ckpt_epochs > 0:
         decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
 
 for e in range(args.ckpt_epochs, args.epochs):
+    util.evaluation.save_recon_cub_ae(e, test_data, encA, decA, CUDA, MODEL_NAME,
+                                      fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
+                                                  1270, 2133, 2856, 2680, 1300])
     train_start = time.time()
     train_loss = train(train_data, encA, decA, optimizer)
     train_end = time.time()
