@@ -22,26 +22,26 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=2, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_privateA', type=int, default=64,
                         help='size of the latent embedding of privateA')
-    parser.add_argument('--n_shared', type=int, default=10,
+    parser.add_argument('--n_shared', type=int, default=64,
                         help='size of the latent embedding of shared')
-    parser.add_argument('--batch_size', type=int, default=50, metavar='N',
+    parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=120, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--beta', type=str, default='1,10,1',
+    parser.add_argument('--beta', type=str, default='1,1',
                         help='beta for TC. [img, attr, label]')
-    parser.add_argument('--lamb', type=str, default='1,500,5000',
+    parser.add_argument('--lamb', type=str, default='1,100',
                         help='lambda for reconst. [img, attr, label')
 
     parser.add_argument('--seed', type=int, default=0, metavar='N',
@@ -49,13 +49,13 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/cub',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/cub_feat_attr_cont',
                         help='save and load path for ckpt')
     parser.add_argument('--gpu', type=str, default='',
                         help='cuda')
     parser.add_argument('--outgpu', type=int, default=-1,
                         help='outgpu')
-    parser.add_argument('--num_hidden', type=int, default=1024,
+    parser.add_argument('--num_hidden', type=int, default=512,
                         help='num_hidden')
 
     parser.add_argument('--data_path', type=str, default='../../data/cub/CUB_200_2011/CUB_200_2011/',
@@ -536,13 +536,14 @@ for e in range(args.ckpt_epochs, args.epochs):
 if args.ckpt_epochs == args.epochs:
     # util.evaluation.save_recon_cub(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
     #                                   fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312])
-    util.evaluation.save_traverse_cub_ia2(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
-                                          private=False)  # 2880
-    # train
-    util.evaluation.save_traverse_cub_ia2(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-                                          fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
-                                          private=False)
+    test_elbo, recon_A_test, recon_B_test, te_acc, te_f1 = test(test_data, encA, decA, encB, decB, args.ckpt_epochs)
+    # util.evaluation.save_traverse_cub_ia2(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+    #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
+    #                                       private=False)  # 2880
+    # # train
+    # util.evaluation.save_traverse_cub_ia2(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+    #                                       fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
+    #                                       private=False)
 
 
 else:

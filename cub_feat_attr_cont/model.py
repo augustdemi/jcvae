@@ -24,9 +24,7 @@ class EncoderA(nn.Module):
         self.seed = seed
 
         self.fc = nn.Sequential(
-            nn.Linear(2048, num_hidden),  # 1560: as CADA_VAE use 1560 hidden
-            nn.ReLU(),
-            nn.Linear(num_hidden, 2 * zPrivate_dim + 2 * zShared_dim),
+            nn.Linear(2048, 2 * zPrivate_dim + 2 * zShared_dim),
             nn.ReLU()
         )
 
@@ -77,13 +75,13 @@ class DecoderA(nn.Module):
         self.style_std = zPrivate_dim
         self.seed = seed
 
-        self.dec_hidden = nn.Sequential(
-            nn.Linear(zPrivate_dim + zShared_dim, num_hidden),
-            nn.ReLU()
-        )
+        # self.dec_hidden = nn.Sequential(
+        #     nn.Linear(zPrivate_dim + zShared_dim, num_hidden),
+        #     nn.ReLU()
+        # )
 
         self.dec_image = nn.Sequential(
-            nn.Linear(num_hidden, 2048)
+            nn.Linear(zPrivate_dim + zShared_dim, 2048)
         )
 
         self.weight_init()
@@ -118,8 +116,8 @@ class DecoderA(nn.Module):
                                name=shared[shared_from])
             latents.append(zShared)
 
-            hiddens = self.dec_hidden(torch.cat(latents, -1))
-            pred_imgs = self.dec_image(hiddens)
+            # hiddens = self.dec_hidden(torch.cat(latents, -1))
+            pred_imgs = self.dec_image(torch.cat(latents, -1))
             pred_imgs = pred_imgs.squeeze(0)
             pred_imgs = F.logsigmoid(pred_imgs + EPS)
 
@@ -221,6 +219,7 @@ class DecoderB(nn.Module):
                 pred_labels, attributes, name='attr_' + shared_from)
             pred_labels = torch.round(torch.exp(pred_labels))
 
-            acc = (pred_labels == attributes).sum() / 312
-            f1 = f1_score(attributes.cpu().detach().numpy(), pred_labels.cpu().detach().numpy(), average="samples")
+            if 'cross' in shared_from:
+                acc = (pred_labels == attributes).sum() / 312
+                f1 = f1_score(attributes.cpu().detach().numpy(), pred_labels.cpu().detach().numpy(), average="samples")
         return p, acc, f1
