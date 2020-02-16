@@ -150,8 +150,14 @@ def visualize_line():
     tr_acc = torch.Tensor(data['tr_acc'])
     val_acc = torch.Tensor(data['val_acc'])
 
+    te_f1 = torch.Tensor(data['te_f1'])
+    tr_f1 = torch.Tensor(data['tr_f1'])
+    val_f1 = torch.Tensor(data['val_f1'])
+
+
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss, val_total_loss], -1))
     acc = torch.tensor(np.stack([tr_acc, val_acc, te_acc], -1))
+    f1 = torch.tensor(np.stack([tr_f1, val_f1, te_f1], -1))
 
     VIZ.line(
         X=epoch, Y=recon_A, env=MODEL_NAME + '/lines',
@@ -208,18 +214,25 @@ def visualize_line():
                   title='Acc', legend=['tr_acc', 'val_acc', 'te_acc'])
     )
 
+    VIZ.line(
+        X=epoch, Y=f1, env=MODEL_NAME + '/lines',
+        win=WIN_ID['f1'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loss',
+                  title='F1-score', legend=['tr_f1', 'val_f1', 'te_f1'])
+    )
+
 
 if args.viz_on:
     WIN_ID = dict(
         llA='win_llA', llB='win_llB',
         total_losses='win_total_losses',
         llB_test='win_llB_test', llA_test='win_llA_test',
-        llB_val='win_llB_val', llA_val='win_llA_val', acc='win_acc'
+        llB_val='win_llB_val', llA_val='win_llA_val', acc='win_acc', f1='win_f1'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B',
         'total_loss', 'test_total_loss', 'recon_A_test', 'recon_B_test',
-        'val_total_loss', 'recon_A_val', 'recon_B_val', 'tr_acc', 'te_acc', 'val_acc'
+        'val_total_loss', 'recon_A_val', 'recon_B_val', 'tr_acc', 'te_acc', 'val_acc', 'tr_f1', 'te_f1', 'val_f1'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -330,7 +343,7 @@ def elbo(q, pA, pB=None, lamb=[1., 1.], beta=[1., 1.], bias=1.0, train=True):
 
 
 def train(data, encA, decA, encB, decB, optimizer):
-    epoch_elbo = epoch_correct = 0.0
+    epoch_elbo = epoch_correct = epoch_f1 = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
     encA.train()
@@ -360,7 +373,7 @@ def train(data, encA, decA, encB, decB, optimizer):
 
             # decode attr
             shared_dist = {'poe': 'poe', 'cross': 'sharedA', 'own': 'sharedB'}
-            pB, acc = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
             shared_dist = {'poe': 'poe', 'cross': 'sharedB', 'own': 'sharedA'}
@@ -373,6 +386,7 @@ def train(data, encA, decA, encB, decB, optimizer):
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
+                f1 = f1.cpu()
                 for i in range(3):
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
@@ -386,9 +400,11 @@ def train(data, encA, decA, encB, decB, optimizer):
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
             epoch_correct += acc.item()
+            epoch_f1 += f1.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size)
+           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / (
+           N * args.batch_size)
 
 
 def test(data, encA, decA, encB, decB, epoch):
@@ -396,7 +412,7 @@ def test(data, encA, decA, encB, decB, epoch):
     decA.eval()
     encB.eval()
     decB.eval()
-    epoch_elbo = epoch_correct = 0.0
+    epoch_elbo = epoch_correct = epoch_f1 = 0.0
     epoch_recA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_crB = 0.0
     N = 0
@@ -414,8 +430,8 @@ def test(data, encA, decA, encB, decB, epoch):
 
             # decode attr
             shared_dist = {'cross': 'sharedA', 'own': 'sharedB'}
-            pB, acc = decB(attributes, shared_dist, q=q,
-                           num_samples=NUM_SAMPLES)
+            pB, acc, f1 = decB(attributes, shared_dist, q=q,
+                               num_samples=NUM_SAMPLES)
 
             # decode img
             shared_dist = {'cross': 'sharedB', 'own': 'sharedA'}
@@ -429,6 +445,7 @@ def test(data, encA, decA, encB, decB, epoch):
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
+                f1 = f1.cpu()
                 for i in [0, 2]:
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
@@ -441,9 +458,10 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_rec_crB += recB[2].item()
             epoch_elbo += loss.item()
             epoch_correct += acc.item()
+            epoch_f1 += f1.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size)
+           [epoch_recB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / (N * args.batch_size)
 
 
 ####
@@ -474,15 +492,15 @@ if args.ckpt_epochs > 0:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, tr_acc = train(train_data, encA, decA, encB, decB, optimizer)
+    train_elbo, rec_lossA, rec_lossB, tr_acc, tr_f1 = train(train_data, encA, decA, encB, decB, optimizer)
     train_end = time.time()
 
     val_start = time.time()
-    val_elbo, recon_A_val, recon_B_val, val_acc = test(val_data, encA, decA, encB, decB, e)
+    val_elbo, recon_A_val, recon_B_val, val_acc, val_f1 = test(val_data, encA, decA, encB, decB, e)
     val_end = time.time()
 
     test_start = time.time()
-    test_elbo, recon_A_test, recon_B_test, te_acc = test(test_data, encA, decA, encB, decB, e)
+    test_elbo, recon_A_test, recon_B_test, te_acc, te_f1 = test(test_data, encA, decA, encB, decB, e)
     test_end = time.time()
 
     if args.viz_on:
@@ -499,6 +517,9 @@ for e in range(args.ckpt_epochs, args.epochs):
                            tr_acc=tr_acc,
                            val_acc=val_acc,
                            te_acc=te_acc,
+                           tr_f1=tr_f1,
+                           val_f1=val_f1,
+                           te_f1=te_f1
                            )
         visualize_line()
         LINE_GATHER.flush()

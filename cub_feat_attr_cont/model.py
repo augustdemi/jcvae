@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.metrics import f1_score
 
 import sys
 
@@ -220,4 +221,5 @@ class DecoderB(nn.Module):
                 pred_labels, attributes, name='attr_' + shared_from)
             pred_labels = torch.round(torch.exp(pred_labels))
             acc = (pred_labels == attributes).sum() / 312
-        return p, acc
+            f1 = f1_score(attributes, pred_labels, average="samples")
+        return p, acc, f1
