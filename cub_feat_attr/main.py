@@ -362,6 +362,8 @@ def train(data, encA, decA, encB, decB, optimizer):
             ## poe of attributes from modal A & B ##
             for i in range(N_ATTR):
                 prior_logit = torch.zeros(2)
+                if CUDA:
+                    prior_logit = prior_logit.cuda()
                 poe_logit = q['sharedA_attr' + str(i)].dist.logits + q[
                     'sharedB_attr' + str(i)].dist.logits + prior_logit
                 q.concrete(logits=poe_logit,
