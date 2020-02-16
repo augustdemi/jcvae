@@ -141,12 +141,12 @@ class EncoderB(nn.Module):
         self.digit_temp = torch.tensor(TEMP)
         self.zShared_dim = zShared_dim
         self.seed = seed
-        self.enc_hidden = nn.Sequential(
-            nn.Linear(312, num_hidden),
-            nn.ReLU(),
-        )
+        # self.enc_hidden = nn.Sequential(
+        #     nn.Linear(312, num_hidden),
+        #     nn.ReLU(),
+        # )
 
-        self.fc = nn.Linear(num_hidden, zShared_dim * 2)
+        self.fc = nn.Linear(312, zShared_dim * 2)
         self.weight_init()
 
     def weight_init(self):
@@ -162,8 +162,8 @@ class EncoderB(nn.Module):
         if q is None:
             q = probtorch.Trace()
         # attributes = attributes.view(attributes.size(0), -1)
-        hiddens = self.enc_hidden(attributes)
-        stats = self.fc(hiddens)
+        # hiddens = self.enc_hidden(attributes)
+        stats = self.fc(attributes)
         muShared = stats[:, :, :self.zShared_dim]
         logvarShared = stats[:, :, self.zShared_dim:]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -181,12 +181,12 @@ class DecoderB(nn.Module):
         self.seed = seed
         self.zShared_dim = zShared_dim
 
-        self.dec_hidden = nn.Sequential(
-            nn.Linear(zShared_dim, num_hidden),
-            nn.ReLU(),
-        )
+        # self.dec_hidden = nn.Sequential(
+        #     nn.Linear(zShared_dim, num_hidden),
+        #     nn.ReLU(),
+        # )
         self.dec_label = nn.Sequential(
-            nn.Linear(num_hidden, 312))
+            nn.Linear(zShared_dim, 312))
         self.weight_init()
 
     def weight_init(self):
@@ -208,8 +208,8 @@ class DecoderB(nn.Module):
                                shared_std,
                                value=q[shared[shared_from]],
                                name=shared[shared_from])
-            hiddens = self.dec_hidden(zShared)
-            pred_labels = self.dec_label(hiddens)
+            # hiddens = self.dec_hidden(zShared)
+            pred_labels = self.dec_label(zShared)
             pred_labels = pred_labels.squeeze(0)
 
             pred_labels = F.logsigmoid(pred_labels + EPS)
