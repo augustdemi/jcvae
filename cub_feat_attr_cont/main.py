@@ -386,7 +386,6 @@ def train(data, encA, decA, encB, decB, optimizer):
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
-                f1 = f1.cpu()
                 for i in range(3):
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
@@ -444,7 +443,6 @@ def test(data, encA, decA, encB, decB, epoch):
             if CUDA:
                 loss = loss.cpu()
                 acc = acc.cpu()
-                f1 = f1.cpu()
                 for i in [0, 2]:
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
