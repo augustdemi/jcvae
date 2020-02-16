@@ -22,7 +22,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=0, metavar='N',
+    parser.add_argument('--run_id', type=int, default=2, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -34,14 +34,14 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=120, metavar='N',
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
     parser.add_argument('--beta', type=str, default='1,1',
                         help='beta for TC. [img, attr, label]')
-    parser.add_argument('--lamb', type=str, default='1,100',
+    parser.add_argument('--lamb', type=str, default='1,10',
                         help='lambda for reconst. [img, attr, label')
 
     parser.add_argument('--seed', type=int, default=0, metavar='N',
@@ -150,14 +150,14 @@ def visualize_line():
     tr_acc = torch.Tensor(data['tr_acc'])
     val_acc = torch.Tensor(data['val_acc'])
 
-    te_f1 = torch.Tensor(data['te_f1'])
-    tr_f1 = torch.Tensor(data['tr_f1'])
-    val_f1 = torch.Tensor(data['val_f1'])
+    # te_f1 = torch.Tensor(data['te_f1'])
+    # tr_f1 = torch.Tensor(data['tr_f1'])
+    # val_f1 = torch.Tensor(data['val_f1'])
 
 
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss, val_total_loss], -1))
     acc = torch.tensor(np.stack([tr_acc, val_acc, te_acc], -1))
-    f1 = torch.tensor(np.stack([tr_f1, val_f1, te_f1], -1))
+    # f1 = torch.tensor(np.stack([tr_f1, val_f1, te_f1], -1))
 
     VIZ.line(
         X=epoch, Y=recon_A, env=MODEL_NAME + '/lines',
@@ -214,12 +214,12 @@ def visualize_line():
                   title='Acc', legend=['tr_acc', 'val_acc', 'te_acc'])
     )
 
-    VIZ.line(
-        X=epoch, Y=f1, env=MODEL_NAME + '/lines',
-        win=WIN_ID['f1'], update='append',
-        opts=dict(xlabel='epoch', ylabel='loss',
-                  title='F1-score', legend=['tr_f1', 'val_f1', 'te_f1'])
-    )
+    # VIZ.line(
+    #     X=epoch, Y=f1, env=MODEL_NAME + '/lines',
+    #     win=WIN_ID['f1'], update='append',
+    #     opts=dict(xlabel='epoch', ylabel='loss',
+    #               title='F1-score', legend=['tr_f1', 'val_f1', 'te_f1'])
+    # )
 
 
 if args.viz_on:
@@ -227,12 +227,12 @@ if args.viz_on:
         llA='win_llA', llB='win_llB',
         total_losses='win_total_losses',
         llB_test='win_llB_test', llA_test='win_llA_test',
-        llB_val='win_llB_val', llA_val='win_llA_val', acc='win_acc', f1='win_f1'
+        llB_val='win_llB_val', llA_val='win_llA_val', acc='win_acc'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B',
         'total_loss', 'test_total_loss', 'recon_A_test', 'recon_B_test',
-        'val_total_loss', 'recon_A_val', 'recon_B_val', 'tr_acc', 'te_acc', 'val_acc', 'tr_f1', 'te_f1', 'val_f1'
+        'val_total_loss', 'recon_A_val', 'recon_B_val', 'tr_acc', 'te_acc', 'val_acc'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -343,7 +343,7 @@ def elbo(q, pA, pB=None, lamb=[1., 1.], beta=[1., 1.], bias=1.0, train=True):
 
 
 def train(data, encA, decA, encB, decB, optimizer):
-    epoch_elbo = epoch_correct = epoch_f1 = 0.0
+    epoch_elbo = epoch_distance = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
     encA.train()
@@ -373,7 +373,7 @@ def train(data, encA, decA, encB, decB, optimizer):
 
             # decode attr
             shared_dist = {'poe': 'poe', 'cross': 'sharedA', 'own': 'sharedB'}
-            pB, acc, f1 = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
             shared_dist = {'poe': 'poe', 'cross': 'sharedB', 'own': 'sharedA'}
@@ -385,7 +385,6 @@ def train(data, encA, decA, encB, decB, optimizer):
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
-                acc = acc.cpu()
                 for i in range(3):
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
@@ -398,11 +397,26 @@ def train(data, encA, decA, encB, decB, optimizer):
             epoch_recB += recB[0].item()
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
-            epoch_correct += acc.item()
-            epoch_f1 += f1.item()
+
+            img_mean = q['sharedA'].dist.loc
+            attr_mean = q['sharedB'].dist.loc
+            img_std = q['sharedA'].dist.scale
+            attr_std = q['sharedB'].dist.scale
+
+            if CUDA:
+                img_mean = img_mean.cpu()
+                attr_mean = attr_mean.cpu()
+                img_std = img_std.cpu()
+                attr_std = attr_std.cpu()
+
+            distance = torch.sqrt(torch.sum((img_mean - attr_mean) ** 2, dim=1) + \
+                                  torch.sum((img_std - attr_std) ** 2, dim=1))
+
+            distance = distance.sum()
+            epoch_distance += distance.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / N
+           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / N
 
 
 def test(data, encA, decA, encB, decB, epoch):
@@ -410,7 +424,7 @@ def test(data, encA, decA, encB, decB, epoch):
     decA.eval()
     encB.eval()
     decB.eval()
-    epoch_elbo = epoch_correct = epoch_f1 = 0.0
+    epoch_elbo = epoch_distance = 0.0
     epoch_recA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_crB = 0.0
     N = 0
@@ -428,8 +442,8 @@ def test(data, encA, decA, encB, decB, epoch):
 
             # decode attr
             shared_dist = {'cross': 'sharedA', 'own': 'sharedB'}
-            pB, acc, f1 = decB(attributes, shared_dist, q=q,
-                               num_samples=NUM_SAMPLES)
+            pB = decB(attributes, shared_dist, q=q,
+                      num_samples=NUM_SAMPLES)
 
             # decode img
             shared_dist = {'cross': 'sharedB', 'own': 'sharedA'}
@@ -442,7 +456,6 @@ def test(data, encA, decA, encB, decB, epoch):
 
             if CUDA:
                 loss = loss.cpu()
-                acc = acc.cpu()
                 for i in [0, 2]:
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
@@ -454,11 +467,26 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_recB += recB[0].item()
             epoch_rec_crB += recB[2].item()
             epoch_elbo += loss.item()
-            epoch_correct += acc.item()
-            epoch_f1 += f1.item()
+
+            img_mean = q['sharedA'].dist.loc
+            attr_mean = q['sharedB'].dist.loc
+            img_std = q['sharedA'].dist.scale
+            attr_std = q['sharedB'].dist.scale
+
+            if CUDA:
+                img_mean = img_mean.cpu()
+                attr_mean = attr_mean.cpu()
+                img_std = img_std.cpu()
+                attr_std = attr_std.cpu()
+
+            distance = torch.sqrt(torch.sum((img_mean - attr_mean) ** 2, dim=1) + \
+                                  torch.sum((img_std - attr_std) ** 2, dim=1))
+
+            distance = distance.sum()
+            epoch_distance += distance
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / N
+           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / N
 
 
 ####
@@ -489,15 +517,15 @@ if args.ckpt_epochs > 0:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, tr_acc, tr_f1 = train(train_data, encA, decA, encB, decB, optimizer)
+    train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, optimizer)
     train_end = time.time()
 
     val_start = time.time()
-    val_elbo, recon_A_val, recon_B_val, val_acc, val_f1 = test(val_data, encA, decA, encB, decB, e)
+    val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, e)
     val_end = time.time()
 
     test_start = time.time()
-    test_elbo, recon_A_test, recon_B_test, te_acc, te_f1 = test(test_data, encA, decA, encB, decB, e)
+    test_elbo, recon_A_test, recon_B_test, te_dist = test(test_data, encA, decA, encB, decB, e)
     test_end = time.time()
 
     if args.viz_on:
@@ -511,12 +539,9 @@ for e in range(args.ckpt_epochs, args.epochs):
                            recon_B_test=recon_B_test,
                            recon_A_val=recon_A_val,
                            recon_B_val=recon_B_val,
-                           tr_acc=tr_acc,
-                           val_acc=val_acc,
-                           te_acc=te_acc,
-                           tr_f1=tr_f1,
-                           val_f1=val_f1,
-                           te_f1=te_f1
+                           tr_acc=tr_dist,
+                           val_acc=val_dist,
+                           te_acc=te_dist
                            )
         visualize_line()
         LINE_GATHER.flush()

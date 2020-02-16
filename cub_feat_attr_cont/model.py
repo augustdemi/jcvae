@@ -217,9 +217,5 @@ class DecoderB(nn.Module):
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
                 pred_labels, attributes, name='attr_' + shared_from)
-            pred_labels = torch.round(torch.exp(pred_labels))
 
-            if 'cross' in shared_from:
-                acc = (pred_labels == attributes).sum() / 312
-                f1 = f1_score(attributes.cpu().detach().numpy(), pred_labels.cpu().detach().numpy(), average="samples")
-        return p, acc, f1
+        return p

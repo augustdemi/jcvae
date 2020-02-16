@@ -19,8 +19,8 @@ import h5py
 from scipy import io, misc
 from torchvision import transforms
 from torch.utils.data.dataset import Dataset
-# from utils import transform
-from PIL import Image
+from sklearn.preprocessing import Normalizer
+
 
 import random
 
@@ -43,12 +43,10 @@ class datasets(Dataset):
             val_idx = total_idx[n_tr_data:]
             if val:
                 self.filepaths = self.filepaths[val_idx]
-                self.attributes = self.attributes[val_idx]
                 self.labels = self.labels[val_idx]
                 self.boxes = self.boxes[val_idx]
             else:
                 self.filepaths = self.filepaths[tr_idx]
-                self.attributes = self.attributes[tr_idx]
                 self.labels = self.labels[tr_idx]
                 self.boxes = self.boxes[tr_idx]
 
@@ -65,12 +63,12 @@ class datasets(Dataset):
         # label:138
         # bding box: 13.0 39.0 476.0 458.0
         # attr: checked
-        img_feat, attr, label, box = self.filepaths[index], self.attributes[index], self.labels[index], self.boxes[
+        img_feat, label, box = self.filepaths[index], self.labels[index], self.boxes[
             index]
 
         label = torch.tensor(label - 1, dtype=torch.int64)
         # attr = torch.FloatTensor(attr)
-        return img_feat, attr, label
+        return img_feat, self.attributes[label], label
 
     def __len__(self):
         return len(self.labels)
@@ -88,22 +86,21 @@ def load_data(train, path, primary_attr_idx):
                             np.genfromtxt(path + "image_class_labels.txt", delimiter='\n', dtype=str)])
 
     if train:
-        vec_attr = pickle.load(open(path + "feature/vec_attr_trainval.pkl", "rb"))
         hf = h5py.File(path + 'feature/trainval_feat.h5', 'r')
     else:
-        vec_attr = pickle.load(open(path + "feature/vec_attr_test.pkl", "rb"))
         hf = h5py.File(path + 'feature/test_feat.h5', 'r')
 
-    attributes = []
-    for key in vec_attr.keys():
-        bin_attr = []
-        for i in primary_attr_idx:
-            bin_attr.extend(vec_attr[key][i][:-1])
-        attributes.append(bin_attr)
+    attributes = np.array([elt.split(' ') for elt in
+                           np.genfromtxt(path + "attributes/class_attribute_labels_continuous.txt", delimiter='\n',
+                                         dtype=str)])
+
+    attributes = attributes.astype(float)
+    normalizer = Normalizer(norm='l2').fit(attributes)
+    attributes = normalizer.transform(attributes)
 
     img_feat = np.array(hf['feature'])
     index = np.array(hf['index'])
     labels = list(imgid_label[index])
     boxes = list(boxes[index])
 
-    return img_feat, np.array(attributes), np.array(labels), np.array(boxes)
+    return img_feat, attributes, np.array(labels), np.array(boxes)
