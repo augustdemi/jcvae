@@ -403,8 +403,7 @@ def train(data, encA, decA, encB, decB, optimizer):
             epoch_f1 += f1.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / (
-           N * args.batch_size)
+           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / N
 
 
 def test(data, encA, decA, encB, decB, epoch):
@@ -461,7 +460,7 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_f1 += f1.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / (N * args.batch_size)
+           [epoch_recB / N, epoch_rec_crB / N], epoch_correct / (N * args.batch_size), epoch_f1 / N
 
 
 ####

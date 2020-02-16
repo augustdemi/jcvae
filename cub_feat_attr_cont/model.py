@@ -203,6 +203,7 @@ class DecoderB(nn.Module):
         shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
         shared_std = torch.ones_like(q['sharedB'].dist.scale)
         p = probtorch.Trace()
+        CUDA = torch.cuda.is_available()
 
         for shared_from in shared.keys():
             # prior for z_shared_atrr
@@ -220,6 +221,11 @@ class DecoderB(nn.Module):
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
                 pred_labels, attributes, name='attr_' + shared_from)
             pred_labels = torch.round(torch.exp(pred_labels))
+
             acc = (pred_labels == attributes).sum() / 312
-            f1 = f1_score(attributes, pred_labels, average="samples")
+
+            if CUDA:
+                attributes = attributes.cpu()
+                pred_labels = pred_labels.cpu()
+            f1 = f1_score(attributes.detach().numpy(), pred_labels.detach().numpy(), average="samples")
         return p, acc, f1
