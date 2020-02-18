@@ -416,13 +416,8 @@ def train(data, encA, decA, encB, decB, ae_enc, optimizer):
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
 
-            img_mean = q['sharedA'].dist.loc
-            attr_mean = q['sharedB'].dist.loc
-            img_std = q['sharedA'].dist.scale
-            attr_std = q['sharedB'].dist.scale
-
-            distance = torch.sqrt(torch.sum((img_mean - attr_mean) ** 2, dim=1) + \
-                                  torch.sum((img_std - attr_std) ** 2, dim=1))
+            distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
+                                  torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
 
             distance = distance.sum()
             if CUDA:
@@ -431,6 +426,10 @@ def train(data, encA, decA, encB, decB, ae_enc, optimizer):
 
             epoch_distance += distance.item()
 
+    del images
+    del img_feat
+    del q
+    del pA
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
            [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / N
 
@@ -639,6 +638,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, ae_encA, optimizer)
+    print('>>>> done1')
     ae_train_loss = train_ae(train_data, ae_encA, ae_decA, ae_optimizer)
     train_end = time.time()
 
@@ -672,7 +672,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         visualize_line()
         LINE_GATHER.flush()
 
-    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 1 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         recon(encA, encB, decA, ae_decA, e)
         # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
