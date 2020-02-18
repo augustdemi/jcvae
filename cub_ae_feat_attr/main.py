@@ -533,6 +533,8 @@ def train_ae(data, encA, decA, optimizer):
             if CUDA:
                 loss = loss.cpu()
             epoch_loss += loss.item()
+    del images
+    del recon_images
     return epoch_loss / N
 
 
