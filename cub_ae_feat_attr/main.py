@@ -448,6 +448,7 @@ def test(data, encA, decA, encB, decB, ae_enc):
                 images = images.cuda()
                 attributes = attributes.cuda()
             # encode
+            print(">>>>>>>>>>>>>>", images.shape)
             img_feat = ae_enc(images)
             q = encA(img_feat, num_samples=NUM_SAMPLES)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
@@ -640,7 +641,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     test_elbo, recon_A_test, recon_B_test, te_dist = test(test_data, encA, decA, encB, decB, ae_encA)
     test_end = time.time()
 
-    ae_test_loss = test(test_data, ae_encA, ae_decA)
+    ae_test_loss = test_ae(test_data, ae_encA, ae_decA)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
