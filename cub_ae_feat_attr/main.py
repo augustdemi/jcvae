@@ -303,6 +303,13 @@ if args.ckpt_epochs > 0:
         ae_decA = torch.load('%s/%s-ae_decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                              map_location='cpu')
 
+if CUDA:
+    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar')
+    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
+else:
+    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar', map_location='cpu')
+    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
+
 
 ae_optimizer = torch.optim.Adam(
     list(ae_encA.parameters()) + list(ae_decA.parameters()),
@@ -667,13 +674,6 @@ def recon(encA, encB, decA, ae_encA, ae_decA, e):
     save_image(recon_img,
                str(os.path.join(out_dir, 'recon_img.png')), nrow=int(np.sqrt(recon_img.shape[0])))
 
-
-if CUDA:
-    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar')
-    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
-else:
-    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar', map_location='cpu')
-    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
