@@ -312,7 +312,7 @@ else:
 
 
 ae_optimizer = torch.optim.Adam(
-    list(ae_encA.parameters()) + list(ae_decA.parameters()),
+    list(ae_decA.parameters()),
     lr=args.lr)
 
 optimizer = torch.optim.Adam(
@@ -382,6 +382,7 @@ def train(data, encA, decA, encB, decB, ae_enc, ae_dec, optimizer, ae_optimizer)
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
 
+    ae_enc.eval()
     N = 0
     for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
@@ -391,7 +392,6 @@ def train(data, encA, decA, encB, decB, ae_enc, ae_dec, optimizer, ae_optimizer)
             encB.train()
             decA.train()
             decB.train()
-            ae_enc.eval()
             ae_dec.eval()
 
             optimizer.zero_grad()
@@ -428,7 +428,6 @@ def train(data, encA, decA, encB, decB, ae_enc, ae_dec, optimizer, ae_optimizer)
             encB.eval()
             decA.eval()
             decB.eval()
-            ae_enc.train()
             ae_dec.train()
             ae_optimizer.zero_grad()
 
@@ -495,6 +494,7 @@ def test(data, encA, decA, encB, decB, ae_enc, ae_dec):
     decA.eval()
     decB.eval()
     ae_enc.eval()
+    ae_dec.eval()
 
     N = 0
     for b, (images, attributes, _) in enumerate(data):
