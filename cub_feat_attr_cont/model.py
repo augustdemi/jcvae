@@ -81,7 +81,8 @@ class DecoderA(nn.Module):
         # )
 
         self.dec_image = nn.Sequential(
-            nn.Linear(zPrivate_dim + zShared_dim, 2048)
+            nn.Linear(zPrivate_dim + zShared_dim, 2048),
+            nn.ReLU()
         )
 
         self.weight_init()
@@ -119,20 +120,16 @@ class DecoderA(nn.Module):
             # hiddens = self.dec_hidden(torch.cat(latents, -1))
             pred_imgs = self.dec_image(torch.cat(latents, -1))
             pred_imgs = pred_imgs.squeeze(0)
-            pred_imgs = F.logsigmoid(pred_imgs + EPS)
 
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
-                pred_imgs, images, name='images_' + shared_from)
+                torch.log(pred_imgs + EPS), images, name='images_' + shared_from)
         return p
 
-    def forward2(self, latents, cuda):
-        hiddens = self.fc(torch.cat(latents, -1))
-        x = hiddens.view(-1, 2048, 1, 1)
-        for layer in self.layers:
-            x = layer(x)
-
-        return x
+    def forward2(self, latents):
+        pred_imgs = self.dec_image(torch.cat(latents, -1))
+        pred_imgs = pred_imgs.squeeze(0)
+        return pred_imgs
 
 
 class EncoderB(nn.Module):
@@ -186,7 +183,9 @@ class DecoderB(nn.Module):
         #     nn.ReLU(),
         # )
         self.dec_label = nn.Sequential(
-            nn.Linear(zShared_dim, 312))
+            nn.Linear(zShared_dim, 312),
+            nn.ReLU()
+        )
         self.weight_init()
 
     def weight_init(self):
@@ -211,11 +210,55 @@ class DecoderB(nn.Module):
             # hiddens = self.dec_hidden(zShared)
             pred_labels = self.dec_label(zShared)
             pred_labels = pred_labels.squeeze(0)
-
-            pred_labels = F.logsigmoid(pred_labels + EPS)
-
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
-                pred_labels, attributes, name='attr_' + shared_from)
+                torch.log(pred_labels + EPS), attributes, name='attr_' + shared_from)
 
         return p
+
+
+class DecoderA2(nn.Module):
+    def __init__(self, seed):
+        super(self.__class__, self).__init__()
+        self.seed = seed
+
+        self.dec_image = nn.Sequential(
+            nn.ConvTranspose2d(512, 256, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 64, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 32, 4, 2, 1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(32, 3, 4, 2, 1),
+            nn.Sigmoid())
+
+        self.weight_init()
+
+    def weight_init(self):
+        for m in self._modules:
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
+    def forward(self, features):
+        x = features.view(features.size(0), 512, 2, 2)
+        x = self.dec_image(x)
+        return x
+
+
+class LINEAR_LOGSOFTMAX(nn.Module):
+    def __init__(self, input_dim, nclass):
+        super(LINEAR_LOGSOFTMAX, self).__init__()
+        self.fc = nn.Linear(input_dim, nclass)
+        self.logic = nn.LogSoftmax(dim=1)
+        self.lossfunction = nn.NLLLoss()
+
+    def forward(self, x):
+        o = self.logic(self.fc(x))
+        return o

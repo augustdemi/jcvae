@@ -5,7 +5,7 @@ import random
 import torch
 import os
 import numpy as np
-from model import EncoderA, DecoderA, EncoderB, DecoderB
+from model import EncoderA, DecoderA, EncoderB, DecoderB, DecoderA2, LINEAR_LOGSOFTMAX
 from datasets import datasets
 import torch.nn as nn
 import sys
@@ -22,19 +22,19 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=2, metavar='N',
+    parser.add_argument('--run_id', type=int, default=3, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
     parser.add_argument('--n_privateA', type=int, default=64,
                         help='size of the latent embedding of privateA')
-    parser.add_argument('--n_shared', type=int, default=64,
+    parser.add_argument('--n_shared', type=int, default=28,
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=120, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+    parser.add_argument('--epochs', type=int, default=120, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -55,7 +55,7 @@ if __name__ == "__main__":
                         help='cuda')
     parser.add_argument('--outgpu', type=int, default=-1,
                         help='outgpu')
-    parser.add_argument('--num_hidden', type=int, default=512,
+    parser.add_argument('--num_hidden', type=int, default=0,
                         help='num_hidden')
 
     parser.add_argument('--data_path', type=str, default='../../data/cub/CUB_200_2011/CUB_200_2011/',
@@ -398,21 +398,13 @@ def train(data, encA, decA, encB, decB, optimizer):
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
 
-            img_mean = q['sharedA'].dist.loc
-            attr_mean = q['sharedB'].dist.loc
-            img_std = q['sharedA'].dist.scale
-            attr_std = q['sharedB'].dist.scale
-
-            if CUDA:
-                img_mean = img_mean.cpu()
-                attr_mean = attr_mean.cpu()
-                img_std = img_std.cpu()
-                attr_std = attr_std.cpu()
-
-            distance = torch.sqrt(torch.sum((img_mean - attr_mean) ** 2, dim=1) + \
-                                  torch.sum((img_std - attr_std) ** 2, dim=1))
+            distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
+                                  torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
 
             distance = distance.sum()
+            if CUDA:
+                distance = distance.cup()
+
             epoch_distance += distance.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
@@ -428,6 +420,134 @@ def test(data, encA, decA, encB, decB, epoch):
     epoch_recA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_crB = 0.0
     N = 0
+    for b, (images, attributes, _) in enumerate(data):
+        if images.size()[0] == args.batch_size:
+            N += 1
+            attributes = attributes.float()
+            optimizer.zero_grad()
+            if CUDA:
+                images = images.cuda()
+                attributes = attributes.cuda()
+            # encode
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
+
+            # decode attr
+            shared_dist = {'cross': 'sharedA', 'own': 'sharedB'}
+            pB = decB(attributes, shared_dist, q=q,
+                      num_samples=NUM_SAMPLES)
+
+            # decode img
+            shared_dist = {'cross': 'sharedB', 'own': 'sharedA'}
+            pA = decA(images, shared_dist, q=q,
+                      num_samples=NUM_SAMPLES)
+
+            # loss
+            loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
+            ######
+
+            if CUDA:
+                loss = loss.cpu()
+                for i in [0, 2]:
+                    recA[i] = recA[i].cpu()
+                    recB[i] = recB[i].cpu()
+
+            epoch_elbo += loss.item()
+            epoch_recA += recA[0].item()
+            epoch_rec_crA += recA[2].item()
+
+            epoch_recB += recB[0].item()
+            epoch_rec_crB += recB[2].item()
+            epoch_elbo += loss.item()
+
+            distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
+                                  torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
+
+            distance = distance.sum()
+            if CUDA:
+                distance = distance.cup()
+
+            epoch_distance += distance
+
+    return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
+           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / N
+
+
+####
+def save_ckpt(e):
+    torch.save(encA, '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(encB, '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decA, '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decB, '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+
+if args.ckpt_epochs > 0:
+    if CUDA:
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+    else:
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+
+for e in range(args.ckpt_epochs, args.epochs):
+    train_start = time.time()
+    train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, optimizer)
+    train_end = time.time()
+
+    val_start = time.time()
+    val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, e)
+    val_end = time.time()
+
+    test_start = time.time()
+    test_elbo, recon_A_test, recon_B_test, te_dist = test(test_data, encA, decA, encB, decB, e)
+    test_end = time.time()
+
+    if args.viz_on:
+        LINE_GATHER.insert(epoch=e,
+                           test_total_loss=test_elbo,
+                           val_total_loss=val_elbo,
+                           total_loss=train_elbo,
+                           recon_A=rec_lossA,
+                           recon_B=rec_lossB,
+                           recon_A_test=recon_A_test,
+                           recon_B_test=recon_B_test,
+                           recon_A_val=recon_A_val,
+                           recon_B_val=recon_B_val,
+                           tr_acc=tr_dist,
+                           val_acc=val_dist,
+                           te_acc=te_dist
+                           )
+        visualize_line()
+        LINE_GATHER.flush()
+
+    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
+        save_ckpt(e + 1)
+        # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+        #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
+        #                                       private=False)  # 2880
+        # util.evaluation.save_traverse_cub_ia2(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
+        #                                       fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
+        #                                       private=False)
+    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
+        e, train_elbo, train_end - train_start,
+        test_elbo, recon_B_test[1], test_end - test_start))
+
+
+###############################
+
+def classifier(data, encA, decA, encB, decB):
+    encA.eval()
+    decA.eval()
+    encB.eval()
+    decB.eval()
+    epoch_elbo = epoch_distance = 0.0
+    epoch_recA = epoch_rec_crA = 0.0
+    epoch_recB = epoch_rec_crB = 0.0
+    N = 0
+    clf = LINEAR_LOGSOFTMAX(64, 50)
     for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
@@ -489,87 +609,50 @@ def test(data, encA, decA, encB, decB, epoch):
            [epoch_recB / N, epoch_rec_crB / N], epoch_distance / N
 
 
-####
-def save_ckpt(e):
-    torch.save(encA, '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(encB, '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decA, '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decB, '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-
-
-####
-# encA.resnet.load_state_dict(torch.load(
-#     '../weights/cub/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta1.0_10.0_1.0-lr0.001-bs50-wseed0-seed0-encA_res_epoch400.rar'))
-# decA.layers.load_state_dict(torch.load(
-#     '../weights/cub/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta1.0_10.0_1.0-lr0.001-bs50-wseed0-seed0-decA_layers_epoch400.rar'))
-
-if args.ckpt_epochs > 0:
-    if CUDA:
-        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-    else:
-        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-
-for e in range(args.ckpt_epochs, args.epochs):
-    train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, optimizer)
-    train_end = time.time()
-
-    val_start = time.time()
-    val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, e)
-    val_end = time.time()
-
-    test_start = time.time()
-    test_elbo, recon_A_test, recon_B_test, te_dist = test(test_data, encA, decA, encB, decB, e)
-    test_end = time.time()
-
-    if args.viz_on:
-        LINE_GATHER.insert(epoch=e,
-                           test_total_loss=test_elbo,
-                           val_total_loss=val_elbo,
-                           total_loss=train_elbo,
-                           recon_A=rec_lossA,
-                           recon_B=rec_lossB,
-                           recon_A_test=recon_A_test,
-                           recon_B_test=recon_B_test,
-                           recon_A_val=recon_A_val,
-                           recon_B_val=recon_B_val,
-                           tr_acc=tr_dist,
-                           val_acc=val_dist,
-                           te_acc=te_dist
-                           )
-        visualize_line()
-        LINE_GATHER.flush()
-
-    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
-        save_ckpt(e + 1)
-        # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-        #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
-        #                                       private=False)  # 2880
-        # util.evaluation.save_traverse_cub_ia2(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-        #                                       fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
-        #                                       private=False)
-    print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
-        e, train_elbo, train_end - train_start,
-        test_elbo, recon_B_test[1], test_end - test_start))
+###############################
 
 if args.ckpt_epochs == args.epochs:
-    # util.evaluation.save_recon_cub(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
-    #                                   fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312])
-    test_elbo, recon_A_test, recon_B_test, te_acc, te_f1 = test(test_data, encA, decA, encB, decB, args.ckpt_epochs)
-    # util.evaluation.save_traverse_cub_ia2(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-    #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
-    #                                       private=False)  # 2880
-    # # train
-    # util.evaluation.save_traverse_cub_ia2(args.epochs, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-    #                                       fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
-    #                                       private=False)
 
+    ae_decA = DecoderA2(0)
+    if CUDA:
+        ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
+    else:
+        ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
+
+    fixed_idxs = [658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
+                  1270, 2133, 2856, 2680, 1300]
+    imgs = [0] * len(fixed_idxs)
+    attributes = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        imgs[i], attributes[i] = test_data.dataset.__getitem__(idx)[:2]
+        if CUDA:
+            imgs[i] = imgs[i].cuda()
+            imgs[i] = imgs[i].squeeze(0)
+            attributes[i] = attributes[i].cuda()
+    imgs = torch.stack(imgs, dim=0)
+    attributes = torch.stack(attributes, dim=0)
+
+    q = encA(imgs, num_samples=1)
+    q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
+    latents = [q['privateA'].dist.loc, q['sharedA'].dist.loc]
+    recon_img_feat = decA.forward2(latents)
+    recon_img = ae_decA.forward(recon_img_feat)
+
+    from torchvision.utils import save_image
+
+
+    def mkdirs(path):
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+
+    out_dir = os.path.join('../output/' + MODEL_NAME, str(args.ckpt_epochs), str(fixed_idxs))
+    mkdirs(out_dir)
+    # save_image(imgs,
+    #            str(os.path.join(out_dir, 'gt_image.png')), nrow=int(np.sqrt(imgs.shape[0])))
+    save_image(recon_img,
+               str(os.path.join(out_dir, 'recon_image.png')), nrow=int(np.sqrt(recon_img.shape[0])))
 
 else:
     save_ckpt(args.epochs)

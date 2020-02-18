@@ -67,8 +67,9 @@ class datasets(Dataset):
             index]
 
         label = torch.tensor(label - 1, dtype=torch.int64)
-        # attr = torch.FloatTensor(attr)
-        return img_feat, self.attributes[label], label
+        img_feat = torch.tensor(img_feat, dtype=torch.float)
+        attr = torch.tensor(self.attributes[label], dtype=torch.float)
+        return img_feat, attr, label
 
     def __len__(self):
         return len(self.labels)
