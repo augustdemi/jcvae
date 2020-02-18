@@ -623,14 +623,12 @@ def recon(encA, encB, decA, ae_decA, e):
 for e in range(args.ckpt_epochs, args.epochs):
 
     train_start = time.time()
-    # train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, ae_encA, optimizer)
-    # print('>>>> done1')
-    # ae_train_loss = train_ae(train_data, ae_encA, ae_decA, ae_optimizer)
-    # print('>>>> done2')
+    train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, ae_encA, optimizer)
+    ae_train_loss = train_ae(train_data, ae_encA, ae_decA, ae_optimizer)
     train_end = time.time()
 
     val_start = time.time()
-    # val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, ae_encA)
+    val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, ae_encA)
     val_end = time.time()
 
     test_start = time.time()
