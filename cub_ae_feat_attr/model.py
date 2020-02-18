@@ -107,6 +107,7 @@ class DecoderImgF(nn.Module):
                             value=q['privateA'],
                             name='privateA')
 
+        recon_img = {}
         for shared_from in shared.keys():
             latents = [zPrivate]
             # prior for z_shared_atrr
@@ -119,12 +120,14 @@ class DecoderImgF(nn.Module):
             # hiddens = self.dec_hidden(torch.cat(latents, -1))
             pred_imgs = self.dec_image(torch.cat(latents, -1))
             pred_imgs = pred_imgs.squeeze(0)
-            pred_imgs = F.logsigmoid(pred_imgs + EPS)
+            pred_imgs = F.sigmoid(pred_imgs)
 
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
-                pred_imgs, images, name='images_' + shared_from)
-        return p
+                torch.log(pred_imgs + EPS), images, name='images_' + shared_from)
+
+            recon_img.update({shared_from: pred_imgs})
+        return p, recon_img
 
     def forward2(self, latents):
         pred_imgs = self.dec_image(torch.cat(latents, -1))

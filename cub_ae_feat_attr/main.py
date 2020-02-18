@@ -286,14 +286,15 @@ if CUDA:
     cuda_tensors(ae_decA)
 
 
+ae_optimizer = torch.optim.Adam(
+    list(ae_encA.parameters()) + list(ae_decA.parameters()),
+    lr=args.lr)
+
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(
         encA.parameters()) + list(decA.parameters()),
     lr=args.lr)
 
-ae_optimizer = torch.optim.Adam(
-    list(ae_encA.parameters()) + list(ae_decA.parameters()),
-    lr=args.lr)
 
 
 def elbo(q, pA, pB=None, lamb=[1., 1.], beta=[1., 1.], bias=1.0, train=True):
@@ -351,20 +352,23 @@ def elbo(q, pA, pB=None, lamb=[1., 1.], beta=[1., 1.], bias=1.0, train=True):
                                                                           reconst_loss_crB]
 
 
-def train(data, encA, decA, encB, decB, ae_enc, optimizer):
-    epoch_elbo = epoch_distance = 0.0
+def train(data, encA, decA, encB, decB, ae_enc, ae_dec, optimizer, ae_optimizer):
+    epoch_elbo = epoch_distance = epoch_ae_loss = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
-    encA.train()
-    encB.train()
-    decA.train()
-    decB.train()
-    ae_enc.eval()
 
     N = 0
     for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
+
+            encA.train()
+            encB.train()
+            decA.train()
+            decB.train()
+            ae_enc.eval()
+            ae_dec.eval()
+
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
@@ -387,19 +391,52 @@ def train(data, encA, decA, encB, decB, ae_enc, optimizer):
 
             # decode img
             shared_dist = {'poe': 'poe', 'cross': 'sharedB', 'own': 'sharedA'}
-            pA = decA(img_feat, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pA, recon_feat = decA(img_feat, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TRAIN)
-            loss.backward()
+            loss.backward(retain_graph=True)
             optimizer.step()
+
+            ######################################
+            encA.eval()
+            encB.eval()
+            decA.eval()
+            decB.eval()
+            ae_enc.train()
+            ae_dec.train()
+            ae_optimizer.zero_grad()
+
+            # original feat
+            recon_images = ae_dec(img_feat)
+            recon_images = recon_images.view(recon_images.size(0), -1)
+
+            # recon img modal feat
+            recon_images_own = ae_dec(recon_feat['own'])
+            recon_images_own = recon_images_own.view(recon_images_own.size(0), -1)
+
+            # recon cross modal feat
+            recon_images_cross = ae_dec(recon_feat['cross'])
+            recon_images_cross = recon_images_cross.view(recon_images_cross.size(0), -1)
+
+            images = images.view(images.size(0), -1)
+            ae_loss = recon_loss(recon_images, images).mean() + recon_loss(recon_images_own,
+                                                                           images).mean() + recon_loss(
+                recon_images_cross, images).mean()
+            ae_loss.backward()
+            ae_optimizer.step()
+            ######################################
+
             if CUDA:
                 loss = loss.cpu()
+                ae_loss = ae_loss.cpu()
                 for i in range(3):
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
 
             epoch_elbo += loss.item()
+            epoch_ae_loss += ae_loss.item() / 3
+
             epoch_recA += recA[0].item()
             epoch_rec_poeA += recA[1].item()
             epoch_rec_crA += recA[2].item()
@@ -418,8 +455,10 @@ def train(data, encA, decA, encB, decB, ae_enc, optimizer):
 
             epoch_distance += distance.item()
 
+    print('enc:', ae_enc.resnet[0].weight.sum())
+    print('dec:', ae_dec.dec_image[0].weight.sum())
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / N
+           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / N, epoch_ae_loss / N
 
 
 
@@ -437,7 +476,6 @@ def test(data, encA, decA, encB, decB, ae_enc):
     for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
                 attributes = attributes.cuda()
@@ -489,25 +527,25 @@ def recon_loss(recon, orig):
              torch.log(1 - recon + EPS) * (1 - orig)).sum(-1)
 
 
-def train_ae(data, encA, decA, optimizer):
+def train_ae(data, ae_enc, ae_dec, ae_optimizer):
     epoch_loss = 0.0
-    encA.train()
-    decA.train()
+    ae_enc.train()
+    ae_dec.train()
     N = 0
 
     for b, (images, _, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            optimizer.zero_grad()
+            ae_optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
-            feature = encA(images)
-            recon_images = decA(feature)
+            feature = ae_enc(images)
+            recon_images = ae_dec(feature)
             recon_images = recon_images.view(recon_images.size(0), -1)
             images = images.view(images.size(0), -1)
             loss = recon_loss(recon_images, images).mean()
             loss.backward()
-            optimizer.step()
+            ae_optimizer.step()
             if CUDA:
                 loss = loss.cpu()
             epoch_loss += loss.item()
@@ -622,8 +660,9 @@ else:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, ae_encA, optimizer)
-    ae_train_loss = train_ae(train_data, ae_encA, ae_decA, ae_optimizer)
+    train_elbo, rec_lossA, rec_lossB, tr_dist, ae_train_loss = train(train_data, encA, decA, encB, decB, ae_encA,
+                                                                     ae_decA, optimizer, ae_optimizer)
+    # ae_train_loss = train_ae(train_data, ae_encA, ae_decA, ae_optimizer)
     train_end = time.time()
 
     val_start = time.time()
