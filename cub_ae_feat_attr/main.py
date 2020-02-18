@@ -285,6 +285,24 @@ if CUDA:
     cuda_tensors(ae_encA)
     cuda_tensors(ae_decA)
 
+if args.ckpt_epochs > 0:
+    if CUDA:
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        ae_encA = torch.load('%s/%s-ae_encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        ae_decA = torch.load('%s/%s-ae_decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+    else:
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        ae_encA = torch.load('%s/%s-ae_encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+                             map_location='cpu')
+        ae_decA = torch.load('%s/%s-ae_decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+                             map_location='cpu')
+
 
 ae_optimizer = torch.optim.Adam(
     list(ae_encA.parameters()) + list(ae_decA.parameters()),
@@ -461,9 +479,8 @@ def train(data, encA, decA, encB, decB, ae_enc, ae_dec, optimizer, ae_optimizer)
            [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / N, epoch_ae_loss / N
 
 
-
-def test(data, encA, decA, encB, decB, ae_enc):
-    epoch_elbo = epoch_distance = 0.0
+def test(data, encA, decA, encB, decB, ae_enc, ae_dec):
+    epoch_elbo = epoch_distance = epoch_ae_loss = 0.0
     epoch_recA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_crB = 0.0
     encA.eval()
@@ -490,18 +507,37 @@ def test(data, encA, decA, encB, decB, ae_enc):
 
             # decode img
             shared_dist = {'cross': 'sharedB', 'own': 'sharedA'}
-            pA, _ = decA(img_feat, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pA, recon_feat = decA(img_feat, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
 
+            # original feat
+            recon_images = ae_dec(img_feat)
+            recon_images = recon_images.view(recon_images.size(0), -1)
+
+            # recon img modal feat
+            recon_images_own = ae_dec(recon_feat['own'])
+            recon_images_own = recon_images_own.view(recon_images_own.size(0), -1)
+
+            # recon cross modal feat
+            recon_images_cross = ae_dec(recon_feat['cross'])
+            recon_images_cross = recon_images_cross.view(recon_images_cross.size(0), -1)
+
+            images = images.view(images.size(0), -1)
+            ae_loss = recon_loss(recon_images, images).mean() + recon_loss(recon_images_own,
+                                                                           images).mean() + recon_loss(
+                recon_images_cross, images).mean()
+
             if CUDA:
                 loss = loss.cpu()
+                ae_loss = ae_loss.cpu()
                 for i in [0, 2]:
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
 
             epoch_elbo += loss.item()
+            epoch_ae_loss += ae_loss.item() / 3
             epoch_recA += recA[0].item()
             epoch_rec_crA += recA[2].item()
 
@@ -518,7 +554,7 @@ def test(data, encA, decA, encB, decB, ae_enc):
             epoch_distance += distance.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / N
+           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / N, epoch_ae_loss / N
 
 
 ##################### AE ###########################
@@ -581,25 +617,6 @@ def save_ckpt(e):
     torch.save(decB, '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
     torch.save(ae_encA, '%s/%s-ae_enc_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
     torch.save(ae_decA, '%s/%s-ae_dec_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-
-
-if args.ckpt_epochs > 0:
-    if CUDA:
-        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        ae_encA = torch.load('%s/%s-ae_encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        ae_decA = torch.load('%s/%s-ae_decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-    else:
-        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        ae_encA = torch.load('%s/%s-ae_encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                             map_location='cpu')
-        ae_decA = torch.load('%s/%s-ae_decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                             map_location='cpu')
 
 
 def mkdirs(path):
@@ -666,14 +683,15 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
 
     val_start = time.time()
-    val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, ae_encA)
+    val_elbo, recon_A_val, recon_B_val, val_dist, _ = test(val_data, encA, decA, encB, decB, ae_encA, ae_decA)
     val_end = time.time()
 
     test_start = time.time()
-    test_elbo, recon_A_test, recon_B_test, te_dist = test(test_data, encA, decA, encB, decB, ae_encA)
+    test_elbo, recon_A_test, recon_B_test, te_dist, ae_test_loss = test(test_data, encA, decA, encB, decB, ae_encA,
+                                                                        ae_decA)
     test_end = time.time()
 
-    ae_test_loss = test_ae(test_data, ae_encA, ae_decA)
+    # ae_test_loss = test_ae(test_data, ae_encA, ae_decA)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
