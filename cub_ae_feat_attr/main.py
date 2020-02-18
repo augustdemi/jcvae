@@ -658,7 +658,7 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 1 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        recon(encA, encB, decA, ae_decA, e)
+        recon(encA, encB, decA, ae_encA, ae_decA, e)
         # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
         #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
         #                                       private=False)  # 2880
