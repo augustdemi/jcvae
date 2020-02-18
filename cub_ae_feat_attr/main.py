@@ -513,10 +513,8 @@ def train_ae(data, encA, decA, optimizer):
     epoch_loss = 0.0
     encA.train()
     decA.train()
-
     N = 0
 
-    torch.autograd.set_detect_anomaly(True)
     for b, (images, _, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
@@ -535,6 +533,8 @@ def train_ae(data, encA, decA, optimizer):
             epoch_loss += loss.item()
     del images
     del recon_images
+    del encA
+    del decA
     return epoch_loss / N
 
 
@@ -642,6 +642,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, ae_encA, optimizer)
     print('>>>> done1')
     ae_train_loss = train_ae(train_data, ae_encA, ae_decA, ae_optimizer)
+    print('>>>> done2')
     train_end = time.time()
 
     val_start = time.time()
