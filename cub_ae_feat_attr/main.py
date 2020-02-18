@@ -85,7 +85,7 @@ beta = [float(i) for i in args.beta.split(',')]
 lamb = [float(i) for i in args.lamb.split(',')]
 
 # path parameters
-MODEL_NAME = 'cub_feat_attr_cont-run_id%d-privA%02ddim-shared%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s-num_hidden%s' % (
+MODEL_NAME = 'cub_ae_feat_attr-run_id%d-privA%02ddim-shared%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s-num_hidden%s' % (
     args.run_id, args.n_privateA, args.n_shared, '_'.join([str(elt) for elt in lamb]),
     '_'.join([str(elt) for elt in beta]),
     args.lr, args.batch_size, args.wseed, args.seed, args.num_hidden)
