@@ -634,7 +634,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
 
     val_start = time.time()
-    val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, ae_encA)
+    # val_elbo, recon_A_val, recon_B_val, val_dist = test(val_data, encA, decA, encB, decB, ae_encA)
     val_end = time.time()
 
     test_start = time.time()
