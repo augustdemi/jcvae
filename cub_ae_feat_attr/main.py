@@ -5,8 +5,7 @@ import random
 import torch
 import os
 import numpy as np
-from model import EncoderA, DecoderA, EncoderB, DecoderB
-import ae_model
+from model import EncoderImgF, DecoderImgF, EncoderAttr, DecoderAttr, EncoderA, DecoderA2
 from datasets import datasets
 import torch.nn as nn
 import sys
@@ -263,13 +262,13 @@ def cuda_tensors(obj):
             setattr(obj, attr, value.cuda())
 
 
-encA = EncoderA(args.wseed, zPrivate_dim=args.n_privateA, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
-decA = DecoderA(args.wseed, zPrivate_dim=args.n_privateA, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
-encB = EncoderB(args.wseed, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
-decB = DecoderB(args.wseed, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
+encA = EncoderImgF(args.wseed, zPrivate_dim=args.n_privateA, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
+decA = DecoderImgF(args.wseed, zPrivate_dim=args.n_privateA, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
+encB = EncoderAttr(args.wseed, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
+decB = DecoderAttr(args.wseed, zShared_dim=args.n_shared, num_hidden=args.num_hidden)
 
-ae_encA = ae_model.EncoderA(0)
-ae_decA = ae_model.DecoderA2(0)
+ae_encA = EncoderA(0)
+ae_decA = DecoderA2(0)
 
 
 if CUDA:
