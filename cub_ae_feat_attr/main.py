@@ -490,7 +490,7 @@ def test(data, encA, decA, encB, decB, ae_enc):
 
             # decode img
             shared_dist = {'cross': 'sharedB', 'own': 'sharedA'}
-            pA = decA(img_feat, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pA, _ = decA(img_feat, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
