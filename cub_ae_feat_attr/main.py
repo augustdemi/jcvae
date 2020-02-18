@@ -373,7 +373,6 @@ def train(data, encA, decA, encB, decB, ae_enc, optimizer):
     for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            attributes = attributes.float()
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
@@ -422,16 +421,14 @@ def train(data, encA, decA, encB, decB, ae_enc, optimizer):
             img_std = q['sharedA'].dist.scale
             attr_std = q['sharedB'].dist.scale
 
-            if CUDA:
-                img_mean = img_mean.cpu()
-                attr_mean = attr_mean.cpu()
-                img_std = img_std.cpu()
-                attr_std = attr_std.cpu()
-
             distance = torch.sqrt(torch.sum((img_mean - attr_mean) ** 2, dim=1) + \
                                   torch.sum((img_std - attr_std) ** 2, dim=1))
 
             distance = distance.sum()
+            if CUDA:
+                distance = distance.cpu()
+
+
             epoch_distance += distance.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
@@ -451,7 +448,6 @@ def test(data, encA, decA, encB, decB, ae_enc):
     for b, (images, attributes, _) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            attributes = attributes.float()
             optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
@@ -494,16 +490,14 @@ def test(data, encA, decA, encB, decB, ae_enc):
             img_std = q['sharedA'].dist.scale
             attr_std = q['sharedB'].dist.scale
 
-            if CUDA:
-                img_mean = img_mean.cpu()
-                attr_mean = attr_mean.cpu()
-                img_std = img_std.cpu()
-                attr_std = attr_std.cpu()
-
             distance = torch.sqrt(torch.sum((img_mean - attr_mean) ** 2, dim=1) + \
                                   torch.sum((img_std - attr_std) ** 2, dim=1))
 
             distance = distance.sum()
+
+            if CUDA:
+                distance = distance.cpu()
+
             epoch_distance += distance
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
@@ -586,15 +580,17 @@ if args.ckpt_epochs > 0:
         encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
         decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
         decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar')
-        ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
+        ae_encA = torch.load('%s/%s-ae_encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        ae_decA = torch.load('%s/%s-ae_decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
     else:
         encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
         encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
         decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
         decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar', map_location='cpu')
-        ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
+        ae_encA = torch.load('%s/%s-ae_encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+                             map_location='cpu')
+        ae_decA = torch.load('%s/%s-ae_decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+                             map_location='cpu')
 
 
 def mkdirs(path):
