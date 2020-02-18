@@ -285,14 +285,6 @@ if CUDA:
     cuda_tensors(ae_encA)
     cuda_tensors(ae_decA)
 
-if CUDA:
-    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar')
-    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
-else:
-    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar', map_location='cpu')
-    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
-
-
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(
@@ -595,15 +587,17 @@ def recon(encA, encB, decA, ae_encA, ae_decA, e):
     img_feat = ae_encA(imgs)
     q = encA(img_feat, num_samples=1)
     q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
+
     latents_own = [q['privateA'].dist.loc, q['sharedA'].dist.loc]
     latents_cross = [q['privateA'].dist.loc, q['sharedB'].dist.loc]
+
     recon_img_feat_own = decA.forward2(latents_own)
-    recon_img_own = ae_decA.forward(torch.exp(recon_img_feat_own))
+    recon_img_own = ae_decA.forward(recon_img_feat_own)
 
     recon_img_feat_cross = decA.forward2(latents_cross)
-    recon_img_cross = ae_decA.forward(torch.exp(recon_img_feat_cross))
+    recon_img_cross = ae_decA.forward(recon_img_feat_cross)
 
-    recon_img = ae_decA.forward(torch.exp(img_feat))
+    recon_img = ae_decA.forward(img_feat)
 
     from torchvision.utils import save_image
 
@@ -619,8 +613,14 @@ def recon(encA, encB, decA, ae_encA, ae_decA, e):
                str(os.path.join(out_dir, 'recon_img.png')), nrow=int(np.sqrt(recon_img.shape[0])))
 
 
-for e in range(args.ckpt_epochs, args.epochs):
+if CUDA:
+    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar')
+    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
+else:
+    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar', map_location='cpu')
+    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
 
+for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB, tr_dist = train(train_data, encA, decA, encB, decB, ae_encA, optimizer)
     ae_train_loss = train_ae(train_data, ae_encA, ae_decA, ae_optimizer)
@@ -656,7 +656,7 @@ for e in range(args.ckpt_epochs, args.epochs):
         visualize_line()
         LINE_GATHER.flush()
 
-    if (e + 1) % 1 == 0 or e + 1 == args.epochs:
+    if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
         recon(encA, encB, decA, ae_encA, ae_decA, e)
         # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
