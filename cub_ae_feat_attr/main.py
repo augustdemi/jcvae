@@ -433,8 +433,8 @@ def train(data, encA, decA, encB, decB, ae_enc, optimizer):
 
 def test(data, encA, decA, encB, decB, ae_enc):
     epoch_elbo = epoch_distance = 0.0
-    epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
-    epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
+    epoch_recA = epoch_rec_crA = 0.0
+    epoch_recB = epoch_rec_crB = 0.0
     encA.eval()
     encB.eval()
     decA.eval()
@@ -553,12 +553,6 @@ def save_ckpt(e):
     torch.save(ae_decA, '%s/%s-ae_dec_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
 
 
-####
-# encA.resnet.load_state_dict(torch.load(
-#     '../weights/cub/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta1.0_10.0_1.0-lr0.001-bs50-wseed0-seed0-encA_res_epoch400.rar'))
-# decA.layers.load_state_dict(torch.load(
-#     '../weights/cub/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta1.0_10.0_1.0-lr0.001-bs50-wseed0-seed0-decA_layers_epoch400.rar'))
-
 if args.ckpt_epochs > 0:
     if CUDA:
         encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
@@ -583,7 +577,7 @@ def mkdirs(path):
         os.makedirs(path)
 
 
-def recon(encA, encB, decA, ae_decA, e):
+def recon(encA, encB, decA, ae_encA, ae_decA, e):
     fixed_idxs = [658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
                   1270, 2133, 2856, 2680, 1300]
     imgs = [0] * len(fixed_idxs)
@@ -598,7 +592,8 @@ def recon(encA, encB, decA, ae_decA, e):
     imgs = torch.stack(imgs, dim=0)
     attributes = torch.stack(attributes, dim=0)
 
-    q = encA(imgs, num_samples=1)
+    img_feat = ae_encA(imgs)
+    q = encA(img_feat, num_samples=1)
     q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
     latents_own = [q['privateA'].dist.loc, q['sharedA'].dist.loc]
     latents_cross = [q['privateA'].dist.loc, q['sharedB'].dist.loc]
@@ -607,6 +602,8 @@ def recon(encA, encB, decA, ae_decA, e):
 
     recon_img_feat_cross = decA.forward2(latents_cross)
     recon_img_cross = ae_decA.forward(torch.exp(recon_img_feat_cross))
+
+    recon_img = ae_decA.forward(torch.exp(img_feat))
 
     from torchvision.utils import save_image
 
@@ -618,6 +615,8 @@ def recon(encA, encB, decA, ae_decA, e):
                str(os.path.join(out_dir, 'recon_img_own.png')), nrow=int(np.sqrt(recon_img_own.shape[0])))
     save_image(recon_img_cross,
                str(os.path.join(out_dir, 'recon_img_cross.png')), nrow=int(np.sqrt(recon_img_cross.shape[0])))
+    save_image(recon_img,
+               str(os.path.join(out_dir, 'recon_img.png')), nrow=int(np.sqrt(recon_img.shape[0])))
 
 
 for e in range(args.ckpt_epochs, args.epochs):
