@@ -271,21 +271,29 @@ decB = DecoderB(args.wseed, zShared_dim=args.n_shared, num_hidden=args.num_hidde
 ae_encA = ae_model.EncoderA(0)
 ae_decA = ae_model.DecoderA2(0)
 
+
 if CUDA:
     encA.cuda()
     decA.cuda()
     encB.cuda()
     decB.cuda()
+    ae_encA.cuda()
+    ae_decA.cuda()
     cuda_tensors(encA)
     cuda_tensors(decA)
     cuda_tensors(encB)
     cuda_tensors(decB)
-    if len(args.gpu) > 2:
-        print('multi: ' + args.gpu)
-        encA = nn.DataParallel(encA)
-        decA = nn.DataParallel(decA)
-        encB = nn.DataParallel(encB)
-        decB = nn.DataParallel(decB)
+    cuda_tensors(ae_encA)
+    cuda_tensors(ae_decA)
+
+if CUDA:
+    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar')
+    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
+else:
+    ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar', map_location='cpu')
+    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
+
+
 
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(
