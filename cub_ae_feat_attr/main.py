@@ -305,10 +305,10 @@ if args.ckpt_epochs > 0:
 
 if CUDA:
     ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar')
-    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
+    # ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
 else:
     ae_encA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-encA_epoch200.rar', map_location='cpu')
-    ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
+    # ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
 
 
 ae_optimizer = torch.optim.Adam(
@@ -631,14 +631,13 @@ def mkdirs(path):
         os.makedirs(path)
 
 
-def recon(encA, encB, decA, ae_encA, ae_decA, e):
-    fixed_idxs = [658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
-                  1270, 2133, 2856, 2680, 1300]
+def recon(encA, encB, decA, ae_encA, ae_decA, e, data_loader, fixed_idxs):
+
     imgs = [0] * len(fixed_idxs)
     attributes = [0] * len(fixed_idxs)
 
     for i, idx in enumerate(fixed_idxs):
-        imgs[i], attributes[i] = test_data.dataset.__getitem__(idx)[:2]
+        imgs[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
         if CUDA:
             imgs[i] = imgs[i].cuda()
             imgs[i] = imgs[i].squeeze(0)
@@ -676,6 +675,10 @@ def recon(encA, encB, decA, ae_encA, ae_decA, e):
 
 
 for e in range(args.ckpt_epochs, args.epochs):
+    recon(encA, encB, decA, ae_encA, ae_decA, e, train_data,
+          [130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312, 230, 415,
+           602, 737, 3288, 1500])
+
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB, tr_dist, ae_train_loss = train(train_data, encA, decA, encB, decB, ae_encA,
                                                                      ae_decA, optimizer, ae_optimizer)
@@ -715,13 +718,14 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        recon(encA, encB, decA, ae_encA, ae_decA, e)
-        # util.evaluation.save_traverse_cub_ia2(e, test_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-        #                                       fixed_idxs=[277, 342, 658, 1570, 2233, 2388, 2880, 1344, 2750, 1111],
-        #                                       private=False)  # 2880
-        # util.evaluation.save_traverse_cub_ia2(e, train_data, encA, decA, CUDA, MODEL_NAME, ATTR_DIM,
-        #                                       fixed_idxs=[336, 502, 537, 575, 4288, 1000, 2400, 1220, 3002, 3312],
-        #                                       private=False)
+        recon(encA, encB, decA, ae_encA, ae_decA, e, test_data,
+              [658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
+               1270, 2133, 2856, 2680, 1300])
+        recon(encA, encB, decA, ae_encA, ae_decA, e, train_data,
+              [130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312, 230, 415,
+               602, 737, 3288, 1500])
+
+
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, recon_B_test[1], test_end - test_start))
