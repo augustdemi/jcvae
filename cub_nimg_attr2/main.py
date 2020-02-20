@@ -469,11 +469,8 @@ if args.ckpt_epochs > 0:
         decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
 
 for e in range(args.ckpt_epochs, args.epochs):
-    util.evaluation.save_recon_cub_cont(e, train_data, encA, decA, encB, CUDA, MODEL_NAME,
-                                        fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312, 160,
-                                                    280, 640, 1400, 1777, 3100])
     train_start = time.time()
-    # train_elbo, rec_lossA, rec_lossB, tr_acc = train(train_data, encA, decA, encB, decB, optimizer)
+    train_elbo, rec_lossA, rec_lossB, tr_acc = train(train_data, encA, decA, encB, decB, optimizer)
     train_end = time.time()
 
     val_start = time.time()
