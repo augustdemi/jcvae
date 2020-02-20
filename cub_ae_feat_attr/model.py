@@ -252,17 +252,22 @@ class DecoderA2(nn.Module):
         self.seed = seed
 
         self.dec_image = nn.Sequential(
-            nn.ConvTranspose2d(512, 256, 4, 2, 1),
+            nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.ConvTranspose2d(256, 128, 4, 2, 1),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.ConvTranspose2d(128, 64, 4, 2, 1),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 64, 4, 2, 1),
+            nn.ConvTranspose2d(64, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 32, 4, 2, 1),
+            nn.ConvTranspose2d(64, 32, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.ConvTranspose2d(32, 3, 4, 2, 1),
+            nn.ConvTranspose2d(32, 3, 4, 2, 1, bias=False),
             nn.Sigmoid())
 
         self.weight_init()
