@@ -2009,7 +2009,7 @@ def save_recon_cub_vae(iters, data_loader, enc, dec, cuda, output_dir_trvsl, fix
                str(os.path.join(out_dir, 'recon_image.png')), nrow=int(np.sqrt(recon_img.shape[0])))
 
 
-def save_recon_cub_cont(iters, data_loader, enc, dec, encB, cuda, output_dir_trvsl, attr_dim,
+def save_recon_cub_cont(iters, data_loader, enc, dec, encB, cuda, output_dir_trvsl,
                         fixed_idxs=[0]):
     output_dir_trvsl = '../output/' + output_dir_trvsl
     mkdirs(output_dir_trvsl)
