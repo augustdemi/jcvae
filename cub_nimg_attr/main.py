@@ -34,7 +34,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=120, metavar='N',
+    parser.add_argument('--epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -514,18 +514,23 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-
+        util.evaluation.save_recon_cub_cont(e, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+                                            fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312, 160,
+                                                        280, 640, 1400, 1777, 3100])
+        util.evaluation.save_recon_cub_cont(e, test_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+                                            fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
+                                                        1270, 2133, 2856, 2680, 1300])
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, recon_B_test[1], test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-
-    if CUDA:
-        ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar')
-    else:
-        ae_decA = torch.load('../weights/cub_img_ae/cub-img-ae-run_id3-bs64-decA_epoch200.rar', map_location='cpu')
-
+    util.evaluation.save_recon_cub_cont(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+                                        fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312, 160, 280,
+                                                    640, 1400, 1777, 3100])
+    util.evaluation.save_recon_cub_cont(args.epochs, test_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+                                        fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
+                                                    1270, 2133, 2856, 2680, 1300])
 
 else:
     save_ckpt(args.epochs)
