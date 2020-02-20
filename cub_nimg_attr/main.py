@@ -22,7 +22,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=3, metavar='N',
+    parser.add_argument('--run_id', type=int, default=0, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -32,9 +32,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=64, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=60, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=60, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/cub_feat_attr_cont',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/cub_nimg_attr',
                         help='save and load path for ckpt')
     parser.add_argument('--gpu', type=str, default='',
                         help='cuda')
@@ -514,10 +514,10 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 10 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        util.evaluation.save_recon_cub_cont(e, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+        util.evaluation.save_recon_cub_cont(e, train_data, encA, decA, encB, CUDA, MODEL_NAME,
                                             fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312, 160,
                                                         280, 640, 1400, 1777, 3100])
-        util.evaluation.save_recon_cub_cont(e, test_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+        util.evaluation.save_recon_cub_cont(e, test_data, encA, decA, encB, CUDA, MODEL_NAME,
                                             fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
                                                         1270, 2133, 2856, 2680, 1300])
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, cross_attr %0.3f (%ds)' % (
@@ -525,10 +525,10 @@ for e in range(args.ckpt_epochs, args.epochs):
         test_elbo, recon_B_test[1], test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    util.evaluation.save_recon_cub_cont(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+    util.evaluation.save_recon_cub_cont(args.epochs, train_data, encA, decA, encB, CUDA, MODEL_NAME,
                                         fixed_idxs=[130, 215, 502, 537, 4288, 1000, 2400, 1220, 3002, 3312, 160, 280,
                                                     640, 1400, 1777, 3100])
-    util.evaluation.save_recon_cub_cont(args.epochs, test_data, encA, decA, encB, CUDA, MODEL_NAME, ATTR_DIM,
+    util.evaluation.save_recon_cub_cont(args.epochs, test_data, encA, decA, encB, CUDA, MODEL_NAME,
                                         fixed_idxs=[658, 1570, 2233, 2456, 2880, 1344, 2750, 1800, 1111, 300, 700,
                                                     1270, 2133, 2856, 2680, 1300])
 
