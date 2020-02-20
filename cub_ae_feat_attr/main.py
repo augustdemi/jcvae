@@ -482,7 +482,8 @@ def train(data, encA, decA, encB, decB, ae_enc, ae_dec, optimizer, ae_optimizer)
     print('enc:', ae_enc.resnet[0].weight.sum())
     print('dec:', ae_dec.dec_image[0].weight.sum())
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / N, epoch_ae_loss / N
+           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / (
+           N * args.n_shared), epoch_ae_loss / N
 
 
 def test(data, encA, decA, encB, decB, ae_enc, ae_dec):
@@ -561,7 +562,7 @@ def test(data, encA, decA, encB, decB, ae_enc, ae_dec):
             epoch_distance += distance.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / N, epoch_ae_loss / N
+           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / (N * args.n_shared), epoch_ae_loss / N
 
 
 ##################### AE ###########################
