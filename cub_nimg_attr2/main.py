@@ -251,6 +251,18 @@ if CUDA:
         encB = nn.DataParallel(encB)
         decB = nn.DataParallel(decB)
 
+if args.ckpt_epochs > 0:
+    if CUDA:
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
+    else:
+        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(
         encA.parameters()) + list(decA.parameters()),
@@ -394,10 +406,8 @@ def test(data, encA, decA, encB, decB, epoch):
         if images.size()[0] == args.batch_size:
             N += 1
             attributes = attributes.float()
-            optimizer.zero_grad()
             if CUDA:
                 images = images.cuda()
-                attributes = attributes.cuda()
                 attributes = attributes.cuda()
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
@@ -427,7 +437,6 @@ def test(data, encA, decA, encB, decB, epoch):
 
             epoch_recB += recB[0].item()
             epoch_rec_crB += recB[2].item()
-            epoch_elbo += loss.item()
 
             distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
                                   torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
@@ -456,17 +465,7 @@ def save_ckpt(e):
 # decA.layers.load_state_dict(torch.load(
 #     '../weights/cub/cub-run_id5-privA100dim-lamb1.0_500.0_5000.0-beta1.0_10.0_1.0-lr0.001-bs50-wseed0-seed0-decA_layers_epoch400.rar'))
 
-if args.ckpt_epochs > 0:
-    if CUDA:
-        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs))
-    else:
-        encA = torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        encB = torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        decA = torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
-        decB = torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs), map_location='cpu')
+
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
