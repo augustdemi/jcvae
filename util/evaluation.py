@@ -2007,3 +2007,55 @@ def save_recon_cub_vae(iters, data_loader, enc, dec, cuda, output_dir_trvsl, fix
 
     save_image(recon_img,
                str(os.path.join(out_dir, 'recon_image.png')), nrow=int(np.sqrt(recon_img.shape[0])))
+
+
+def save_recon_cub_cont(iters, data_loader, enc, dec, encB, cuda, output_dir_trvsl, attr_dim,
+                        fixed_idxs=[0]):
+    output_dir_trvsl = '../output/' + output_dir_trvsl
+    mkdirs(output_dir_trvsl)
+
+    tr_range = 2
+
+    imgs = [0] * len(fixed_idxs)
+    attr = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        imgs[i], attr[i] = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            imgs[i] = imgs[i].cuda()
+            imgs[i] = imgs[i].squeeze(0)
+    imgs = torch.stack(imgs, dim=0)
+    attributes = torch.stack(attr, dim=0)
+
+    if cuda:
+        attributes = attributes.cuda()
+
+    # do traversal and collect generated images
+
+    q = enc(imgs, num_samples=1)
+    q = encB(attributes, q=q, num_samples=1)
+
+    latents_own = [q['privateA'].dist.loc, q['sharedA'].dist.loc]
+    latents_cross = [q['privateA'].dist.loc, q['sharedB'].dist.loc]
+
+    recon_img = dec.forward2(latents_own)
+    recon_img_cr = dec.forward2(latents_cross)
+
+    # temp = []
+    # temp.append((torch.cat([imgs[i] for i in range(imgs.shape[0])], dim=1)).unsqueeze(0))
+    # temp.append((torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(0))
+    # temp.append((torch.cat([recon_img_cr[i] for i in range(recon_img_cr.shape[0])], dim=1)).unsqueeze(0))
+
+    # fin = torch.cat(temp, dim=0)
+
+    # save the generated files, also the animated gifs
+
+    out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs))
+    mkdirs(out_dir)
+
+    save_image(recon_img,
+               str(os.path.join(out_dir, 'recon_img_own.png')), nrow=int(np.sqrt(recon_img.shape[0])))
+    save_image(recon_img_cr,
+               str(os.path.join(out_dir, 'recon_img_cross.png')), nrow=int(np.sqrt(recon_img_cr.shape[0])))
+    save_image(imgs,
+               str(os.path.join(out_dir, 'imgs.png')), nrow=int(np.sqrt(imgs.shape[0])))
