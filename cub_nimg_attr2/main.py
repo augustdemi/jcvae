@@ -22,7 +22,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=2, metavar='N',
+    parser.add_argument('--run_id', type=int, default=1, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -34,7 +34,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=1, metavar='N',
+    parser.add_argument('--epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -361,8 +361,15 @@ def train(data, encA, decA, encB, decB, optimizer):
             pA = decA(images, shared_dist, q=q,
                       num_samples=NUM_SAMPLES)
 
+            distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
+                                  torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
+
+            distance = distance.sum() / args.n_shared
+
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TRAIN)
+
+            loss += distance
             loss.backward()
             optimizer.step()
             if CUDA:
@@ -380,17 +387,14 @@ def train(data, encA, decA, encB, decB, optimizer):
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
 
-            distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
-                                  torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
 
-            distance = distance.sum()
             if CUDA:
                 distance = distance.cpu()
 
             epoch_distance += distance.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / (N * args.n_shared)
+           [epoch_recB / N, epoch_rec_poeB / N, epoch_rec_crB / N], epoch_distance / N
 
 
 def test(data, encA, decA, encB, decB, epoch):
@@ -421,9 +425,14 @@ def test(data, encA, decA, encB, decB, epoch):
             shared_dist = {'cross': 'sharedB', 'own': 'sharedA'}
             pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
 
+            distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
+                                  torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
+
+            distance = distance.sum() / args.n_shared
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
             ######
+            loss += distance
 
             if CUDA:
                 loss = loss.cpu()
@@ -438,17 +447,14 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_recB += recB[0].item()
             epoch_rec_crB += recB[2].item()
 
-            distance = torch.sqrt(torch.sum((q['sharedA'].dist.loc - q['sharedB'].dist.loc) ** 2, dim=1) + \
-                                  torch.sum((q['sharedA'].dist.scale - q['sharedB'].dist.scale) ** 2, dim=1))
 
-            distance = distance.sum()
             if CUDA:
                 distance = distance.cpu()
 
             epoch_distance += distance.item()
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_crA / N], \
-           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / (N * args.n_shared)
+           [epoch_recB / N, epoch_rec_crB / N], epoch_distance / N
 
 
 ####
