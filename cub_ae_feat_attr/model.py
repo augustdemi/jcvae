@@ -24,10 +24,10 @@ class EncoderImgF(nn.Module):
         self.seed = seed
 
         self.fc = nn.Sequential(
+            nn.Dropout(0.1),
             nn.Linear(2048, 2 * zPrivate_dim + 2 * zShared_dim),
-            nn.ReLU()
+            nn.Tanh()
         )
-
         self.weight_init()
 
     def weight_init(self):
@@ -81,7 +81,8 @@ class DecoderImgF(nn.Module):
         # )
 
         self.dec_image = nn.Sequential(
-            nn.Linear(zPrivate_dim + zShared_dim, 2048)
+            nn.Linear(zPrivate_dim + zShared_dim, 2048),
+            nn.ReLU()
         )
 
         self.weight_init()
@@ -117,10 +118,8 @@ class DecoderImgF(nn.Module):
                                name=shared[shared_from])
             latents.append(zShared)
 
-            # hiddens = self.dec_hidden(torch.cat(latents, -1))
             pred_imgs = self.dec_image(torch.cat(latents, -1))
             pred_imgs = pred_imgs.squeeze(0)
-            pred_imgs = F.sigmoid(pred_imgs)
 
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
@@ -132,7 +131,6 @@ class DecoderImgF(nn.Module):
     def forward2(self, latents):
         pred_imgs = self.dec_image(torch.cat(latents, -1))
         pred_imgs = pred_imgs.squeeze(0)
-        pred_imgs = F.sigmoid(pred_imgs)
         return pred_imgs
 
 
@@ -142,12 +140,12 @@ class EncoderAttr(nn.Module):
         self.digit_temp = torch.tensor(TEMP)
         self.zShared_dim = zShared_dim
         self.seed = seed
-        # self.enc_hidden = nn.Sequential(
-        #     nn.Linear(312, num_hidden),
-        #     nn.ReLU(),
-        # )
+        self.enc_hidden = nn.Sequential(
+            nn.Linear(312, num_hidden),
+            nn.ReLU(),
+        )
 
-        self.fc = nn.Linear(312, zShared_dim * 2)
+        self.fc = nn.Linear(num_hidden, zShared_dim * 2)
         self.weight_init()
 
     def weight_init(self):
@@ -162,9 +160,8 @@ class EncoderAttr(nn.Module):
     def forward(self, attributes, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
-        # attributes = attributes.view(attributes.size(0), -1)
-        # hiddens = self.enc_hidden(attributes)
-        stats = self.fc(attributes)
+        hiddens = self.enc_hidden(attributes)
+        stats = self.fc(hiddens)
         muShared = stats[:, :, :self.zShared_dim]
         logvarShared = stats[:, :, self.zShared_dim:]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -182,12 +179,12 @@ class DecoderAttr(nn.Module):
         self.seed = seed
         self.zShared_dim = zShared_dim
 
-        # self.dec_hidden = nn.Sequential(
-        #     nn.Linear(zShared_dim, num_hidden),
-        #     nn.ReLU(),
-        # )
+        self.dec_hidden = nn.Sequential(
+            nn.Linear(zShared_dim, num_hidden),
+            nn.ReLU(),
+        )
         self.dec_label = nn.Sequential(
-            nn.Linear(zShared_dim, 312))
+            nn.Linear(num_hidden, 312))
         self.weight_init()
 
     def weight_init(self):
@@ -209,8 +206,8 @@ class DecoderAttr(nn.Module):
                                shared_std,
                                value=q[shared[shared_from]],
                                name=shared[shared_from])
-            # hiddens = self.dec_hidden(zShared)
-            pred_labels = self.dec_label(zShared)
+            hiddens = self.dec_hidden(zShared)
+            pred_labels = self.dec_label(hiddens)
             pred_labels = pred_labels.squeeze(0)
             pred_labels = F.logsigmoid(pred_labels + EPS)
             p.loss(
