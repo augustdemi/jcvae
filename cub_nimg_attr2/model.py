@@ -27,8 +27,9 @@ class EncoderA(nn.Module):
         self.resnet = nn.Sequential(*modules)
 
         self.fc = nn.Sequential(
+            nn.Dropout(0.1),
             nn.Linear(2048, 2 * zPrivate_dim + 2 * zShared_dim),
-            nn.ReLU()
+            nn.Tanh()
         )
 
         self.weight_init()
