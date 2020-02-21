@@ -432,7 +432,7 @@ def test(data, encA, decA, encB, decB, epoch):
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TEST, train=False)
             ######
-            loss += distance
+            # loss += distance
 
             if CUDA:
                 loss = loss.cpu()
