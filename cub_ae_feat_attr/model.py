@@ -24,9 +24,8 @@ class EncoderImgF(nn.Module):
         self.seed = seed
 
         self.fc = nn.Sequential(
-            nn.Dropout(0.1),
             nn.Linear(2048, 2 * zPrivate_dim + 2 * zShared_dim),
-            nn.Tanh()
+            nn.ReLU()
         )
         self.weight_init()
 
