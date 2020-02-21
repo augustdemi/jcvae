@@ -11,13 +11,13 @@ from torch.nn import functional as F
 from torchvision import models
 
 EPS = 1e-9
-TEMP = 0.66
+N_PIXELS = 3 * 128 * 128
+N_ATTR = 312
 
 
 class EncoderA(nn.Module):
     def __init__(self, seed, zPrivate_dim, zShared_dim, num_hidden):
         super(self.__class__, self).__init__()
-        self.digit_temp = torch.tensor(TEMP)
         self.zPrivate_dim = zPrivate_dim
         self.zShared_dim = zShared_dim
         self.seed = seed
@@ -183,7 +183,6 @@ class EncoderA(nn.Module):
 class DecoderA(nn.Module):
     def __init__(self, seed, zPrivate_dim, zShared_dim, num_hidden):
         super(self.__class__, self).__init__()
-        self.digit_temp = TEMP
         self.zShared_dim = zShared_dim
 
         self.style_mean = zPrivate_dim
@@ -253,8 +252,8 @@ class DecoderA(nn.Module):
             images_mean = images_mean.view(images_mean.size(0), -1)
             images = images.view(images.size(0), -1)
             # define reconstruction loss (log prob of bernoulli dist)
-            p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
-                                      torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
+            p.loss(lambda x_hat, x: - ((torch.log(x_hat + EPS) * x +
+                                        torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1)) / N_PIXELS,
                    images_mean, images, name='images_' + shared_from)
         return p
 
@@ -269,7 +268,6 @@ class DecoderA(nn.Module):
 class EncoderB(nn.Module):
     def __init__(self, seed, zShared_dim, num_hidden):
         super(self.__class__, self).__init__()
-        self.digit_temp = torch.tensor(TEMP)
         self.zShared_dim = zShared_dim
         self.seed = seed
         # self.enc_hidden = nn.Sequential(
@@ -309,7 +307,6 @@ class EncoderB(nn.Module):
 class DecoderB(nn.Module):
     def __init__(self, seed, zShared_dim, num_hidden):
         super(self.__class__, self).__init__()
-        self.digit_temp = TEMP
         self.seed = seed
         self.zShared_dim = zShared_dim
 
@@ -347,7 +344,8 @@ class DecoderB(nn.Module):
             pred_labels = F.logsigmoid(pred_labels + EPS)
 
             p.loss(
-                lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
+                lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(
+                    dim=1) / N_ATTR, \
                 pred_labels, attributes, name='attr_' + shared_from)
         return p
 

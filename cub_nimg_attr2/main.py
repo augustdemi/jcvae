@@ -26,7 +26,7 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_privateA', type=int, default=636,
+    parser.add_argument('--n_privateA', type=int, default=64,
                         help='size of the latent embedding of privateA')
     parser.add_argument('--n_shared', type=int, default=28,
                         help='size of the latent embedding of shared')
@@ -34,7 +34,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--epochs', type=int, default=1, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -84,8 +84,9 @@ beta = [float(i) for i in args.beta.split(',')]
 lamb = [float(i) for i in args.lamb.split(',')]
 
 # path parameters
-MODEL_NAME = 'cub_nimg_attr2-run_id%d-privA%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s-num_hidden%s' % (
-    args.run_id, args.n_privateA, '_'.join([str(elt) for elt in lamb]), '_'.join([str(elt) for elt in beta]),
+MODEL_NAME = 'cub_nimg_attr2-run_id%d-privA%02ddim-shared%02ddim-lamb%s-beta%s-lr%s-bs%s-wseed%s-seed%s-num_hidden%s' % (
+    args.run_id, args.n_privateA, args.n_shared, '_'.join([str(elt) for elt in lamb]),
+    '_'.join([str(elt) for elt in beta]),
     args.lr, args.batch_size, args.wseed, args.seed, args.num_hidden)
 
 if len(args.run_desc) > 1:
@@ -95,6 +96,7 @@ if len(args.run_desc) > 1:
         outfile.write(args.run_desc)
 
 N_PIXELS = 3 * 128 * 128
+N_ATTR = 312
 TEMP = 0.66
 NUM_SAMPLES = 1
 path = args.data_path
@@ -308,9 +310,12 @@ def elbo(q, pA, pB=None, lamb=[1., 1.], beta=[1., 1.], bias=1.0, train=True):
                                                                          sample_dim=0, batch_dim=1,
                                                                          beta=(1, beta[1], 1), bias=bias)
 
-        loss = (lamb[0] * reconst_loss_A - kl_A) + (lamb[1] * reconst_loss_B - kl_B) + \
-               (lamb[0] * reconst_loss_poeA - kl_poeA) + (lamb[1] * reconst_loss_poeB - kl_poeB) + \
-               (lamb[0] * reconst_loss_crA - kl_crA) + (lamb[1] * reconst_loss_crB - kl_crB)
+        loss = (lamb[0] * reconst_loss_A - kl_A / (args.n_privateA + args.n_shared)) + (
+        lamb[1] * reconst_loss_B - kl_B / args.n_shared) + \
+               (lamb[0] * reconst_loss_poeA - kl_poeA / (args.n_privateA + args.n_shared)) + (
+               lamb[1] * reconst_loss_poeB - kl_poeB / args.n_shared) + \
+               (lamb[0] * reconst_loss_crA - kl_crA / (args.n_privateA + args.n_shared)) + (
+               lamb[1] * reconst_loss_crB - kl_crB / args.n_shared)
 
 
     else:
@@ -369,7 +374,7 @@ def train(data, encA, decA, encB, decB, optimizer):
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=lamb, beta=beta, bias=BIAS_TRAIN)
 
-            loss += distance
+            # loss += distance
             loss.backward()
             optimizer.step()
             if CUDA:
