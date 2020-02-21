@@ -75,8 +75,8 @@ class DecoderImgF(nn.Module):
         self.style_std = zPrivate_dim
         self.seed = seed
 
-        self.dec_hidden = nn.Sequential(
-            nn.Linear(zPrivate_dim + zShared_dim, num_hidden),
+        self.dec_image = nn.Sequential(
+            nn.Linear(zPrivate_dim + zShared_dim, 2048),
             nn.ReLU()
         )
 
