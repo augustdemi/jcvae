@@ -74,14 +74,14 @@ class DecoderImgF(nn.Module):
         self.style_std = zPrivate_dim
         self.seed = seed
 
-        # self.dec_image = nn.Sequential(
-        #     nn.Linear(zPrivate_dim + zShared_dim, 2048),
-        #     nn.ReLU()
-        # )
-
         self.dec_image = nn.Sequential(
-            nn.Linear(zPrivate_dim + zShared_dim, 2048)
+            nn.Linear(zPrivate_dim + zShared_dim, 2048),
+            nn.ReLU()
         )
+
+        # self.dec_image = nn.Sequential(
+        #     nn.Linear(zPrivate_dim + zShared_dim, 2048)
+        # )
 
         self.weight_init()
 
@@ -119,7 +119,7 @@ class DecoderImgF(nn.Module):
             # hiddens = self.dec_hidden(torch.cat(latents, -1))
             pred_imgs = self.dec_image(torch.cat(latents, -1))
             pred_imgs = pred_imgs.squeeze(0)
-            pred_imgs = F.sigmoid(pred_imgs)
+            # pred_imgs = F.sigmoid(pred_imgs)
 
             p.loss(
                 lambda y_pred, target: F.binary_cross_entropy_with_logits(y_pred, target, reduction='none').sum(dim=1), \
@@ -131,7 +131,7 @@ class DecoderImgF(nn.Module):
     def forward2(self, latents):
         pred_imgs = self.dec_image(torch.cat(latents, -1))
         pred_imgs = pred_imgs.squeeze(0)
-        pred_imgs = F.sigmoid(pred_imgs)
+        # pred_imgs = F.sigmoid(pred_imgs)
 
         return pred_imgs
 
