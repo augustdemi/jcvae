@@ -277,7 +277,7 @@ class EncoderB(nn.Module):
             nn.ReLU(),
         )
 
-        self.fc = nn.Linear(312, zShared_dim * 2)
+        self.fc = nn.Linear(num_hidden, zShared_dim * 2)
         self.weight_init()
 
     def weight_init(self):
@@ -292,7 +292,6 @@ class EncoderB(nn.Module):
     def forward(self, attributes, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
-        attributes = attributes.view(attributes.size(0), -1)
         hiddens = self.enc_hidden(attributes)
         stats = self.fc(hiddens)
 
@@ -317,7 +316,7 @@ class DecoderB(nn.Module):
             nn.ReLU(),
         )
         self.dec_label = nn.Sequential(
-            nn.Linear(zShared_dim, 312))
+            nn.Linear(num_hidden, 312))
         self.weight_init()
 
     def weight_init(self):
