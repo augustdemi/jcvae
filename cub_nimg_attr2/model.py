@@ -292,7 +292,7 @@ class EncoderB(nn.Module):
     def forward(self, attributes, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
-        # attributes = attributes.view(attributes.size(0), -1)
+        attributes = attributes.view(attributes.size(0), -1)
         hiddens = self.enc_hidden(attributes)
         stats = self.fc(hiddens)
 
