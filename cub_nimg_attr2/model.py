@@ -167,8 +167,8 @@ class DecoderA(nn.Module):
             images_mean = x.view(x.size(0), -1)
             images = images.view(images.size(0), -1)
             # define reconstruction loss (log prob of bernoulli dist)
-            p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
-                                      torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
+            p.loss(lambda x_hat, x: - ((torch.log(x_hat + EPS) * x +
+                                        torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1)) / N_PIXELS,
                    images_mean, images, name='images_' + shared_from)
         return p
 
