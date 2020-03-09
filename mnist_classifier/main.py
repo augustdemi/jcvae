@@ -96,66 +96,43 @@ NUM_SAMPLES = 1
 
 # visdom setup
 def viz_init():
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['f1'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
 
 
 def visualize_line():
     data = LINE_GATHER.data
-    recon_A = torch.Tensor(data['recon_A'])
-    recon_B = torch.Tensor(data['recon_B'])
-
-    recon_poeA = torch.Tensor(data['recon_poeA'])
-    recon_poeB = torch.Tensor(data['recon_poeB'])
-    recon_crA = torch.Tensor(data['recon_crA'])
-    recon_crB = torch.Tensor(data['recon_crB'])
     total_loss = torch.Tensor(data['total_loss'])
 
     epoch = torch.Tensor(data['epoch'])
     test_acc = torch.Tensor(data['test_acc'])
-    test_total_loss = torch.Tensor(data['test_total_loss'])
 
-    llA = torch.tensor(np.stack([recon_A, recon_poeA, recon_crA], -1))
-    llB = torch.tensor(np.stack([recon_B, recon_poeB, recon_crB], -1))
-    total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
+    total_losses = torch.tensor(np.stack([total_loss], -1))
+    acc = torch.tensor(np.stack([test_acc], -1))
 
     VIZ.line(
-        X=epoch, Y=llA, env=MODEL_NAME + '/lines',
-        win=WIN_ID['llA'], update='append',
-        opts=dict(xlabel='epoch', ylabel='loglike',
-                  title='LL of modalA', legend=['A', 'poeA', 'crA'])
-    )
-    VIZ.line(
-        X=epoch, Y=llB, env=MODEL_NAME + '/lines',
-        win=WIN_ID['llB'], update='append',
-        opts=dict(xlabel='epoch', ylabel='loglike',
-                  title='LL of modalB', legend=['B', 'poeB', 'crB'])
-    )
-
-    VIZ.line(
-        X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
-        win=WIN_ID['test_acc'], update='append',
+        X=epoch, Y=acc, env=MODEL_NAME + '/lines',
+        win=WIN_ID['acc'], update='append',
         opts=dict(xlabel='epoch', ylabel='accuracy',
-                  title='Test Accuracy', legend=['acc'])
+                  title='Accuracy', legend=['test_acc'])
     )
 
     VIZ.line(
         X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
         win=WIN_ID['total_losses'], update='append',
         opts=dict(xlabel='epoch', ylabel='loss',
-                  title='Total Loss', legend=['train_loss', 'test_loss'])
+                  title='Total Loss', legend=['train_loss'])
     )
 
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', test_acc='win_test_acc', total_losses='win_total_losses'
+        acc='win_acc', total_losses='win_total_losses'
     )
     LINE_GATHER = probtorch.util.DataGather(
-        'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
-        'total_loss', 'test_total_loss', 'test_acc'
+        'epoch',
+        'total_loss', 'test_acc'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
