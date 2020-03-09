@@ -220,9 +220,7 @@ def train(data, encA, optimizer):
 
 def test(data, encA):
     encA.eval()
-    epoch_elbo = 0.0
     epoch_acc = 0
-    epoch_f1 = 0
     N = 0
     all_pred = []
     all_target = []
@@ -252,13 +250,7 @@ def test(data, encA):
                 all_pred = np.concatenate((all_pred, pred), axis=0)
                 all_target = np.concatenate((all_target, target), axis=0)
 
-    print('---------------------acc------------------------')
-    acc = (all_target == all_pred).mean()
-    print(acc)
-    print(epoch_acc / N)
-    print('-----------------------------------------------')
-
-    return epoch_acc / N, epoch_f1 / N
+    return epoch_acc / N
 
 
 def save_ckpt(e):
@@ -285,12 +277,11 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_end = time.time()
 
     test_start = time.time()
-    test_accuracy, test_f1 = test(test_data, encA)
+    test_accuracy = test(test_data, encA)
     test_end = time.time()
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
-                           test_f1=test_f1,
                            test_acc=test_accuracy,
                            total_loss=total_loss
                            )
@@ -300,8 +291,8 @@ for e in range(args.ckpt_epochs, args.epochs):
         save_ckpt(e + 1)
 
     print(
-        '[Epoch %d] Train: ELBO %.4e (%ds), Test: Accuracy %0.3f, F1-score %0.3f (%ds)' % (
-            e, total_loss, train_end - train_start, test_accuracy, test_f1, test_end - test_start))
+        '[Epoch %d] Train: ELBO %.4e (%ds), Test: Accuracy %0.3f' % (
+            e, total_loss, train_end - train_start, test_accuracy))
 
 if args.ckpt_epochs == args.epochs:
     # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0)
