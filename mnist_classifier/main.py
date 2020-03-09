@@ -97,7 +97,6 @@ NUM_SAMPLES = 1
 # visdom setup
 def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['acc'])
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['f1'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
 
 
