@@ -167,33 +167,34 @@ def train(data, encA, optimizer):
     N = 0
     total_loss = 0
     for b, (images, labels) in enumerate(data):
-        N += 1
-        optimizer.zero_grad()
+        if images.size()[0] == args.batch_size:
+            N += 1
+            optimizer.zero_grad()
 
-        labels_onehot = torch.zeros(args.batch_size, 10)
-        labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-        labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-        if CUDA:
-            images = images.cuda()
-            labels_onehot = labels_onehot.cuda()
-        # encode
-        pred_attr = encA(images, num_samples=NUM_SAMPLES)
+            labels_onehot = torch.zeros(args.batch_size, 10)
+            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+            if CUDA:
+                images = images.cuda()
+                labels_onehot = labels_onehot.cuda()
+            # encode
+            pred_attr = encA(images, num_samples=NUM_SAMPLES)
 
-        loss = F.binary_cross_entropy_with_logits(pred_attr, labels_onehot, reduction='none').sum()
+            loss = F.binary_cross_entropy_with_logits(pred_attr, labels_onehot, reduction='none').sum()
 
-        if CUDA:
-            loss = loss.cuda()
-        loss.backward()
-        optimizer.step()
-        if CUDA:
-            loss = loss.cpu()
+            if CUDA:
+                loss = loss.cuda()
+            loss.backward()
+            optimizer.step()
+            if CUDA:
+                loss = loss.cpu()
 
-        total_loss += loss
+            total_loss += loss
 
-        if b % 100 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
-                e, b * args.batch_size, len(data.dataset),
-                   100. * b * args.batch_size / len(data.dataset)))
+            if b % 100 == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
+                    e, b * args.batch_size, len(data.dataset),
+                       100. * b * args.batch_size / len(data.dataset)))
     return total_loss
 
 
