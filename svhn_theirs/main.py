@@ -65,8 +65,7 @@ if len(args.run_desc) > 1:
         outfile.write(args.run_desc)
 
 BETA = (1., args.beta, 1.)
-BIAS_TRAIN = (60000 - 1) / (args.batch_size - 1)
-BIAS_TEST = (10000 - 1) / (args.batch_size - 1)
+
 # model parameters
 NUM_PIXELS = None
 TEMP = 0.66
@@ -83,7 +82,6 @@ test_data = torch.utils.data.DataLoader(
     datasets.SVHN(DATA_PATH, split='test', download=True,
                   transform=transforms.ToTensor()),
     batch_size=args.batch_size, shuffle=True)
-
 
 def cuda_tensors(obj):
     for attr in dir(obj):
