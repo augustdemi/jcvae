@@ -73,6 +73,7 @@ class Encoder(nn.Module):
         images = images.squeeze(0)
         hiddens = self.enc_hidden(images)
         hiddens = hiddens.view(hiddens.size(0), -1)
+        hiddens = self.fc(hiddens)
         digits = q.concrete(logits=self.digit_log_weights(hiddens).unsqueeze(0),
                             temperature=self.digit_temp,
                             value=labels,
@@ -119,8 +120,8 @@ class Decoder(nn.Module):
                           value=q['styles'],
                           name='styles')
         hiddens = self.dec_hidden(torch.cat([digits, styles], -1))
-        hiddens = hiddens.view(-1, 128, 4, 4)
-        # hiddens = hiddens.view(-1, 256, 2, 2)
+        # hiddens = hiddens.view(-1, 128, 4, 4)
+        hiddens = hiddens.view(-1, 256, 2, 2)
         images_mean = self.dec_image(hiddens)
 
         images_mean = images_mean.view(images_mean.size(0), -1).unsqueeze(0)
