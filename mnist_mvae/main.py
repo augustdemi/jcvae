@@ -23,7 +23,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=2, metavar='N',
+    parser.add_argument('--run_id', type=int, default=6, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -33,7 +33,7 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=180, metavar='N',
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -60,7 +60,7 @@ if __name__ == "__main__":
                         help='save and load path for ckpt')
     # visdom
     parser.add_argument('--viz_on',
-                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+                        default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument('--viz_port',
                         default=8002, type=int, help='visdom port number')
 
@@ -602,8 +602,8 @@ for e in range(args.ckpt_epochs, args.epochs):
         save_ckpt(e + 1)
         decA.eval()
         encB.eval()
-        util.evaluation.save_cross_mnist_mvae(e, decA, encB, 64,
-                                              CUDA, MODEL_NAME)
+        # util.evaluation.save_cross_mnist_mvae(e, decA, encB, 64,
+        #                                       CUDA, MODEL_NAME)
 
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
