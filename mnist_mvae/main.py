@@ -31,7 +31,7 @@ if __name__ == "__main__":
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=180, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--epochs', type=int, default=180, metavar='N',
                         help='number of epochs to train [default: 200]')
@@ -111,10 +111,23 @@ def visualize_line():
     test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
 
+    kl_A = torch.Tensor(data['kl_A'])
+    kl_B = torch.Tensor(data['kl_B'])
+    kl_poe = torch.Tensor(data['kl_poe'])
+    kl = torch.tensor(np.stack([kl_A, kl_B, kl_poe], -1))
+
     llA = torch.tensor(np.stack([recon_A, recon_poeA], -1))
     llB = torch.tensor(np.stack([recon_B, recon_poeB], -1))
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
     acc = torch.tensor(np.stack([test_acc], -1))
+
+    VIZ.line(
+        X=epoch, Y=kl, env=MODEL_NAME + '/lines',
+        win=WIN_ID['kl'], update='append',
+        opts=dict(xlabel='epoch', ylabel='kl-div',
+                  title='KL', legend=['kl_A', 'kl_B', 'kl_poe'])
+    )
+
     VIZ.line(
         X=epoch, Y=llA, env=MODEL_NAME + '/lines',
         win=WIN_ID['llA'], update='append',
@@ -145,11 +158,11 @@ def visualize_line():
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses'
+        llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses', kl='win_kl'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB',
-        'total_loss', 'test_total_loss', 'test_acc'
+        'total_loss', 'test_total_loss', 'test_acc', 'kl_A', 'kl_B', 'kl_poe'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -224,10 +237,10 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
             reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
 
     else:
-        reconst_loss_poeA = reconst_loss_poeB = None
+        reconst_loss_poeA = reconst_loss_poeB = kl_poe = None
         loss = 2 * ((reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B))
 
-    return -loss, [reconst_loss_A, reconst_loss_poeA], [reconst_loss_B, reconst_loss_poeB]
+    return -loss, [reconst_loss_A, reconst_loss_poeA], [reconst_loss_B, reconst_loss_poeB], [kl_A, kl_B, kl_poe]
 
 
 def train(data, encA, decA, encB, decB, epoch, optimizer,
@@ -235,6 +248,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = 0.0
     epoch_recB = epoch_rec_poeB = 0.0
+    kl_A = kl_B = kl_poe = 0.0
     pair_cnt = 0
     encA.train()
     encB.train()
@@ -243,14 +257,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        # if epoch < args.annealing_epochs:
-        #     # compute the KL annealing factor for the current mini-batch in the current epoch
-        #     annealing_factor = (float(b + epoch * len(train_data) + 1) /
-        #                         float(args.annealing_epochs * len(train_data)))
-        # else:
-        #     # by default the KL annealing factor is unity
-        #     annealing_factor = 1.0
-        annealing_factor = 1
+        if epoch < args.annealing_epochs:
+            # compute the KL annealing factor for the current mini-batch in the current epoch
+            annealing_factor = (float(b + epoch * len(train_data) + 1) /
+                                float(args.annealing_epochs * len(train_data)))
+        else:
+            # by default the KL annealing factor is unity
+            annealing_factor = 1.0
+        # annealing_factor = 1
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
             N += 1
@@ -362,7 +376,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 for param in decB.parameters():
                     param.requires_grad = True
                 # loss
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
+                loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
             else:
                 shuffled_idx = list(range(args.batch_size))
                 random.shuffle(shuffled_idx)
@@ -391,7 +405,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                     param.requires_grad = False
                 for param in decB.parameters():
                     param.requires_grad = False
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
+                loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
 
         loss.backward()
         optimizer.step()
@@ -399,18 +413,25 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             loss = loss.cpu()
             recA[0] = recA[0].cpu()
             recB[0] = recB[0].cpu()
+            kl[0] = kl[0].cpu()
+            kl[1] = kl[1].cpu()
 
         epoch_elbo += loss.item()
         epoch_recA += recA[0].item()
         epoch_recB += recB[0].item()
+        kl_A += kl[0].item()
+        kl_B += kl[1].item()
+
 
         if recA[1] is not None:
             if CUDA:
+                kl[2] = kl[2].cpu()
                 for i in range(2):
                     recA[i] = recA[i].cpu()
                     recB[i] = recB[i].cpu()
             epoch_rec_poeA += recA[1].item()
             epoch_rec_poeB += recB[1].item()
+            kl_poe += kl[2].item()
             pair_cnt += 1
 
         if b % 100 == 0:
@@ -418,7 +439,9 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 e, b * args.batch_size, len(data.dataset),
                    100. * b * args.batch_size / len(data.dataset), annealing_factor))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
-                                                                         epoch_rec_poeB / pair_cnt], label_mask
+                                                                         epoch_rec_poeB / pair_cnt], [kl_A / N,
+                                                                                                      kl_B / N,
+                                                                                                      kl_poe / pair_cnt], label_mask
 
 
 def test(data, encA, decA, encB, decB):
@@ -462,7 +485,7 @@ def test(data, encA, decA, encB, decB):
             shared_dist = {'own': 'sharedA', 'cross': 'sharedB'}
             pA = decA(images, shared_dist, q=q)
 
-            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text)
+            batch_elbo, _, _, _ = elbo(q, pA, pB, lamb=args.lambda_text)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
@@ -551,8 +574,8 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB, e,
-                                                   optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
+    train_elbo, rec_lossA, rec_lossB, kl, mask = train(train_data, encA, decA, encB, decB, e,
+                                                       optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
     train_end = time.time()
 
     test_start = time.time()
@@ -567,7 +590,10 @@ for e in range(args.ckpt_epochs, args.epochs):
                            recon_A=rec_lossA[0],
                            recon_poeA=rec_lossA[1],
                            recon_B=rec_lossB[0],
-                           recon_poeB=rec_lossB[1]
+                           recon_poeB=rec_lossB[1],
+                           kl_A=kl[0],
+                           kl_B=kl[1],
+                           kl_poe=kl[2]
                            )
         visualize_line()
         LINE_GATHER.flush()

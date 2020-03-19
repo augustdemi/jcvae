@@ -11,6 +11,12 @@ EPS = 1e-9
 TEMP = 0.66
 
 
+class Swish(nn.Module):
+    """https://arxiv.org/abs/1710.05941"""
+
+    def forward(self, x):
+        return x * F.sigmoid(x)
+
 class EncoderA(nn.Module):
     def __init__(self, seed,
                  zShared_dim=64):
@@ -19,14 +25,17 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
         self.seed = seed
 
-        self.enc_hidden = nn.Sequential(
-            nn.Linear(784, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU())
+        # self.enc_hidden = nn.Sequential(
+        #     nn.Linear(784, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 512),
+        #     nn.ReLU())
 
+        self.fc1 = nn.Linear(784, 512)
+        self.fc2 = nn.Linear(512, 512)
         self.fc31 = nn.Linear(512, zShared_dim)
         self.fc32 = nn.Linear(512, zShared_dim)
+        self.swish = Swish()
         self.weight_init()
 
     def weight_init(self):
@@ -41,7 +50,9 @@ class EncoderA(nn.Module):
         if q is None:
             q = probtorch.Trace()
 
-        h = self.enc_hidden(x.view(-1, 784))
+        # h = self.enc_hidden(x.view(-1, 784))
+        h = self.swish(self.fc1(x.view(-1, 784)))
+        h = self.swish(self.fc2(h))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -60,19 +71,22 @@ class DecoderA(nn.Module):
         self.num_digits = zShared_dim
         self.seed = seed
 
-        self.dec_hidden = nn.Sequential(
-            nn.Linear(zShared_dim, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU()
-        )
-
+        # self.dec_hidden = nn.Sequential(
+        #     nn.Linear(zShared_dim, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 512),
+        #     nn.ReLU()
+        # )
+        self.fc1 = nn.Linear(zShared_dim, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 512)
         self.dec_image = nn.Sequential(
             nn.Linear(512, 784),
             nn.Sigmoid())
 
+        self.swish = Swish()
         self.weight_init()
 
     def weight_init(self):
@@ -96,7 +110,10 @@ class DecoderA(nn.Module):
                                value=q[shared[shared_from]],
                                name=shared[shared_from])
 
-            h = self.dec_hidden(zShared.squeeze(0))
+            # h = self.dec_hidden(zShared.squeeze(0))
+            h = self.swish(self.fc1(zShared.squeeze(0)))
+            h = self.swish(self.fc2(h))
+            h = self.swish(self.fc3(h))
             images_mean = self.dec_image(h)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
@@ -118,15 +135,18 @@ class EncoderB(nn.Module):
         self.zShared_dim = zShared_dim
         self.seed = seed
 
-        self.enc_hidden = nn.Sequential(
-            nn.Embedding(10, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU()
-        )
+        # self.enc_hidden = nn.Sequential(
+        #     nn.Embedding(10, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 512),
+        #     nn.ReLU()
+        # )
 
+        self.fc1 = nn.Embedding(10, 512)
+        self.fc2 = nn.Linear(512, 512)
         self.fc31 = nn.Linear(512, zShared_dim)
         self.fc32 = nn.Linear(512, zShared_dim)
+        self.swish = Swish()
 
         self.weight_init()
 
@@ -141,8 +161,9 @@ class EncoderB(nn.Module):
     def forward(self, labels, cuda, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
-        h = self.enc_hidden(labels)
-
+        # h = self.enc_hidden(labels)
+        h = self.swish(self.fc1(labels))
+        h = self.swish(self.fc2(h))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -160,16 +181,21 @@ class DecoderB(nn.Module):
         self.digit_temp = TEMP
         self.seed = seed
 
-        self.dec_hidden = nn.Sequential(
-            nn.Linear(zShared_dim, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU()
-        )
+        # self.dec_hidden = nn.Sequential(
+        #     nn.Linear(zShared_dim, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 512),
+        #     nn.ReLU(),
+        #     nn.Linear(512, 512),
+        #     nn.ReLU()
+        # )
 
+        self.fc1 = nn.Linear(zShared_dim, 512)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 512)
         self.fc4 = nn.Linear(512, 10)
+
+        self.swish = Swish()
         self.weight_init()
 
     def weight_init(self):
@@ -194,7 +220,10 @@ class DecoderB(nn.Module):
                                value=q[shared[shared_from]],
                                name=shared[shared_from])
 
-            h = self.dec_hidden(zShared.squeeze(0))
+            # h = self.dec_hidden(zShared.squeeze(0))
+            h = self.swish(self.fc1(zShared.squeeze(0)))
+            h = self.swish(self.fc2(h))
+            h = self.swish(self.fc3(h))
             pred_labels = self.fc4(h)
 
             pred_labels = F.log_softmax(pred_labels + EPS, dim=1)
