@@ -51,8 +51,8 @@ class EncoderA(nn.Module):
             q = probtorch.Trace()
 
         # h = self.enc_hidden(x.view(-1, 784))
-        h = self.swish(self.fc1(x.view(-1, 784)))
-        h = self.swish(self.fc2(h))
+        h = F.relu(self.fc1(x.view(-1, 784)))
+        h = F.relu(self.fc2(h))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -111,9 +111,9 @@ class DecoderA(nn.Module):
                                name=shared[shared_from])
 
             # h = self.dec_hidden(zShared.squeeze(0))
-            h = self.swish(self.fc1(zShared.squeeze(0)))
-            h = self.swish(self.fc2(h))
-            h = self.swish(self.fc3(h))
+            h = F.relu(self.fc1(zShared.squeeze(0)))
+            h = F.relu(self.fc2(h))
+            h = F.relu(self.fc3(h))
             images_mean = self.dec_image(h)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
@@ -162,8 +162,8 @@ class EncoderB(nn.Module):
         if q is None:
             q = probtorch.Trace()
         # h = self.enc_hidden(labels)
-        h = self.swish(self.fc1(labels))
-        h = self.swish(self.fc2(h))
+        h = F.relu(self.fc1(labels))
+        h = F.relu(self.fc2(h))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -221,9 +221,9 @@ class DecoderB(nn.Module):
                                name=shared[shared_from])
 
             # h = self.dec_hidden(zShared.squeeze(0))
-            h = self.swish(self.fc1(zShared.squeeze(0)))
-            h = self.swish(self.fc2(h))
-            h = self.swish(self.fc3(h))
+            h = F.relu(self.fc1(zShared.squeeze(0)))
+            h = F.relu(self.fc2(h))
+            h = F.relu(self.fc3(h))
             pred_labels = self.fc4(h)
 
             pred_labels = F.log_softmax(pred_labels + EPS, dim=1)
