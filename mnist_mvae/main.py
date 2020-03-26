@@ -293,6 +293,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
+
+    ############I added #########################
+    lamb_annealing_factor = np.power(2.0, (epoch + 1) // args.lamb_annealing_epochs)
+    print('epoch: ', epoch, ', lamb_annealing_factor:', lamb_annealing_factor)
+    #####################################
+
+
     for b, (images, labels) in enumerate(data):
         if epoch < args.annealing_epochs:
             # compute the KL annealing factor for the current mini-batch in the current epoch
@@ -301,16 +308,6 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
         else:
             # by default the KL annealing factor is unity
             annealing_factor = 1.0
-
-        if epoch == 0:
-            lamb_annealing_factor = 1.0
-        if (epoch + 1) % args.lamb_annealing_epochs == 0:
-            # compute the KL annealing factor for the current mini-batch in the current epoch
-            lamb_annealing_factor = lamb_annealing_factor * 2.0
-            print('epoch: ', epoch, ', lamb_annealing_factor:', lamb_annealing_factor)
-        else:
-            # by default the KL annealing factor is unity
-            lamb_annealing_factor = 1.0
 
         # annealing_factor = 1
         if args.label_frac > 1 and random.random() < args.sup_frac:
