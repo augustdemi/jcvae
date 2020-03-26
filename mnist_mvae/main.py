@@ -301,7 +301,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
         else:
             # by default the KL annealing factor is unity
             annealing_factor = 1.0
-        if epoch % args.lamb_annealing_epochs == 0:
+        if (epoch + 1) % args.lamb_annealing_epochs == 0:
             # compute the KL annealing factor for the current mini-batch in the current epoch
             lamb_annealing_factor = lamb_annealing_factor * 2.0
             print('epoch: ', epoch, ', lamb_annealing_factor:', lamb_annealing_factor)
