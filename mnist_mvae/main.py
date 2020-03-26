@@ -55,6 +55,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--annealing-epochs', type=int, default=200, metavar='N',
                         help='number of epochs to anneal KL for [default: 200]')
+    parser.add_argument('--lamb_annealing_factor', type=int, default=20, metavar='N',
+                        help='number of epochs to anneal KL for [default: 200]')
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_mvae/1',
                         help='save and load path for ckpt')
@@ -246,7 +248,7 @@ optimizer = torch.optim.Adam(
 
 
 
-def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
+def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0, lamb_annealing_factor=1.0):
     # from each of modality
     beta1 = (1.0, 1.0, 1.0)
     beta2 = (1.0, 1.0, 1.0)
@@ -267,12 +269,14 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
                                                                          beta=beta2, bias=bias)
 
         kl_poe = (kl_poeA + kl_poeB)
-        loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + (
+        loss = (reconst_loss_A - annealing_factor * kl_A) + (
+        lamb_annealing_factor * lamb * reconst_loss_B - annealing_factor * kl_B) + (
             reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
 
     else:
         reconst_loss_poeA = reconst_loss_poeB = kl_poe = None
-        loss = 2 * ((reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B))
+        loss = 2 * ((reconst_loss_A - annealing_factor * kl_A) + (
+        lamb_annealing_factor * lamb * reconst_loss_B - annealing_factor * kl_B))
     return -loss, [reconst_loss_A, reconst_loss_poeA], [reconst_loss_B, reconst_loss_poeB], [kl_A, kl_B, kl_poe]
 
 
@@ -297,6 +301,14 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
         else:
             # by default the KL annealing factor is unity
             annealing_factor = 1.0
+        if epoch % args.lamb_annealing_epochs == 0:
+            # compute the KL annealing factor for the current mini-batch in the current epoch
+            lamb_annealing_factor = lamb_annealing_factor * 2.0
+            print('epoch: ', epoch, ', lamb_annealing_factor:', lamb_annealing_factor)
+        else:
+            # by default the KL annealing factor is unity
+            lamb_annealing_factor = 1.0
+
         # annealing_factor = 1
         if args.label_frac > 1 and random.random() < args.sup_frac:
             # print(b)
@@ -349,7 +361,8 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             for param in decB.parameters():
                 param.requires_grad = True
             # loss
-            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
+            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor,
+                                    lamb_annealing_factor=lamb_annealing_factor)
         else:
             N += 1
             images = images.view(-1, NUM_PIXELS)
