@@ -55,7 +55,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--annealing-epochs', type=int, default=200, metavar='N',
                         help='number of epochs to anneal KL for [default: 200]')
-    parser.add_argument('--lamb_annealing_factor', type=int, default=20, metavar='N',
+    parser.add_argument('--lamb_annealing_epochs', type=int, default=20, metavar='N',
                         help='number of epochs to anneal KL for [default: 200]')
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_mvae/1',
