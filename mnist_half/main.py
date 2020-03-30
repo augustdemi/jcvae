@@ -252,8 +252,8 @@ def train(data, encA, decA, encB, decB, optimizer,
         images2 = images2.view(-1, NUM_PIXELS)
 
         if CUDA:
-            images = images.cuda()
-            labels_onehot = labels_onehot.cuda()
+            images1 = images1.cuda()
+            images2 = images2.cuda()
         optimizer.zero_grad()
         # encode
         # print(images.sum())
@@ -312,22 +312,20 @@ def test(data, encA, decA, encB, decB, epoch):
     decB.eval()
     epoch_elbo = 0.0
     N = 0
-    for b, (images, labels) in enumerate(data):
-        if images.size()[0] == args.batch_size:
+    for b, (images1, images2) in enumerate(data):
+        if images1.size()[0] == args.batch_size:
             N += 1
-            images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+            images1 = images1.view(-1, NUM_PIXELS)
+            images2 = images2.view(-1, NUM_PIXELS)
             if CUDA:
-                images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
+                images1 = images1.cuda()
+                images2 = images2.cuda()
             # encode
-            q = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+            q = encA(images1, num_samples=NUM_SAMPLES)
+            q = encB(images2, num_samples=NUM_SAMPLES, q=q)
+            pA = decA(images1, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
+            pB = decB(images2, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
