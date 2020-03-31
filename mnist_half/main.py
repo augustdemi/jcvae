@@ -113,7 +113,6 @@ def visualize_line():
     total_loss = torch.Tensor(data['total_loss'])
 
     epoch = torch.Tensor(data['epoch'])
-    test_acc = torch.Tensor(data['test_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
 
     llA = torch.tensor(np.stack([recon_A, recon_poeA, recon_crA], -1))
@@ -134,13 +133,6 @@ def visualize_line():
     )
 
     VIZ.line(
-        X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
-        win=WIN_ID['test_acc'], update='append',
-        opts=dict(xlabel='epoch', ylabel='accuracy',
-                  title='Test Accuracy', legend=['acc'])
-    )
-
-    VIZ.line(
         X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
         win=WIN_ID['total_losses'], update='append',
         opts=dict(xlabel='epoch', ylabel='loss',
@@ -150,11 +142,11 @@ def visualize_line():
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', test_acc='win_test_acc', total_losses='win_total_losses'
+        llA='win_llA', llB='win_llB', total_losses='win_total_losses'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
-        'total_loss', 'test_total_loss', 'test_acc'
+        'total_loss', 'test_total_loss'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
