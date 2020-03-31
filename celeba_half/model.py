@@ -76,6 +76,10 @@ class EncoderA(nn.Module):
                  name='privateA')
 
         # attributes
+        print('muShared: ', muShared)
+        print('logvarShared: ', logvarShared)
+        print('stdShared: ', stdShared)
+        print('----------------------------')
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedA')
