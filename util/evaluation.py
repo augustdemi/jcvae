@@ -1497,11 +1497,7 @@ def save_traverse_celeba(iters, data_loader, enc, dec, zS_dim, cuda, output_dir_
     )
 
 
-def load_classifier(cuda):
-    sys.path.append('../')
-    from celeba_classifier.model import EncoderA
-    model_name = '../weights/celeba_clf/clf.rar'
-    encA = EncoderA(0, n_attr=18)
+def load_classifier(cuda, encA, model_name):
     if cuda:
         encA.load_state_dict(torch.load(model_name))
     else:
@@ -1510,50 +1506,31 @@ def load_classifier(cuda):
     return encA
 
 
-def save_cross_celeba(iters, data_loader, encA, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir,
-                      acc_check=False):
+def save_cross_celeba(iters, data_loader, encA, decA, encB, gt_attrs, n_samples, zS_dim, cuda, output_dir):
     output_dir = '../output/' + output_dir + '/cross' + str(iters)
     mkdirs(output_dir)
 
     # # using training stat
-    # # img private
-    # n_batch = 10
-    # fixed_idxs = random.sample(range(len(data_loader.dataset)), 100 * n_batch)
-    # fixed_XA = [0] * 100 * n_batch
-    # for i, idx in enumerate(fixed_idxs):
-    #     fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
-    #     if cuda:
-    #         fixed_XA[i] = fixed_XA[i].cuda()
-    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
-    # fixed_XA = torch.stack(fixed_XA, dim=0)
+    # img private
+    # priv_mean = torch.zeros((1,n_samples,100))
+    # priv_std = torch.ones((1,n_samples,100))
     #
-    # zA_mean = 0
-    # zA_std = 0
-    # # zS_ori_sum = np.zeros(zS_dim)
-    # for idx in range(n_batch):
-    #     q = encA(fixed_XA[100*idx:100*(idx+1)], num_samples=1)
-    #     zA_mean += q['privateA'].dist.loc
-    #     zA_std += q['privateA'].dist.scale
-    #     # zS_ori = []
-    #     # for i in range(zS_dim):
-    #     #     zS_ori.append(q['sharedA' + str(i)].value)
-    #     # zS_ori_sum += np.array(zS_ori)
-    # zA_mean = zA_mean.mean(dim=1)
-    # zA_std = zA_std.mean(dim=1)
+    # p = probtorch.Trace()
     #
-    # q.normal(loc=zA_mean,
-    #              scale=zA_std,
-    #              name='sample')
-    # zA = []
-    # for _ in range(n_samples):
-    #     zA.append(q['sample'].dist.sample().unsqueeze(1))
-    # zA = torch.cat(zA, dim=1)
+    # # prior for z_private
+    # p.normal(priv_mean,
+    #                     priv_std,
+    #                     value=torch.zeros((1,n_samples,100)),
+    #                     name='privateA')
+    # torch.manual_seed(6)
+    # torch.cuda.manual_seed(6)
+    # zA = p['privateA'].dist.sample()
     #############################################
 
 
     ########################
-    # using test
-    # img private
+    # # using test
+    # # img private
     n_batch = 10
     torch.manual_seed(0)
     random.seed(0)
@@ -1572,96 +1549,126 @@ def save_cross_celeba(iters, data_loader, encA, decA, encB, gt_attrs, n_samples,
                str(os.path.join(output_dir, 'gt_image.png')), nrow=int(np.sqrt(n_samples)))
 
     q = encA(fixed_XA, num_samples=1)
-    zA = q['privateA'].dist.sample()
+    zA = q['privateA'].dist.loc
     ########################
 
     # attr shared
-
-    gt_attrs = ['recon'] + gt_attrs
+    gt_attrs.append('off')
     for gt_attr in gt_attrs:
-        if 'recon' in gt_attr:
-            # img shared
-            zS = []
-            for i in range(zS_dim):
-                zS.append(q['sharedA' + str(i)].value)
-        else:
-            attrs = torch.zeros(zS_dim)
-            if 'off' not in gt_attr:
-                attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
-                attrs[attr_ix] = 1
-            zS = []
-            if cuda:
-                attrs = attrs.cuda()
-            attrs = attrs.repeat((n_samples, 1))
-            q = encB(attrs, num_samples=1)
-            for i in range(zS_dim):
-                zS.append(q['sharedB' + str(i)].value)
+        attrs = torch.zeros(zS_dim)
+        if 'off' not in gt_attr:
+            attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+            attrs[attr_ix] = 1
+        zS = []
+        if cuda:
+            attrs = attrs.cuda()
+        attrs = attrs.repeat((n_samples, 1))
+        q = encB(attrs, num_samples=1)
+        for i in range(zS_dim):
+            zS.append(q['sharedB' + str(i)].value)
 
         latents = [zA] + zS
         recon_img = decA.forward2(latents, cuda)
-        if acc_check:
-            if gt_attr not in ('recon', 'off'):
-                clf = load_classifier(cuda)
-                pred_attr = clf(recon_img, num_samples=1)
-
-                if cuda:
-                    pred_attr = pred_attr.cpu()
-
-                pred = pred_attr.detach().numpy()
-                pred = np.round(np.exp(pred))
-                target = np.ones_like(pred)
-                attr_idx = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
-                acc = (pred[:, attr_idx] == target[:, attr_idx]).mean()
-                f1 = f1_score(target[:, attr_idx], pred[:, attr_idx], average="binary")
-                print('--------' + gt_attr + '--------')
-                print('acc:', acc)
-                print('f1:', f1)
-
-        else:
-            save_image(recon_img.view(n_samples, 3, 64, 64),
-                       str(os.path.join(output_dir, gt_attr + '_image_iter.png')), nrow=int(np.sqrt(n_samples)))
+        save_image(recon_img.view(n_samples, 3, 64, 64),
+                   str(os.path.join(output_dir, gt_attr + '_image_iter.png')), nrow=int(np.sqrt(n_samples)))
 
 
+def cross_acc_celeba(data_loader, encA, decA, encB, n_samples, zS_dim, cuda):
+    # img private
+    priv_mean = torch.zeros((1, n_samples, 100))
+    priv_std = torch.ones((1, n_samples, 100))
 
-def cross_acc_celeba(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cuda, output_dir):
-    output_dir = '../output/' + output_dir + '/cross' + str(iters)
-    mkdirs(output_dir)
+    p = probtorch.Trace()
 
-    # # using training stat
+    # prior for z_private
+    p.normal(priv_mean,
+             priv_std,
+             value=torch.zeros((1, n_samples, 100)),
+             name='privateA')
+    # torch.manual_seed(6)
+    # torch.cuda.manual_seed(6)
+    zA = p['privateA'].dist.sample()
+    #############################################
+
+    ########################
+    # using test
     # # img private
     # n_batch = 10
-    # fixed_idxs = random.sample(range(len(data_loader.dataset)), 100 * n_batch)
-    # fixed_XA = [0] * 100 * n_batch
+    # torch.manual_seed(0)
+    # random.seed(0)
+    # fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    # fixed_XA = [0] * n_samples
+    # attributes = [0] * n_samples
     # for i, idx in enumerate(fixed_idxs):
-    #     fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+    #     fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
     #     if cuda:
     #         fixed_XA[i] = fixed_XA[i].cuda()
     #     fixed_XA[i] = fixed_XA[i].squeeze(0)
     # fixed_XA = torch.stack(fixed_XA, dim=0)
+    # attributes = torch.stack(attributes, dim=0)
     #
-    # zA_mean = 0
-    # zA_std = 0
-    # # zS_ori_sum = np.zeros(zS_dim)
-    # for idx in range(n_batch):
-    #     q = encA(fixed_XA[100*idx:100*(idx+1)], num_samples=1)
-    #     zA_mean += q['privateA'].dist.loc
-    #     zA_std += q['privateA'].dist.scale
-    #     # zS_ori = []
-    #     # for i in range(zS_dim):
-    #     #     zS_ori.append(q['sharedA' + str(i)].value)
-    #     # zS_ori_sum += np.array(zS_ori)
-    # zA_mean = zA_mean.mean(dim=1)
-    # zA_std = zA_std.mean(dim=1)
-    #
-    # q.normal(loc=zA_mean,
-    #              scale=zA_std,
-    #              name='sample')
-    # zA = []
-    # for _ in range(n_samples):
-    #     zA.append(q['sample'].dist.sample().unsqueeze(1))
-    # zA = torch.cat(zA, dim=1)
-    #############################################
+    # q = encA(fixed_XA, num_samples=1)
+    # zA = q['privateA'].dist.loc
+    ########################
 
+
+    # load separately trained classifier and predict the label.
+    sys.path.append('../')
+    from celeba_classifier.model import EncoderA
+    encA = EncoderA(0, n_attr=18)
+
+    clf = load_classifier(cuda, encA, '../weights/celeba_clf/clf.rar')
+
+    # attr shared
+    for i in range(18):
+        # get the target condition attribute
+        gt_attr = IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]]
+        attrs = torch.zeros(zS_dim)
+        attr_ix = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+        attrs[attr_ix] = 1
+        zS = []
+        if cuda:
+            attrs = attrs.cuda()
+        attrs = attrs.repeat((n_samples, 1))
+        q = encB(attrs, num_samples=1)
+        for i in range(zS_dim):
+            zS.append(q['sharedB' + str(i)].value)
+
+        # cross synthesize image
+        latents = [zA] + zS
+        recon_img = decA.forward2(latents, cuda)
+        pred_attr = clf(recon_img, num_samples=1)
+        if cuda:
+            pred_attr = pred_attr.cpu()
+        pred = pred_attr.detach().numpy()
+        pred = np.round(np.exp(pred))
+
+        # all labels are activated for the given target attribute
+        target = np.ones_like(pred)
+        attr_idx = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[gt_attr])
+        acc = (pred[:, attr_idx] == target[:, attr_idx]).mean()
+        f1 = f1_score(target[:, attr_idx], pred[:, attr_idx], average="binary")
+        print('--------' + gt_attr + '--------')
+        print('acc:', acc)
+        print('f1:', f1)
+
+
+def cross_acc_mnist(data_loader, encA, decA, encB, n_samples, zS_dim, cuda):
+    # img private prior
+    # priv_mean = torch.zeros((1, n_samples, 10))
+    # priv_std = torch.ones((1, n_samples, 10))
+    #
+    # p = probtorch.Trace()
+    #
+    # # prior for z_private
+    # p.normal(priv_mean,
+    #          priv_std,
+    #          value=torch.zeros((1, n_samples, 10)),
+    #          name='privateA')
+    # # torch.manual_seed(6)
+    # # torch.cuda.manual_seed(6)
+    # zA = p['privateA'].dist.sample()
+    #############################################
 
     ########################
     # using test
@@ -1676,49 +1683,479 @@ def cross_acc_celeba(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cu
         fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
         if cuda:
             fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].view(-1, 784)
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    q = encA(fixed_XA, num_samples=1)
+    zA = q['privateA'].dist.loc
+    ########################
+
+
+
+    labels = []
+    for i in range(10):
+        label = torch.zeros(zS_dim)
+        label[i] = 1
+        labels.extend(label.repeat((int(n_samples / 10), 1)).unsqueeze(0))
+    labels = torch.cat(labels, dim=0)
+    random.seed(0)
+    shf_idx = list(range(1000))
+    random.shuffle(shf_idx)
+    labels = labels[shf_idx]
+    q = encB(labels, num_samples=1)
+    # cross synthesize image
+    recon_img = decA.forward2(zA, q['sharedB'].value, cuda)
+
+    # load separately trained classifier and predict the label.
+    sys.path.append('../')
+    from mnist_classifier.model import EncoderA
+    encA = EncoderA(0)
+    clf = load_classifier(cuda, encA, '../weights/mnist_clf/clf.rar')
+    pred_label = clf(recon_img.squeeze(0), num_samples=1)
+    pred_label = torch.argmax(pred_label, dim=1)
+    labels = torch.argmax(labels, dim=1)
+    pred = pred_label.detach().numpy()
+    labels = labels.detach().numpy()
+
+    acc = np.round((pred == labels).sum() / n_samples, 5)
+    print('acc:', acc)
+
+
+def cross_acc_svhn(data_loader, encA, decA, encB, n_samples, zS_dim, cuda):
+    # img private prior
+    priv_mean = torch.zeros((1, n_samples, 10))
+    priv_std = torch.ones((1, n_samples, 10))
+
+    p = probtorch.Trace()
+
+    # prior for z_private
+    p.normal(priv_mean,
+             priv_std,
+             value=torch.zeros((1, n_samples, 10)),
+             name='privateA')
+    # torch.manual_seed(6)
+    # torch.cuda.manual_seed(6)
+    zA = p['privateA'].dist.sample()
+    #############################################
+
+    ########################
+    # using test
+    # img private
+    # n_batch = 10
+    # torch.manual_seed(0)
+    # random.seed(0)
+    # fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    # fixed_XA = [0] * n_samples
+    # attributes = [0] * n_samples
+    # for i, idx in enumerate(fixed_idxs):
+    #     fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
+    #     if cuda:
+    #         fixed_XA[i] = fixed_XA[i].cuda()
+    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
+    # fixed_XA = torch.stack(fixed_XA, dim=0)
+    # q = encA(fixed_XA, num_samples=1)
+    # zA = q['privateA'].dist.loc
+    ########################
+
+
+
+    labels = []
+    for i in range(10):
+        label = torch.zeros(zS_dim)
+        label[i] = 1
+        labels.extend(label.repeat((int(n_samples / 10), 1)).unsqueeze(0))
+    labels = torch.cat(labels, dim=0)
+    random.seed(0)
+    shf_idx = list(range(n_samples))
+    random.shuffle(shf_idx)
+    labels = labels[shf_idx]
+    q = encB(labels, num_samples=1)
+    # cross synthesize image
+    recon_img = decA.forward2(zA, q['sharedB'].value, cuda)
+
+    print(np.argmax(labels, 1))
+    # save_image(recon_img.view(n_samples, 3, 32, 32),
+    #            str(os.path.join('../output/', 'recon_syn.png')), nrow=int(np.sqrt(n_samples)))
+
+    # load separately trained classifier and predict the label.
+    sys.path.append('../')
+    from svhn_classifier.model import EncoderA
+    encA = EncoderA(0)
+    clf = load_classifier(cuda, encA, '../weights/svhn_clf/clf.rar')
+    pred_label = clf(recon_img.squeeze(0), num_samples=1)
+    pred_label = torch.argmax(pred_label, dim=1)
+    labels = torch.argmax(labels, dim=1)
+    pred = pred_label.detach().numpy()
+    labels = labels.detach().numpy()
+
+    acc = np.round((pred == labels).sum() / n_samples, 5)
+    print('acc:', acc)
+
+
+def cross_acc_mnist_baseline(data_loader, enc, dec, n_samples, zS_dim, cuda):
+    # img private prior
+    # priv_mean = torch.zeros((1, n_samples, 50))
+    # priv_std = torch.ones((1, n_samples, 50))
+    #
+    # p = probtorch.Trace()
+    #
+    # # prior for z_private
+    # p.normal(priv_mean,
+    #          priv_std,
+    #          value=torch.zeros((1, n_samples, 50)),
+    #          name='styles')
+    # # torch.manual_seed(6)
+    # # torch.cuda.manual_seed(6)
+    # z_style = p['styles'].dist.sample()
+    #############################################
+
+    ########################
+    # # using test
+    # img private
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    attributes = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].view(-1, 784)
         fixed_XA[i] = fixed_XA[i].squeeze(0)
     fixed_XA = torch.stack(fixed_XA, dim=0)
 
-    q = encA(fixed_XA, num_samples=1)
-    zA = q['privateA'].dist.sample()
-    clf = load_classifier(cuda)
     ########################
 
-    # attr shared
-    all_acc = []
-    all_f1 = []
 
-    for i in range(18):
-        gt_attr = IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]]
-        attrs = torch.zeros(18)
-        attrs[i] = 1
-        zS = []
+
+    labels = []
+    for i in range(10):
+        label = torch.zeros(zS_dim)
+        label[i] = 1
+        labels.extend(label.repeat((int(n_samples / 10), 1)).unsqueeze(0))
+    labels = torch.cat(labels, dim=0)
+    random.seed(0)
+    shf_idx = list(range(n_samples))
+    random.shuffle(shf_idx)
+    labels = labels[shf_idx]
+    q = enc(fixed_XA, num_samples=1)
+    z_style = q['styles'].value.squeeze(0)
+
+    # cross synthesize image
+    null_image = torch.tensor(np.zeros((1, 784), 'f'))
+    p = dec(null_image, {'styles': z_style.squeeze(0), 'digits': labels})
+    # p = dec(fixed_XA, q)
+    recon_img = p['images'].value
+
+    # save_image(recon_img.view(n_samples, 1, 28, 28),
+    #            str(os.path.join('../output/', 'recon_syn.png')), nrow=int(np.sqrt(n_samples)))
+
+    # save_image(fixed_XA.view(n_samples, 1, 28, 28),
+    #            str(os.path.join('../output/', 'original.png')), nrow=int(np.sqrt(n_samples)))
+
+    # load separately trained classifier and predict the label.
+    sys.path.append('../')
+    from mnist_classifier.model import EncoderA
+    encA = EncoderA(0)
+    clf = load_classifier(cuda, encA, '../weights/mnist_clf/clf.rar')
+    pred_label = clf(recon_img.squeeze(0), num_samples=1)
+    pred_label = torch.argmax(pred_label, dim=1)
+    labels = torch.argmax(labels, dim=1)
+    print(labels)
+    pred = pred_label.detach().numpy()
+    labels = labels.detach().numpy()
+
+    acc = np.round((pred == labels).sum() / n_samples, 5)
+    print('acc:', acc)
+
+
+def cross_acc_svhn_baseline(data_loader, enc, dec, n_samples, zS_dim, cuda):
+    # img private prior
+    # priv_mean = torch.zeros((1, n_samples, 50))
+    # priv_std = torch.ones((1, n_samples, 50))
+    #
+    # p = probtorch.Trace()
+    #
+    # # prior for z_private
+    # p.normal(priv_mean,
+    #          priv_std,
+    #          value=torch.zeros((1, n_samples, 50)),
+    #          name='styles')
+    # # torch.manual_seed(6)
+    # # torch.cuda.manual_seed(6)
+    # z_style = p['styles'].dist.sample()
+    #############################################
+
+    ########################
+    # # using test
+    # img private
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    attributes = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
         if cuda:
-            attrs = attrs.cuda()
-        attrs = attrs.repeat((n_samples, 1))
-        q = encB(attrs, num_samples=1)
-        for i in range(zS_dim):
-            zS.append(q['sharedB' + str(i)].value)
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
 
-        latents = [zA] + zS
-        recon_img = decA.forward2(latents, cuda)
+    ########################
 
-        pred_attr = clf(recon_img, num_samples=1)
 
+
+    labels = []
+    for i in range(10):
+        label = torch.zeros(zS_dim)
+        label[i] = 1
+        labels.extend(label.repeat((int(n_samples / 10), 1)).unsqueeze(0))
+    labels = torch.cat(labels, dim=0)
+    random.seed(0)
+    shf_idx = list(range(n_samples))
+    random.shuffle(shf_idx)
+    labels = labels[shf_idx]
+    q = enc(fixed_XA, num_samples=1)
+    z_style = q['styles'].value.squeeze(0)
+
+    # cross synthesize image
+    null_image = torch.tensor(np.zeros((1, 3, 32, 32), 'f'))
+    p = dec(null_image, {'styles': z_style.squeeze(0), 'digits': labels})
+    # p = dec(fixed_XA, q)
+    recon_img = p['images'].value
+
+    # save_image(recon_img.view(n_samples, 1, 28, 28),
+    #            str(os.path.join('../output/', 'recon_syn.png')), nrow=int(np.sqrt(n_samples)))
+
+    # save_image(fixed_XA.view(n_samples, 1, 28, 28),
+    #            str(os.path.join('../output/', 'original.png')), nrow=int(np.sqrt(n_samples)))
+
+    # load separately trained classifier and predict the label.
+    sys.path.append('../')
+    from svhn_classifier.model import EncoderA
+    encA = EncoderA(0)
+    clf = load_classifier(cuda, encA, '../weights/svhn_clf/clf.rar')
+    recon_img = recon_img.view(-1, 3, 32, 32)
+    pred_label = clf(recon_img, num_samples=1)
+    pred_label = torch.argmax(pred_label, dim=1)
+    labels = torch.argmax(labels, dim=1)
+    print(labels)
+    pred = pred_label.detach().numpy()
+    labels = labels.detach().numpy()
+
+    acc = np.round((pred == labels).sum() / n_samples, 5)
+    print('acc:', acc)
+
+
+def cross_acc_mnist_baseline2(data_loader, enc, dec, n_samples, zS_dim, cuda):
+    # img private prior
+    # priv_mean = torch.zeros((1, n_samples, 10))
+    # priv_std = torch.ones((1, n_samples, 10))
+    #
+    # p = probtorch.Trace()
+    #
+    # # prior for z_private
+    # p.normal(priv_mean,
+    #          priv_std,
+    #          value=torch.zeros((1, n_samples, 10)),
+    #          name='privateA')
+    # # torch.manual_seed(6)
+    # # torch.cuda.manual_seed(6)
+    # zA = p['privateA'].dist.sample()
+    #############################################
+
+    ########################
+    # using test
+    # img private
+    n_batch = 10
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    attributes = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
         if cuda:
-            pred_attr = pred_attr.cpu()
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].view(-1, 784)
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
 
-        pred = pred_attr.detach().numpy()
-        pred = np.round(np.exp(pred))
-        target = np.ones_like(pred)
-        acc = (pred[:, i] == target[:, i]).mean()
-        f1 = f1_score(target[:, i], pred[:, i], average="binary")
-        all_acc.append(acc)
-        all_f1.append(f1)
-    for i in range(18):
-        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]])
-    print(all_acc)
-    print(all_f1)
+    ########################
+
+
+    from scipy.stats import norm
+    import matplotlib.pyplot as plt
+    n = 7  # figure with 15x15 digits
+    digit_size = 28
+    figure = np.zeros((digit_size * n, digit_size * n))
+    # linearly spaced coordinates on the unit square were transformed through the inverse CDF (ppf) of the Gaussian
+    # to produce values of the latent variables z, since the prior of the latent space is Gaussian
+    grid_x = norm.ppf(np.linspace(0.05, 0.95, n))
+    grid_y = norm.ppf(np.linspace(0.05, 0.95, n))
+    null_image = torch.tensor(np.zeros((1, 784), 'f'))
+
+    plt.figure(figsize=(12, 30))
+    for y in range(10):
+        plt.subplot(5, 2, y + 1)
+        y_hot = np.zeros((1, 10), 'f')
+        y_hot[0, y] = 1
+        y_hot = torch.tensor(y_hot)
+        my = (ys == y)
+        for i, z0i in enumerate(grid_x):
+            for j, z1j in enumerate(grid_y[-1::-1]):
+                z = np.array([[z0i, z1j]], 'f')
+                if NUM_STYLE > 2:
+                    z = zs2_mean[None, :] + zs2_std[None, :] * z
+                    n = ((zs2[my] - z) ** 2).sum(1).argmin()
+                    z = zs[my][n][None, :]
+                z = torch.tensor(z)
+                if CUDA:
+                    p = dec(null_image.cuda(), {'styles': z.cuda(), 'digits': y_hot.cuda()})
+                    images = p['images'].value.data.cpu().numpy()
+                else:
+                    p = dec(null_image, {'styles': z, 'digits': y_hot})
+                    images = p['images'].value.data.numpy()
+                digit = images.reshape(digit_size, digit_size)
+                figure[j * digit_size: (j + 1) * digit_size,
+                i * digit_size: (i + 1) * digit_size] = digit
+        plt.imshow(figure)
+        plt.title('y=%d' % y)
+        plt.axis('off')
+    plt.show()
+
+    save_image(recon_img.view(n_samples, 1, 28, 28),
+               str(os.path.join('../output/', 'recon_syn.png')), nrow=int(np.sqrt(n_samples)))
+
+    sys.path.append('../')
+    from mnist_classifier.model import EncoderA
+    encA = EncoderA(0)
+    clf = load_classifier(cuda, encA, '../weights/mnist_clf/clf.rar')
+    pred_label = clf(recon_img.squeeze(0), num_samples=1)
+    pred_label = torch.argmax(pred_label, dim=1)
+    labels = torch.argmax(labels, dim=1)
+    print(labels)
+    pred = pred_label.detach().numpy()
+    labels = labels.detach().numpy()
+
+    acc = np.round((pred == labels).sum() / n_samples, 5)
+    print('acc:', acc)
+
+
+#
+# def cross_acc_celeba(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cuda, output_dir):
+#     output_dir = '../output/' + output_dir + '/cross' + str(iters)
+#     mkdirs(output_dir)
+#
+#     # # using training stat
+#     # # img private
+#     # n_batch = 10
+#     # fixed_idxs = random.sample(range(len(data_loader.dataset)), 100 * n_batch)
+#     # fixed_XA = [0] * 100 * n_batch
+#     # for i, idx in enumerate(fixed_idxs):
+#     #     fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+#     #     if cuda:
+#     #         fixed_XA[i] = fixed_XA[i].cuda()
+#     #     fixed_XA[i] = fixed_XA[i].squeeze(0)
+#     # fixed_XA = torch.stack(fixed_XA, dim=0)
+#     #
+#     # zA_mean = 0
+#     # zA_std = 0
+#     # # zS_ori_sum = np.zeros(zS_dim)
+#     # for idx in range(n_batch):
+#     #     q = encA(fixed_XA[100*idx:100*(idx+1)], num_samples=1)
+#     #     zA_mean += q['privateA'].dist.loc
+#     #     zA_std += q['privateA'].dist.scale
+#     #     # zS_ori = []
+#     #     # for i in range(zS_dim):
+#     #     #     zS_ori.append(q['sharedA' + str(i)].value)
+#     #     # zS_ori_sum += np.array(zS_ori)
+#     # zA_mean = zA_mean.mean(dim=1)
+#     # zA_std = zA_std.mean(dim=1)
+#     #
+#     # q.normal(loc=zA_mean,
+#     #              scale=zA_std,
+#     #              name='sample')
+#     # zA = []
+#     # for _ in range(n_samples):
+#     #     zA.append(q['sample'].dist.sample().unsqueeze(1))
+#     # zA = torch.cat(zA, dim=1)
+#     #############################################
+#
+#
+#     ########################
+#     # using test
+#     # img private
+#     n_batch = 10
+#     torch.manual_seed(0)
+#     random.seed(0)
+#     fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+#     fixed_XA = [0] * n_samples
+#     attributes = [0] * n_samples
+#     for i, idx in enumerate(fixed_idxs):
+#         fixed_XA[i], attributes[i] = data_loader.dataset.__getitem__(idx)[:2]
+#         if cuda:
+#             fixed_XA[i] = fixed_XA[i].cuda()
+#         fixed_XA[i] = fixed_XA[i].squeeze(0)
+#     fixed_XA = torch.stack(fixed_XA, dim=0)
+#
+#     q = encA(fixed_XA, num_samples=1)
+#     zA = q['privateA'].dist.sample()
+#
+# ###
+#     # priv_mean = torch.zeros_like(q['privateA'].dist.loc)
+#     # priv_std = torch.ones_like(q['privateA'].dist.scale)
+#     #
+#     # p = probtorch.Trace()
+#     #
+#     # # prior for z_private
+#     # zPrivate = p.normal(priv_mean,
+#     #                     priv_std,
+#     #                     value=q['privateA'],
+#     #                     name='privateA')
+#     # zA = p['privateA'].dist.sample()
+# ###
+#
+#
+#     clf = load_classifier(cuda)
+#     ########################
+#
+#     # attr shared
+#     all_acc = []
+#     all_f1 = []
+#
+#     for i in range(18):
+#         gt_attr = IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]]
+#         attrs = torch.zeros(18)
+#         attrs[i] = 1
+#         zS = []
+#         if cuda:
+#             attrs = attrs.cuda()
+#         attrs = attrs.repeat((n_samples, 1))
+#         q = encB(attrs, num_samples=1)
+#         for i in range(zS_dim):
+#             zS.append(q['sharedB' + str(i)].value)
+#
+#         latents = [zA] + zS
+#         recon_img = decA.forward2(latents, cuda)
+#
+#         pred_attr = clf(recon_img, num_samples=1)
+#
+#         if cuda:
+#             pred_attr = pred_attr.cpu()
+#
+#         pred = pred_attr.detach().numpy()
+#         pred = np.round(np.exp(pred))
+#         target = np.ones_like(pred)
+#         acc = (pred[:, i] == target[:, i]).mean()
+#         f1 = f1_score(target[:, i], pred[:, i], average="binary")
+#         all_acc.append(acc)
+#         all_f1.append(f1)
+#     for i in range(18):
+#         print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]])
+#     print(all_acc)
+#     print(all_f1)
 
 
 
@@ -1894,44 +2331,62 @@ def save_cross_mnist_base(iters, decA, encB, n_samples, cuda, output_dir):
 
 
 def save_cross_mnist(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cuda, output_dir, flatten_pixel=None):
-    output_dir = '../output/' + output_dir + '/cross' + str(iters)
+    output_dir = '../output/' + output_dir + '/cross' + str(iters) + '_prior'
     mkdirs(output_dir)
 
-    torch.manual_seed(0)
-    random.seed(0)
-    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
-    fixed_XA = [0] * n_samples
+    ######## with prior
+    priv_mean = torch.zeros((1, n_samples, 10))
+    priv_std = torch.ones((1, n_samples, 10))
 
-    # fixed_XA = [0] * len(fixed_idxs)
+    p = probtorch.Trace()
 
-    for i, idx in enumerate(fixed_idxs):
-        fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
-        if flatten_pixel is not None:
-            fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
-        if cuda:
-            fixed_XA[i] = fixed_XA[i].cuda()
-        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    # prior for z_private
+    p.normal(priv_mean,
+             priv_std,
+             value=torch.zeros((1, n_samples, 10)),
+             name='privateA')
+    torch.manual_seed(6)
+    torch.cuda.manual_seed(6)
+    zA = p['privateA'].dist.sample()
+    #############################################
 
-    fixed_XA = torch.stack(fixed_XA, dim=0)
 
-    if flatten_pixel:
-        save_image(fixed_XA.view(n_samples, 1, 28, 28),
-                   str(os.path.join(output_dir, 'gt_image.png')))
-    else:
-        save_image(fixed_XA,
-                   str(os.path.join(output_dir, 'gt_image.png')))
-    q = encA(fixed_XA, num_samples=1)
-    zA = q['privateA'].dist.loc
+    ######### wiht test image ##########
+    # torch.manual_seed(0)
+    # random.seed(0)
+    # fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    # fixed_XA = [0] * n_samples
+    #
+    # # fixed_XA = [0] * len(fixed_idxs)
+    #
+    # for i, idx in enumerate(fixed_idxs):
+    #     fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+    #     if flatten_pixel is not None:
+    #         fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
+    #     if cuda:
+    #         fixed_XA[i] = fixed_XA[i].cuda()
+    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
+    #
+    # fixed_XA = torch.stack(fixed_XA, dim=0)
+    #
+    # if flatten_pixel:
+    #     save_image(fixed_XA.view(n_samples, 1, 28, 28),
+    #                str(os.path.join(output_dir, 'gt_image.png')))
+    # else:
+    #     save_image(fixed_XA,
+    #                str(os.path.join(output_dir, 'gt_image.png')))
+    # q = encA(fixed_XA, num_samples=1)
+    # zA = q['privateA'].dist.loc
     ########################
 
     # label shared
-    recon_img = decA.forward2(zA, q['sharedA'].value, cuda)
-    if flatten_pixel:
-        save_image(recon_img.view(n_samples, 1, 28, 28),
-                   str(os.path.join(output_dir, 'recon_image.png')))
-    else:
-        save_image(recon_img,
-                   str(os.path.join(output_dir, 'recon_image.png')))
+    # recon_img = decA.forward2(zA, q['sharedA'].value, cuda)
+    # if flatten_pixel:
+    #     save_image(recon_img.view(n_samples, 1, 28, 28),
+    #                str(os.path.join(output_dir, 'recon_image.png')))
+    # else:
+    #     save_image(recon_img,
+    #                str(os.path.join(output_dir, 'recon_image.png')))
 
     for i in range(10):
         label = torch.zeros(zS_dim)
@@ -1944,10 +2399,10 @@ def save_cross_mnist(iters, data_loader, encA, decA, encB, n_samples, zS_dim, cu
         recon_img = decA.forward2(zA, q['sharedB'].value, cuda)
         if flatten_pixel:
             save_image(recon_img.view(n_samples, 1, 28, 28),
-                       str(os.path.join(output_dir, str(i) + '_image_iter.png')))
+                       str(os.path.join(output_dir, str(i) + '.png')))
         else:
             save_image(recon_img,
-                       str(os.path.join(output_dir, str(i) + '_image_iter.png')))
+                       str(os.path.join(output_dir, str(i) + '.png')))
 
 
 ################################################ NEW cub #########################################
@@ -2059,3 +2514,717 @@ def save_recon_cub_cont(iters, data_loader, enc, dec, encB, cuda, output_dir_trv
                str(os.path.join(out_dir, 'recon_img_cross.png')), nrow=int(np.sqrt(recon_img_cr.shape[0])))
     save_image(imgs,
                str(os.path.join(out_dir, 'imgs.png')), nrow=int(np.sqrt(imgs.shape[0])))
+
+
+def save_traverse_cub_cont(iters, data_loader, enc, dec, cuda, output_dir_trvsl,
+                           fixed_idxs=[0], min=-2, max=2):
+    output_dir_trvsl = '../output/' + output_dir_trvsl
+    mkdirs(output_dir_trvsl)
+
+    tr_range = 3
+
+    fixed_XA = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], _ = data_loader.dataset.__getitem__(idx)[:2]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+
+    # do traversal and collect generated images
+
+    q = enc(fixed_XA, num_samples=1)
+    zA_ori = q['privateA'].dist.loc
+    zS_ori = q['sharedA'].dist.loc
+
+    latents = [zA_ori, zS_ori]
+    recon_img = dec.forward2(latents)
+
+    zS_dim = zS_ori.shape[2]
+
+    n_interp = 5
+    loc = -1
+    #### shared1
+    # for shared attr
+    tempS = []
+    interpolation = torch.tensor(np.linspace(min, max, n_interp))
+    interpolation = torch.transpose(interpolation, 1, 0)
+
+    # add original, reconstructed img
+    gt_img = [(torch.cat([fixed_XA[i] for i in range(fixed_XA.shape[0])], dim=1)).unsqueeze(0)] * n_interp
+    reconst_img = [(torch.cat([recon_img[i] for i in range(recon_img.shape[0])], dim=1)).unsqueeze(
+        0)] * n_interp
+    tempS.append(torch.cat(gt_img, dim=0).unsqueeze(0))
+    tempS.append(torch.cat(reconst_img, dim=0).unsqueeze(0))
+    for row in range(int(zS_dim / 4)):
+        if loc != -1 and row != loc:
+            continue
+        zS = zS_ori.clone()
+        temp = []
+        for val in interpolation[row]:
+            # for val in interpolation:
+            zS[:, :, row] = val
+            sampleA = dec.forward2([zA_ori, zS])
+            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    gifs_shared = torch.cat(tempS, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+    out_dir = os.path.join(output_dir_trvsl, str(iters), str(fixed_idxs))
+    part1_dir = os.path.join(out_dir, 'part0')
+    mkdirs(out_dir)
+    mkdirs(part1_dir)
+
+    for j in range(n_interp):
+        save_image(
+            tensor=gifs_shared[:, j].cpu(),
+            filename=os.path.join(part1_dir, '%03d.jpg' % (j)),
+            nrow=2 + int(zS_dim / 2),
+            pad_value=1)
+        # make animated gif
+    grid2gif(
+        part1_dir, str(os.path.join(out_dir, 'part0' + '.gif')), delay=10, duration=0.12
+    )
+
+    #### shared2
+    # for shared attr
+    tempS = []
+    for row in range(int(zS_dim / 2), int(zS_dim * 3 / 4)):
+        if loc != -1 and row != loc:
+            continue
+        zS = zS_ori.clone()
+        temp = []
+        # for val in interpolation:
+        for val in interpolation[row]:
+            zS[:, :, row] = val
+            sampleA = dec.forward2([zA_ori, zS])
+            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempS.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    gifs_shared = torch.cat(tempS, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+    part2_dir = os.path.join(out_dir, 'part2')
+    mkdirs(part2_dir)
+
+    for j in range(n_interp):
+        save_image(
+            tensor=gifs_shared[:, j].cpu(),
+            filename=os.path.join(part2_dir, '%03d.jpg' % (j)),
+            nrow=int(zS_dim / 2),
+            pad_value=1)
+        # make animated gif
+    grid2gif(
+        part2_dir, str(os.path.join(out_dir, 'part2' + '.gif')), delay=10, duration=0.12
+    )
+    np.savetxt(os.path.join(out_dir, 'min.txt'), min)
+    np.savetxt(os.path.join(out_dir, 'max.txt'), max)
+
+
+def mnist_latent(data_loader, encA, n_samples):
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+    from sklearn.manifold import TSNE
+
+    ########################
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    label = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
+        fixed_XA[i] = fixed_XA[i].view(-1, 784)
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    label = np.array(label)
+
+    q = encA(fixed_XA, num_samples=1)
+    shared_feat = [torch.argmax(torch.round(q['sharedA'].value), dim=2)]
+    shared_feat = torch.cat(shared_feat)
+    shared_feat = torch.transpose(shared_feat, 1, 0)
+    shared_feat = shared_feat.type(torch.FloatTensor)
+    private_feat = q['privateA'].value.squeeze(0)
+    features = torch.cat([shared_feat, private_feat.detach()], dim=1)
+    ########################
+    target_names = np.unique(label)
+
+    pca = PCA(n_components=2)
+    X_private = pca.fit(private_feat.detach().numpy()).transform(private_feat.detach().numpy())
+
+    colors = np.array(
+        ['burlywood', 'turquoise', 'darkorange', 'blue', 'green', 'yellow', 'red', 'black', 'purple', 'magenta'])
+    lw = 2
+
+    # fig = plt.figure()
+    # fig.tight_layout()
+    # #### private
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_private[label == i, 0], X_private[label == i, 1], color=color, alpha=.8, lw=lw,
+    #                 label=target_name)
+    # plt.legend(loc=1, shadow=False, scatterpoints=1)
+    # # plt.xticks(range(-5,6))
+    # # plt.title('Private latent space')
+    #
+    # #### shared
+    # fig = plt.figure()
+    # fig.tight_layout()
+    #
+    # shared = q['sharedA'].value.squeeze(0)
+    # pca = PCA(n_components=2)
+    # X_total = pca.fit(shared.detach().numpy()).transform(shared.detach().numpy())
+    #
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_total[label == i, 0], X_total[label == i, 1], color=color, alpha=.8, lw=lw,
+    #                 label=target_name)
+    # plt.legend(loc=1, shadow=False, scatterpoints=1)
+    # # plt.xticks(range(-5, 8, 2))
+    #
+    # #### total
+    # fig = plt.figure()
+    # fig.tight_layout()
+    # pca = PCA(n_components=2)
+    # X_total = pca.fit(features.detach().numpy()).transform(features.detach().numpy())
+    #
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_total[label == i, 0], X_total[label == i, 1], color=color, alpha=.8, lw=lw,
+    #                 label=target_name)
+    # plt.legend(loc=1, shadow=False, scatterpoints=1)
+    # plt.xticks(range(-5, 8, 2))
+
+
+    # private tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(private_feat.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-40, 70, 20))
+
+    # shared tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    shared = q['sharedA'].value.squeeze(0)
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(shared.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.3, color=color,
+                    label=target_name, s=10)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-60, 100, 20))
+
+    # total tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(features.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-30, 60, 20))
+    # plt.title('All latent space')
+
+    # lda = LinearDiscriminantAnalysis(n_components=2)
+    # X_r2 = lda.fit(features, label).transform(features)
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+    #                 label=target_name)
+    # plt.legend(loc=1, shadow=False, scatterpoints=1)
+    # plt.title('LDA')
+
+    # tsne = TSNE(n_components=2, random_state=0)
+    # X_r2 = tsne.fit_transform(features)
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+    #                 label=target_name)
+    # plt.legend(loc=1, shadow=False, scatterpoints=1)
+    # plt.title('LDA')
+    plt.show()
+
+
+def celeba_latent(data_loader, encA, n_samples):
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+
+    ########################
+    torch.manual_seed(2)
+    random.seed(2)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    label = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    label = torch.stack(label, dim=0).detach().numpy()
+
+    q = encA(fixed_XA, num_samples=1)
+    shared_feat = []
+    for i in range(18):
+        shared_feat.append(torch.argmax(torch.round(q['sharedA' + str(i)].value), dim=2))
+    shared_feat = torch.cat(shared_feat)
+    shared_feat = torch.transpose(shared_feat, 1, 0)
+    shared_feat = shared_feat.type(torch.FloatTensor)
+    private_feat = q['privateA'].value.squeeze(0)
+    features = torch.cat([shared_feat, private_feat.detach()], dim=1)
+    ########################
+    target_names = ['False', 'True']
+    attr_names = ['Male', 'Smiling', 'Smiling', 'Heavy_Makeup', 'Mouth_Slightly_Open']
+    for attr_name in attr_names:
+        attr_idx = ATTR_IX_TO_KEEP.index(ATTR_TO_IX_DICT[attr_name])
+        colors = np.array(['navy', 'darkorange'])
+        lw = 2
+
+        ###### private
+        # fig = plt.figure()
+        # fig.tight_layout()
+        # pca = PCA(n_components=2)
+        # X_private = pca.fit(private_feat.detach().numpy()).transform(private_feat.detach().numpy())
+        # for color, i, target_name in zip(colors,  [0,1], target_names):
+        #     plt.scatter(X_private[label[:,attr_idx] == i, 0], X_private[label[:,attr_idx] == i, 1], color=color, alpha=.8, lw=lw,
+        #                 label=target_name)
+        # plt.legend(loc=1, shadow=False, scatterpoints=1, fontsize=13)
+        # # plt.title('Private latent space')
+        # ###### shared
+        # fig = plt.figure()
+        # fig.tight_layout()
+        # pca = PCA(n_components=2)
+        # X_shared = pca.fit(shared_feat.detach().numpy()).transform(shared_feat.detach().numpy())
+        #
+        # for color, i, target_name in zip(colors, [0,1], target_names):
+        #     plt.scatter(X_shared[label[:,attr_idx] == i, 0], X_shared[label[:,attr_idx] == i, 1], color=color, alpha=.8, lw=lw,
+        #                 label=target_name)
+        # plt.legend(loc=1, shadow=False, scatterpoints=1, fontsize=13)
+        # # plt.title('shared space')
+        #
+        # ###### total
+        # fig = plt.figure()
+        # fig.tight_layout()
+        # pca = PCA(n_components=2)
+        # X_total = pca.fit(features.detach().numpy()).transform(features.detach().numpy())
+        #
+        # for color, i, target_name in zip(colors,  [0,1], target_names):
+        #     plt.scatter(X_total[label[:,attr_idx] == i, 0], X_total[label[:,attr_idx] == i, 1], color=color, alpha=.8, lw=lw,
+        #                 label=target_name)
+        # plt.legend(loc=1, shadow=False, scatterpoints=1, fontsize=13)
+        # # plt.title('All latent space')
+
+
+        ########### TSNE
+        from sklearn.manifold import TSNE
+
+        ###### private
+        fig = plt.figure()
+        fig.tight_layout()
+        tsne = TSNE(n_components=2, random_state=0)
+        X_private = tsne.fit_transform(private_feat.detach().numpy())
+
+        for color, i, target_name in zip(colors, [0, 1], target_names):
+            plt.scatter(X_private[label[:, attr_idx] == i, 0], X_private[label[:, attr_idx] == i, 1], color=color,
+                        alpha=.8, lw=lw,
+                        label=target_name)
+        plt.legend(loc=1, shadow=False, scatterpoints=1, fontsize=13)
+        # plt.title('Private latent space')
+
+        ###### shared
+        fig = plt.figure()
+        fig.tight_layout()
+        tsne = TSNE(n_components=2, random_state=0)
+        X_shared = tsne.fit_transform(shared_feat.detach().numpy())
+
+        for color, i, target_name in zip(colors, [0, 1], target_names):
+            plt.scatter(X_shared[label[:, attr_idx] == i, 0], X_shared[label[:, attr_idx] == i, 1], color=color,
+                        alpha=.8, lw=lw,
+                        label=target_name)
+        plt.legend(loc=1, shadow=False, scatterpoints=1, fontsize=13)
+        # plt.title('shared space')
+
+        ###### total
+        fig = plt.figure()
+        fig.tight_layout()
+        tsne = TSNE(n_components=2, random_state=0)
+        X_total = tsne.fit_transform(features.detach().numpy())
+
+        for color, i, target_name in zip(colors, [0, 1], target_names):
+            plt.scatter(X_total[label[:, attr_idx] == i, 0], X_total[label[:, attr_idx] == i, 1], color=color, alpha=.8,
+                        lw=lw,
+                        label=target_name)
+        plt.legend(loc=1, shadow=False, scatterpoints=1, fontsize=13)
+        # plt.title('All latent space')
+
+        plt.show()
+
+
+def svhn_latent(data_loader, encA, n_samples):
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+    from sklearn.manifold import TSNE
+
+    ########################
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    label = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    label = np.array(label)
+
+    q = encA(fixed_XA, num_samples=1)
+    shared_feat = [torch.argmax(torch.round(q['sharedA'].value), dim=2)]
+    shared_feat = torch.cat(shared_feat)
+    shared_feat = torch.transpose(shared_feat, 1, 0)
+    shared_feat = shared_feat.type(torch.FloatTensor)
+    private_feat = q['privateA'].value.squeeze(0)
+    features = torch.cat([shared_feat, private_feat.detach()], dim=1)
+    ########################
+    target_names = np.unique(label)
+    # target_names = np.flip(np.unique(label))
+
+    pca = PCA(n_components=2)
+    X_private = pca.fit(private_feat.detach().numpy()).transform(private_feat.detach().numpy())
+
+    colors = np.array(
+        ['burlywood', 'turquoise', 'darkorange', 'blue', 'green', 'yellow', 'red', 'black', 'purple', 'magenta'])
+    lw = 2
+
+    #### private
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_private[label == i, 0], X_private[label == i, 1], color=color, alpha=.8, lw=lw,
+    #                 label=target_name)
+    # plt.legend(loc=1, shadow=False, scatterpoints=1)
+    # plt.xticks(range(-4,7,2))
+    # # plt.title('Private latent space')
+    #
+    # #### shared
+    # shared = q['sharedA'].value.squeeze(0)
+    # plt.figure()
+    # pca = PCA(n_components=2)
+    # X_total = pca.fit(shared.detach().numpy()).transform(shared.detach().numpy())
+    #
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_total[label == i, 0], X_total[label == i, 1], color=color, alpha=.8, lw=lw,
+    #                 label=target_name)
+    # plt.legend(loc=0, shadow=False, scatterpoints=1)
+    # # plt.xticks(range(-2, 3, 1))
+    #
+    # #### total
+    # plt.figure()
+    # pca = PCA(n_components=2)
+    # X_total = pca.fit(features.detach().numpy()).transform(features.detach().numpy())
+    #
+    # for color, i, target_name in zip(colors, target_names, target_names):
+    #     plt.scatter(X_total[label == i, 0], X_total[label == i, 1], color=color, alpha=.8, lw=lw,
+    #                 label=target_name)
+    # plt.legend(loc=1, shadow=False, scatterpoints=1)
+    # plt.xticks(range(-5, 10, 2))
+    # plt.title('All latent space')
+
+
+
+    # # private tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(private_feat.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-30, 80, 20))
+
+    # shared tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    shared = q['sharedA'].value.squeeze(0)
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(shared.detach().numpy())
+    for color, i, target_name in zip(np.flip(colors), np.flip(target_names), np.flip(target_names)):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.3, color=color,
+                    label=target_name, s=10)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-40, 80, 20))
+
+    # # total tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(features.detach().numpy())
+    for color, i, target_name in zip(np.flip(colors), np.flip(target_names), np.flip(target_names)):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-50, 90, 20))
+
+    plt.show()
+
+
+def mnist_base_latent(data_loader, encA, n_samples):
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+    from sklearn.manifold import TSNE
+
+    ########################
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    label = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
+        fixed_XA[i] = fixed_XA[i].view(-1, 784)
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    label = np.array(label)
+
+    q = encA(fixed_XA, num_samples=1)
+    shared_feat = q['digits'].value.squeeze(0)
+    private_feat = q['styles'].value.squeeze(0)
+    features = torch.cat([shared_feat, private_feat], dim=1)
+    ########################
+    target_names = np.unique(label)
+
+    colors = np.array(
+        ['burlywood', 'turquoise', 'darkorange', 'blue', 'green', 'yellow', 'red', 'black', 'purple', 'magenta'])
+    lw = 2
+
+    # private tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(private_feat.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-30, 50, 20))
+
+    # shared tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(shared_feat.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.3, color=color,
+                    label=target_name, s=10)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-40, 90, 20))
+
+    # total tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(features.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-30, 50, 20))
+
+    plt.show()
+
+
+def svhn_base_latent(data_loader, encA, n_samples):
+    import matplotlib.pyplot as plt
+    from sklearn.decomposition import PCA
+    from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+    from sklearn.manifold import TSNE
+
+    ########################
+    torch.manual_seed(0)
+    random.seed(0)
+    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+    fixed_XA = [0] * n_samples
+    label = [0] * n_samples
+    for i, idx in enumerate(fixed_idxs):
+        fixed_XA[i], label[i] = data_loader.dataset.__getitem__(idx)[:2]
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    label = np.array(label)
+
+    q = encA(fixed_XA, num_samples=1)
+    shared_feat = q['digits'].value.squeeze(0)
+    private_feat = q['styles'].value.squeeze(0)
+    features = torch.cat([shared_feat, private_feat], dim=1)
+    ########################
+    target_names = np.unique(label)
+
+    colors = np.array(
+        ['burlywood', 'turquoise', 'darkorange', 'blue', 'green', 'yellow', 'red', 'black', 'purple', 'magenta'])
+    lw = 2
+
+    # private tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(private_feat.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-20, 40, 20))
+
+    # shared tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(shared_feat.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.3, color=color,
+                    label=target_name, s=10)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-40, 70, 20))
+
+    # total tsne
+    fig = plt.figure()
+    fig.tight_layout()
+    tsne = TSNE(n_components=2, random_state=0)
+    X_r2 = tsne.fit_transform(features.detach().numpy())
+    for color, i, target_name in zip(colors, target_names, target_names):
+        plt.scatter(X_r2[label == i, 0], X_r2[label == i, 1], alpha=.8, color=color,
+                    label=target_name)
+    plt.legend(loc=4, shadow=False, scatterpoints=1)
+    plt.xticks(range(-20, 40, 20))
+
+    plt.show()
+
+
+def save_traverse_half(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None,
+                       fixed_idxs=[3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121]):
+    tr_range = 2
+    out_dir = os.path.join('../output/' + output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range))
+
+    fixed_XA = [0] * len(fixed_idxs)
+    fixed_XB = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+
+        fixed_XA[i], fixed_XB[i] = \
+            data_loader.dataset.__getitem__(idx)[0:2]
+        fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
+        fixed_XB[i] = fixed_XB[i].view(-1, flatten_pixel)
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+            fixed_XB[i] = fixed_XB[i].cuda()
+
+    fixed_XA = torch.cat(fixed_XA, dim=0)
+    fixed_XB = torch.cat(fixed_XB, dim=0)
+
+    # do traversal and collect generated images
+
+    q = encA(fixed_XA, num_samples=1)
+    q = encB(fixed_XB, num_samples=1, q=q)
+
+    zA_ori, zSA_ori = q['privateA'].dist.loc, q['sharedA'].value
+    zB_ori, zSB_ori = q['privateB'].dist.loc, q['sharedB'].value
+
+    # making poe dist
+    mu_poe, std_poe = probtorch.util.apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                               q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+    q.normal(mu_poe,
+             std_poe,
+             name='poe')
+    # sampling poe
+    zS_ori = q['poe'].value
+
+    zA_dim = zA_ori.shape[2]
+    zB_dim = zB_ori.shape[2]
+    zS_dim = zS_ori.shape[2]
+    interpolation = torch.tensor(np.linspace(-tr_range, tr_range, 10))
+
+    #### A private
+    tempAll = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
+
+    loc = -1
+    for row in range(zA_dim):
+        if loc != -1 and row != loc:
+            continue
+        zA = zA_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zA[:, :, row] = val
+            sampleA = decA.forward2(zA, zS_ori, cuda)
+            sampleA = sampleA.view(sampleA.shape[0], -1, 14, 28)
+            sampleA = torch.transpose(sampleA, 0, 1)
+            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+
+    # shared A
+    tempS = []
+    for i in range(zS_dim):
+        zS = np.zeros((1, 1, zS_dim))
+        zS[0, 0, i % zS_dim] = 1.
+        zS = torch.Tensor(zS)
+        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+        if cuda:
+            zS = zS.cuda()
+        sampleA = decA.forward2(zA_ori, zS, cuda)
+        sampleA = sampleA.view(sampleA.shape[0], -1, 14, 28)
+        sampleA = torch.transpose(sampleA, 0, 1)
+        tempS.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+    tempAll.append(torch.cat(tempS, dim=0).unsqueeze(0))
+
+    #### B
+    # shared A
+    tempAll2 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
+    tempS = []
+    for i in range(zS_dim):
+        zS = np.zeros((1, 1, zS_dim))
+        zS[0, 0, i % zS_dim] = 1.
+        zS = torch.Tensor(zS)
+        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+        if cuda:
+            zS = zS.cuda()
+        sampleB = decB.forward2(zB_ori, zS, cuda)
+        sampleB = sampleB.view(sampleB.shape[0], -1, 14, 28)
+        sampleB = torch.transpose(sampleB, 0, 1)
+        tempS.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+    tempAll2.append(torch.cat(tempS, dim=0).unsqueeze(0))
+
+    #### B private
+    loc = -1
+    for row in range(zB_dim):
+        if loc != -1 and row != loc:
+            continue
+        zB = zB_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zB[:, :, row] = val
+            sampleB = decB.forward2(zB, zS_ori, cuda)
+            sampleB = sampleB.view(sampleB.shape[0], -1, 14, 28)
+            sampleB = torch.transpose(sampleB, 0, 1)
+            temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+        tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+
+    gifs1 = torch.cat(tempAll, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+    gifs2 = torch.cat(tempAll2, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+    gifs = torch.cat([gifs1, gifs2], dim=3)
+
+    # save the generated files, also the animated gifs
+
+    mkdirs(output_dir_trvsl)
+    mkdirs(out_dir)
+
+    for j, val in enumerate(interpolation):
+        # I = torch.cat([IMG[key], gifs[:][j]], dim=0)
+        I = gifs[:, j]
+        save_image(
+            tensor=I.cpu(),
+            filename=os.path.join(out_dir, '%03d.jpg' % (j)),
+            nrow=zA_dim + zS_dim,
+            pad_value=1)
+        # make animated gif
+    grid2gif(
+        out_dir, str(os.path.join(out_dir, 'traverse.gif')), delay=10
+    )
