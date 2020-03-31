@@ -326,7 +326,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pA = decA(images1, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
             pB = decB(images2, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
-                      num_samples=NUM_SAMPLES, train=False)
+                      num_samples=NUM_SAMPLES)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
 
