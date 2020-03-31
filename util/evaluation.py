@@ -3140,6 +3140,7 @@ def save_traverse_half(iters, data_loader, encA, decA, encB, decB, cuda, output_
     zS_dim = zS_ori.shape[2]
     interpolation = torch.tensor(np.linspace(-tr_range, tr_range, 10))
 
+    height = int(np.prod(fixed_XA.shape) / (fixed_XA.shape[0] * 28))
     #### A private
     tempAll = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
 
@@ -3153,7 +3154,7 @@ def save_traverse_half(iters, data_loader, encA, decA, encB, decB, cuda, output_
         for val in interpolation:
             zA[:, :, row] = val
             sampleA = decA.forward2(zA, zS_ori, cuda)
-            sampleA = sampleA.view(sampleA.shape[0], -1, 14, 28)
+            sampleA = sampleA.view(sampleA.shape[0], -1, height, 28)
             sampleA = torch.transpose(sampleA, 0, 1)
             temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
         tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
@@ -3168,28 +3169,13 @@ def save_traverse_half(iters, data_loader, encA, decA, encB, decB, cuda, output_
         if cuda:
             zS = zS.cuda()
         sampleA = decA.forward2(zA_ori, zS, cuda)
-        sampleA = sampleA.view(sampleA.shape[0], -1, 14, 28)
+        sampleA = sampleA.view(sampleA.shape[0], -1, height, 28)
         sampleA = torch.transpose(sampleA, 0, 1)
         tempS.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
     tempAll.append(torch.cat(tempS, dim=0).unsqueeze(0))
 
     #### B
-    # shared A
     tempAll2 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
-    tempS = []
-    for i in range(zS_dim):
-        zS = np.zeros((1, 1, zS_dim))
-        zS[0, 0, i % zS_dim] = 1.
-        zS = torch.Tensor(zS)
-        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
-        if cuda:
-            zS = zS.cuda()
-        sampleB = decB.forward2(zB_ori, zS, cuda)
-        sampleB = sampleB.view(sampleB.shape[0], -1, 14, 28)
-        sampleB = torch.transpose(sampleB, 0, 1)
-        tempS.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
-    tempAll2.append(torch.cat(tempS, dim=0).unsqueeze(0))
-
     #### B private
     loc = -1
     for row in range(zB_dim):
@@ -3201,10 +3187,25 @@ def save_traverse_half(iters, data_loader, encA, decA, encB, decB, cuda, output_
         for val in interpolation:
             zB[:, :, row] = val
             sampleB = decB.forward2(zB, zS_ori, cuda)
-            sampleB = sampleB.view(sampleB.shape[0], -1, 14, 28)
+            sampleB = sampleB.view(sampleB.shape[0], -1, height, 28)
             sampleB = torch.transpose(sampleB, 0, 1)
             temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
         tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+
+    # shared B
+    tempS = []
+    for i in range(zS_dim):
+        zS = np.zeros((1, 1, zS_dim))
+        zS[0, 0, i % zS_dim] = 1.
+        zS = torch.Tensor(zS)
+        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+        if cuda:
+            zS = zS.cuda()
+        sampleB = decB.forward2(zB_ori, zS, cuda)
+        sampleB = sampleB.view(sampleB.shape[0], -1, height, 28)
+        sampleB = torch.transpose(sampleB, 0, 1)
+        tempS.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+    tempAll2.append(torch.cat(tempS, dim=0).unsqueeze(0))
 
     gifs1 = torch.cat(tempAll, dim=0)  # torch.Size([11, 10, 1, 384, 32])
     gifs2 = torch.cat(tempAll2, dim=0)  # torch.Size([11, 10, 1, 384, 32])
