@@ -254,10 +254,10 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=No
     if use_cuda:
         ZERO = ZERO.cuda()
 
-    logvar_sharedA = torch.log(std_sharedA ** 2) + EPS
+    logvar_sharedA = torch.log(std_sharedA ** 2 + EPS)
 
     if mu_sharedB is not None and std_sharedB is not None:
-        logvar_sharedB = torch.log(std_sharedB ** 2) + EPS
+        logvar_sharedB = torch.log(std_sharedB ** 2 + EPS)
         logvarS = -torch.logsumexp(
             torch.stack((ZERO, -logvar_sharedA, -logvar_sharedB), dim=2),
             dim=2
@@ -270,10 +270,10 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=No
     stdS = torch.sqrt(torch.exp(logvarS))
 
     if mu_sharedB is not None and std_sharedB is not None:
-        muS = (mu_sharedA / (std_sharedA ** 2) +
-               mu_sharedB / (std_sharedB ** 2)) * (stdS ** 2)
+        muS = (mu_sharedA / (std_sharedA ** 2 + EPS) +
+               mu_sharedB / (std_sharedB ** 2 + EPS)) * (stdS ** 2)
     else:
-        muS = (mu_sharedA / (std_sharedA ** 2)) * (stdS ** 2)
+        muS = (mu_sharedA / (std_sharedA ** 2 + EPS)) * (stdS ** 2)
 
     return muS, stdS
 
