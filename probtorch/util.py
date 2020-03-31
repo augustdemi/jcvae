@@ -243,6 +243,17 @@ def transform(image, resize=None):
     return image
 
 
+def logsumexp(x, dim=None, keepdim=False):
+    if dim is None:
+        x, dim = x.view(-1), 0
+    xm, _ = torch.max(x, dim, keepdim=True)
+    x = torch.where(
+        (xm == float('inf')) | (xm == float('-inf')),
+        xm,
+        xm + torch.log(torch.sum(torch.exp(x - xm), dim, keepdim=True)))
+    return x if keepdim else x.squeeze(dim)
+
+
 def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=None):
     '''
     induce zS = encAB(xA,xB) via POE, that is,
@@ -258,12 +269,12 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=No
 
     if mu_sharedB is not None and std_sharedB is not None:
         logvar_sharedB = torch.log(std_sharedB ** 2 + EPS)
-        logvarS = -torch.logsumexp(
+        logvarS = -logsumexp(
             torch.stack((ZERO, -logvar_sharedA, -logvar_sharedB), dim=2),
             dim=2
         )
     else:
-        logvarS = -torch.logsumexp(
+        logvarS = -logsumexp(
             torch.stack((ZERO, -logvar_sharedA), dim=2),
             dim=2
         )
