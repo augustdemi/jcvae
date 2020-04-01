@@ -72,6 +72,12 @@ class EncoderA(nn.Module):
                  scale=stdPrivate,
                  name='privateA')
 
+        print('muSharedA: ', muShared)
+        print('logvarSharedA: ', logvarShared)
+        print('stdSharedA: ', stdShared)
+        print('----------------------------')
+
+
         # attributes
         q.normal(loc=muShared,
                  scale=stdShared,
@@ -193,6 +199,11 @@ class EncoderB(nn.Module):
         muShared = stats[:, :, :self.zShared_dim]
         logvarShared = stats[:, :, self.zShared_dim:]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
+
+        print('muSharedB: ', muShared)
+        print('logvarSharedB: ', logvarShared)
+        print('stdSharedB: ', stdShared)
+        print('----------------------------')
 
 
         # attributes
