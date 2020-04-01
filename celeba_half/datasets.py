@@ -70,8 +70,8 @@ class datasets(Dataset):
 
         if self.image_transform is not None:
             image = self.image_transform(image)
-        image1 = image[:, :, :40]
-        image2 = image[:, :, 24:]
+        image1 = image
+        image2 = image
         # imgshow(image1)
         # imgshow(image2)
         return image1, image2

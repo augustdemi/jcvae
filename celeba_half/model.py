@@ -12,7 +12,7 @@ from torch.nn import functional as F
 EPS = 1e-9
 TEMP = 0.66
 
-RED_DIM = (-1, 256, 5, 2)
+RED_DIM = (-1, 256, 5, 5)
 
 
 class EncoderA(nn.Module):

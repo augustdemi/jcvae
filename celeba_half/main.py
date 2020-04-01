@@ -239,6 +239,8 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
 
 def train(data, encA, decA, encB, decB, optimizer,
           label_mask={}, fixed_imgs=None, fixed_labels=None):
+    # util.evaluation.save_traverse_half_celeba(1, data, encA, decA, encB, decB, CUDA, MODEL_NAME,
+    #                                           fixed_idxs=[0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000])
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
