@@ -76,6 +76,11 @@ class EncoderA(nn.Module):
                  name='privateA')
 
         # attributes
+        print('muPrivateA: ', muPrivate)
+        print('logvarPrivateA: ', logvarPrivate)
+        print('stdPrivateA: ', stdPrivate)
+        print('----------------------------')
+
         print('muSharedA: ', muShared)
         print('logvarSharedA: ', logvarShared)
         print('stdSharedA: ', stdShared)
