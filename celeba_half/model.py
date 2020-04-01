@@ -76,9 +76,9 @@ class EncoderA(nn.Module):
                  name='privateA')
 
         # attributes
-        print('muShared: ', muShared)
-        print('logvarShared: ', logvarShared)
-        print('stdShared: ', stdShared)
+        print('muSharedA: ', muShared)
+        print('logvarSharedA: ', logvarShared)
+        print('stdSharedA: ', stdShared)
         print('----------------------------')
         q.normal(loc=muShared,
                  scale=stdShared,
@@ -226,6 +226,11 @@ class EncoderB(nn.Module):
         q.normal(loc=muPrivate,
                  scale=stdPrivate,
                  name='privateB')
+
+        print('muSharedB: ', muShared)
+        print('logvarSharedB: ', logvarShared)
+        print('stdSharedB: ', stdShared)
+        print('----------------------------')
 
         # attributes
         q.normal(loc=muShared,
