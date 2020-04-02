@@ -613,11 +613,11 @@ if args.ckpt_epochs > 0:
 
 if args.pretrain:
     print('>>>> pretrained encA')
-    pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain-run_id1-shared10-bs100-lr0.001-encA_epoch100.rar'
-if CUDA:
-    encA.load_state_dict(torch.load(pretrain_model))
-else:
-    encA.load_state_dict(torch.load(pretrain_model, map_location=torch.device('cpu')))
+    pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain-run_id1-shared10-bs100-lr0.001-encA_epoch140.rar'
+    if CUDA:
+        encA.load_state_dict(torch.load(pretrain_model))
+    else:
+        encA.load_state_dict(torch.load(pretrain_model, map_location=torch.device('cpu')))
 
 mask = {}
 fixed_imgs = None
