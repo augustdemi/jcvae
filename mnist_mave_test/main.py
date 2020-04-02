@@ -60,6 +60,10 @@ if __name__ == "__main__":
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_mvae/1',
                         help='save and load path for ckpt')
+
+    parser.add_argument('--pretrain',
+                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+
     # visdom
     parser.add_argument('--viz_on',
                         default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
@@ -75,7 +79,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist_mvae-run_id%d-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-seed%s-bs%s-wseed%s-lr%s' % (
+MODEL_NAME = 'mnist_mvae_test-run_id%d-shared%02ddim-label_frac%s-sup_frac%s-lamb_text%s-seed%s-bs%s-wseed%s-lr%s' % (
     args.run_id, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.seed,
     args.batch_size, args.wseed, args.lr)
 DATA_PATH = '../data'
@@ -607,7 +611,9 @@ if args.ckpt_epochs > 0:
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 
-pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain-run_id1-shared10-bs100-lr0.001-encA_epoch100.rar'
+if args.pretrain:
+    print('>>>> pretrained encA')
+    pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain-run_id1-shared10-bs100-lr0.001-encA_epoch100.rar'
 if CUDA:
     encA.load_state_dict(torch.load(pretrain_model))
 else:
