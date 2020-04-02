@@ -239,6 +239,8 @@ class EncoderB2(nn.Module):
             q = probtorch.Trace()
 
         labels_onehot = torch.zeros(labels.shape[0], 10)
+        if cuda:
+            labels_onehot = labels_onehot.cuda()
         labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
         labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
         muShared = labels_onehot.unsqueeze(0)
