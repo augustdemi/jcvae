@@ -203,7 +203,6 @@ def test(data, encA):
             pred_labels = torch.argmax(pred_labels, dim=1)
 
             if CUDA:
-                batch_elbo = batch_elbo.cpu()
                 pred_labels = pred_labels.cpu()
                 labels = labels.cpu()
 
