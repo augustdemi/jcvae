@@ -55,8 +55,7 @@ class EncoderA(nn.Module):
         h = F.relu(self.fc1(x.view(-1, 784)))
         h = F.relu(self.fc2(h))
         muShared = self.fc31(h).unsqueeze(0)
-        logvarShared = self.fc32(h).unsqueeze(0)
-        stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
+        stdShared = torch.exp(self.fc32(h).unsqueeze(0))
 
         q.normal(loc=muShared,
                  scale=stdShared,
