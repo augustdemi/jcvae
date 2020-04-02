@@ -33,7 +33,9 @@ class EncoderA(nn.Module):
         #     nn.ReLU())
 
         self.fc1 = nn.Linear(784, 512)
+        self.bn1 = nn.BatchNorm1d(num_features=512)
         self.fc2 = nn.Linear(512, 512)
+        self.bn2 = nn.BatchNorm1d(num_features=512)
         self.fc31 = nn.Linear(512, zShared_dim)
         self.fc32 = nn.Linear(512, zShared_dim)
         self.swish = Swish()
@@ -52,11 +54,13 @@ class EncoderA(nn.Module):
             q = probtorch.Trace()
 
         # h = self.enc_hidden(x.view(-1, 784))
-        h = F.relu(self.fc1(x.view(-1, 784)))
-        h = F.relu(self.fc2(h))
+        h = F.relu(self.bn1(self.fc1(x.view(-1, 784))))
+        h = F.relu(self.bn2(self.fc2(h)))
         muShared = self.fc31(h).unsqueeze(0)
-        stdShared = torch.exp(self.fc32(h).unsqueeze(0))
+        logvarShared = self.fc32(h).unsqueeze(0)
+        stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
+        print(stdShared)
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedA')
