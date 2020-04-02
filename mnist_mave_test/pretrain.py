@@ -117,7 +117,7 @@ if args.viz_on:
         acc='win_acc'
     )
     LINE_GATHER = probtorch.util.DataGather(
-        'test_acc'
+        'test_acc', 'epoch'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
