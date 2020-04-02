@@ -60,7 +60,6 @@ class EncoderA(nn.Module):
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
-        print(stdShared)
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedA')
@@ -139,15 +138,10 @@ class EncoderB(nn.Module):
         self.zShared_dim = zShared_dim
         self.seed = seed
 
-        # self.enc_hidden = nn.Sequential(
-        #     nn.Embedding(10, 512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, 512),
-        #     nn.ReLU()
-        # )
-
         self.fc1 = nn.Embedding(10, 512)
+        self.bn1 = nn.BatchNorm1d(num_features=512)
         self.fc2 = nn.Linear(512, 512)
+        self.bn2 = nn.BatchNorm1d(num_features=512)
         self.fc31 = nn.Linear(512, zShared_dim)
         self.fc32 = nn.Linear(512, zShared_dim)
         self.swish = Swish()
@@ -166,8 +160,8 @@ class EncoderB(nn.Module):
         if q is None:
             q = probtorch.Trace()
         # h = self.enc_hidden(labels)
-        h = F.relu(self.fc1(labels))
-        h = F.relu(self.fc2(h))
+        h = F.relu(self.bn1(self.fc1(labels)))
+        h = F.relu(self.bn2(self.fc2(h)))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -184,15 +178,6 @@ class DecoderB(nn.Module):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
         self.seed = seed
-
-        # self.dec_hidden = nn.Sequential(
-        #     nn.Linear(zShared_dim, 512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, 512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, 512),
-        #     nn.ReLU()
-        # )
 
         self.fc1 = nn.Linear(zShared_dim, 512)
         self.fc2 = nn.Linear(512, 512)
@@ -234,6 +219,71 @@ class DecoderB(nn.Module):
 
             p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
                    pred_labels, labels, name='label_' + shared_from)
+            pred.update({shared_from: pred_labels})
+
+        if train:
+            predicted_attr = pred['own']
+        else:
+            predicted_attr = pred['cross']
+        return p, predicted_attr
+
+
+class EncoderB2(nn.Module):
+    def __init__(self, seed,
+                 zShared_dim=10):
+        super(self.__class__, self).__init__()
+        self.zShared_dim = zShared_dim
+
+    def forward(self, labels, cuda, num_samples=None, q=None):
+        if q is None:
+            q = probtorch.Trace()
+
+        labels_onehot = torch.zeros(labels.shape[0], 10)
+        labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+        labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+        muShared = labels_onehot.unsqueeze(0)
+
+        stdShared = torch.zeros_like(muShared) + EPS
+        q.normal(loc=muShared,
+                 scale=stdShared,
+                 name='sharedB')
+        return q
+
+
+class DecoderB2(nn.Module):
+    def __init__(self, seed,
+                 zShared_dim=18):
+        super(self.__class__, self).__init__()
+
+        self.weight_init()
+
+    def weight_init(self):
+        for m in self._modules:
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
+    def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True, CUDA=False):
+        shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
+        shared_std = torch.ones_like(q['sharedB'].dist.scale)
+        pred = {}
+
+        p = probtorch.Trace()
+
+        for shared_from in shared.keys():
+            # prior for z_shared_atrr
+            zShared = p.normal(shared_mean,
+                               shared_std,
+                               value=q[shared[shared_from]],
+                               name=shared[shared_from])
+
+            # h = self.dec_hidden(zShared.squeeze(0))
+            pred_labels = F.log_softmax(zShared.squeeze(0) + EPS, dim=1)
+            p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
+                   pred_labels, labels, name='label_' + shared_from)
+
             pred.update({shared_from: pred_labels})
 
         if train:
