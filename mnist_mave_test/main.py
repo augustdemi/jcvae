@@ -7,7 +7,7 @@ import os
 import visdom
 import numpy as np
 
-from model import EncoderA, EncoderB, DecoderA, DecoderB
+from model import EncoderA, DecoderA, EncoderB2, DecoderB2
 from sklearn.metrics import f1_score
 
 import sys
@@ -27,7 +27,7 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=64,
+    parser.add_argument('--n_shared', type=int, default=10,
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
@@ -62,7 +62,7 @@ if __name__ == "__main__":
                         help='save and load path for ckpt')
     # visdom
     parser.add_argument('--viz_on',
-                        default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
+                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
     parser.add_argument('--viz_port',
                         default=8002, type=int, help='visdom port number')
 
@@ -193,8 +193,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
 decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
-encB = EncoderB(args.wseed, zShared_dim=args.n_shared)
-decB = DecoderB(args.wseed, zShared_dim=args.n_shared)
+encB = EncoderB2(args.wseed, zShared_dim=args.n_shared)
+decB = DecoderB2(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
@@ -293,8 +293,8 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     torch.autograd.set_detect_anomaly(True)
 
     ############I added #########################
-    lamb_annealing_factor = np.power(2.0, (epoch + 1) // args.lamb_annealing_epochs)
-    print('epoch: ', epoch, ', lamb_annealing_factor:', lamb_annealing_factor)
+    # lamb_annealing_factor = np.power(2.0, (epoch + 1) // args.lamb_annealing_epochs)
+    # print('epoch: ', epoch, ', lamb_annealing_factor:', lamb_annealing_factor)
     #####################################
 
 
@@ -338,13 +338,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                      std_poe,
                      name='poe')
 
-            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-            q['sharedA'].dist.loc = muA
-            q['sharedA'].dist.scale = stdA
-
-            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            q['sharedB'].dist.loc = muB
-            q['sharedB'].dist.scale = stdB
+            # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            # q['sharedA'].dist.loc = muA
+            # q['sharedA'].dist.scale = stdA
+            #
+            # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            # q['sharedB'].dist.loc = muB
+            # q['sharedB'].dist.scale = stdB
 
             # decode attr
             shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -359,8 +359,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             for param in decB.parameters():
                 param.requires_grad = True
             # loss
-            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor,
-                                    lamb_annealing_factor=lamb_annealing_factor)
+            loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
         else:
             N += 1
             images = images.view(-1, NUM_PIXELS)
@@ -388,12 +387,12 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                          std_poe,
                          name='poe')
 
-                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                q['sharedA'].dist.loc = muA
-                q['sharedA'].dist.scale = stdA
-                q['sharedB'].dist.loc = muB
-                q['sharedB'].dist.scale = stdB
+                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                # q['sharedA'].dist.loc = muA
+                # q['sharedA'].dist.scale = stdA
+                # q['sharedB'].dist.loc = muB
+                # q['sharedB'].dist.scale = stdB
 
                 # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
                 # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
@@ -434,13 +433,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 shared_dist = {'own': 'sharedB'}
                 pB, _ = decB(labels_onehot, shared_dist, q=q)
 
-                muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                q['sharedA'].dist.loc = muA
-                q['sharedA'].dist.scale = stdA
-
-                muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                q['sharedB'].dist.loc = muB
-                q['sharedB'].dist.scale = stdB
+                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                # q['sharedA'].dist.loc = muA
+                # q['sharedA'].dist.scale = stdA
+                #
+                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                # q['sharedB'].dist.loc = muB
+                # q['sharedB'].dist.scale = stdB
 
                 # decode img
                 shared_dist = {'own': 'sharedA'}
@@ -511,13 +510,13 @@ def test(data, encA, decA, encB, decB):
             q = encA(images, CUDA)
             q = encB(labels, CUDA, q=q)
 
-            muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-            q['sharedA'].dist.loc = muA
-            q['sharedA'].dist.scale = stdA
-
-            muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            q['sharedB'].dist.loc = muB
-            q['sharedB'].dist.scale = stdB
+            # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+            # q['sharedA'].dist.loc = muA
+            # q['sharedA'].dist.scale = stdA
+            #
+            # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            # q['sharedB'].dist.loc = muB
+            # q['sharedB'].dist.scale = stdB
 
             # decode attr
             shared_dist = {'own': 'sharedB', 'cross': 'sharedA'}
@@ -608,6 +607,12 @@ if args.ckpt_epochs > 0:
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 
+pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain-run_id1-shared10-bs100-lr0.001-encA_epoch100.rar'
+if CUDA:
+    encA.load_state_dict(torch.load(pretrain_model))
+else:
+    encA.load_state_dict(torch.load(pretrain_model, map_location=torch.device('cpu')))
+
 mask = {}
 fixed_imgs = None
 fixed_labels = None
@@ -643,11 +648,6 @@ for e in range(args.ckpt_epochs, args.epochs):
 
     if (e + 1) % 20 == 0 or e + 1 == args.epochs:
         save_ckpt(e + 1)
-        decA.eval()
-        encB.eval()
-        # util.evaluation.save_cross_mnist_mvae(e, decA, encB, 64,
-        #                                       CUDA, MODEL_NAME)
-
     print(
         '[Epoch %d] Train: ELBO %.4e (%ds), Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
