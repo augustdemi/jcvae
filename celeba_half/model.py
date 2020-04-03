@@ -232,6 +232,12 @@ class EncoderB(nn.Module):
                  scale=stdPrivate,
                  name='privateB')
 
+        print('muPrivateB: ', muPrivate)
+        print('logvarPrivateB: ', logvarPrivate)
+        print('stdPrivateB: ', stdPrivate)
+        print('----------------------------')
+
+
         print('muSharedB: ', muShared)
         print('logvarSharedB: ', logvarShared)
         print('stdSharedB: ', stdShared)
