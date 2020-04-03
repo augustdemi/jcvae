@@ -3418,3 +3418,160 @@ def save_traverse_half_celeba(iters, data_loader, encA, decA, encB, decB, cuda, 
     grid2gif(
         out_dir + '/shared', str(os.path.join(out_dir + '/shared', 'traverse.gif')), delay=10
     )
+
+
+def save_traverse_half_svhn(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl,
+                            fixed_idxs=[3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121]):
+    tr_range = 4
+    out_dir = os.path.join('../output/' + output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range))
+
+    fixed_XA = [0] * len(fixed_idxs)
+    fixed_XB = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+        images, _ = \
+            data_loader.dataset.__getitem__(idx)[0:2]
+        fixed_XA[i] = images[:, :, :16]
+        fixed_XB[i] = images[:, :, 16:]
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+            fixed_XB[i] = fixed_XB[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+        fixed_XB[i] = fixed_XB[i].squeeze(0)
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    fixed_XB = torch.stack(fixed_XB, dim=0)
+
+    # do traversal and collect generated images
+
+    q = encA(fixed_XA, num_samples=1)
+    q = encB(fixed_XB, num_samples=1, q=q)
+
+    zA_ori, zSA_ori = q['privateA'].dist.loc, q['sharedA'].value
+    zB_ori, zSB_ori = q['privateB'].dist.loc, q['sharedB'].value
+
+    # making poe dist
+    mu_poe, std_poe = probtorch.util.apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                               q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+    q.normal(mu_poe,
+             std_poe,
+             name='poe')
+    # sampling poe
+    zS_ori = q['poe'].value
+
+    zA_dim = zA_ori.shape[2]
+    zB_dim = zB_ori.shape[2]
+    zS_dim = zS_ori.shape[2]
+    interpolation = torch.tensor(np.linspace(-tr_range, tr_range, 10))
+
+    #### A private
+    tempAll = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
+    loc = -1
+    for row in range(zA_dim):
+        if loc != -1 and row != loc:
+            continue
+        zA = zA_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zA[:, :, row] = val
+            sampleA = decA.forward2(zA, zS_ori, cuda)
+            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    temp = []
+    WS = torch.ones(sampleA.shape)
+    if cuda:
+        WS = WS.cuda()
+    for val in interpolation:
+        temp.append((torch.cat([WS[i] for i in range(WS.shape[0])], dim=1)).unsqueeze(0))
+    tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    #### B private
+
+    loc = -1
+    for row in range(zB_dim):
+        if loc != -1 and row != loc:
+            continue
+        zB = zB_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zB[:, :, row] = val
+            sampleB = decB.forward2(zB, zS_ori, cuda)
+            temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+        tempAll.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+
+    #### A shared
+    tempAll2 = []
+    loc = -1
+    for row in range(zA_dim):
+        if loc != -1 and row != loc:
+            continue
+        zS = zS_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zS[:, :, row] = val
+            sampleA = decA.forward2(zA_ori, zS, cuda)
+            temp.append((torch.cat([sampleA[i] for i in range(sampleA.shape[0])], dim=1)).unsqueeze(0))
+        tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    temp = []
+    WS = torch.ones(sampleA.shape)
+    if cuda:
+        WS = WS.cuda()
+    for val in interpolation:
+        temp.append((torch.cat([WS[i] for i in range(WS.shape[0])], dim=1)).unsqueeze(0))
+    tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    #### B shared
+    loc = -1
+    for row in range(zB_dim):
+        if loc != -1 and row != loc:
+            continue
+        zS = zS_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zS[:, :, row] = val
+            sampleB = decB.forward2(zB_ori, zS, cuda)
+            temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+        tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))
+
+    #####
+    gifs1 = torch.cat(tempAll, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+    gifs2 = torch.cat(tempAll2, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+    # gifs = torch.cat([gifs1, gifs2], dim=3)
+
+    # save the generated files, also the animated gifs
+
+    mkdirs(output_dir_trvsl)
+    mkdirs(out_dir + '/private')
+    mkdirs(out_dir + '/shared')
+
+    for j, val in enumerate(interpolation):
+        # I = torch.cat([IMG[key], gifs[:][j]], dim=0)
+        I = gifs1[:, j]
+        save_image(
+            tensor=I.cpu(),
+            filename=os.path.join(out_dir + '/private', '%03d.jpg' % (j)),
+            nrow=2 * zA_dim + 1,
+            pad_value=1)
+        # make animated gif
+    grid2gif(
+        out_dir + '/private', str(os.path.join(out_dir + '/private', 'traverse.gif')), delay=10
+    )
+
+    for j, val in enumerate(interpolation):
+        # I = torch.cat([IMG[key], gifs[:][j]], dim=0)
+        I = gifs2[:, j]
+        save_image(
+            tensor=I.cpu(),
+            filename=os.path.join(out_dir + '/shared', '%03d.jpg' % (j)),
+            nrow=2 * zS_dim + 1,
+            pad_value=1)
+        # make animated gif
+    grid2gif(
+        out_dir + '/shared', str(os.path.join(out_dir + '/shared', 'traverse.gif')), delay=10
+    )
