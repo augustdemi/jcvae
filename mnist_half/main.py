@@ -88,7 +88,7 @@ if len(args.run_desc) > 1:
 BETA1 = (1., args.beta1, 1.)
 BETA2 = (1., args.beta2, 1.)
 # model parameters
-NUM_PIXELS = int(28 * 18)
+NUM_PIXELS = int(28 * 14)
 TEMP = 0.66
 NUM_SAMPLES = 1
 
@@ -227,6 +227,10 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
 
 def train(data, encA, decA, encB, decB, optimizer,
           label_mask={}, fixed_imgs=None, fixed_labels=None):
+    # util.evaluation.save_traverse_half(1, data, encA, decA, encB, decB, CUDA, MODEL_NAME,
+    #                                    fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99],
+    #                                    flatten_pixel=NUM_PIXELS)
+
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0

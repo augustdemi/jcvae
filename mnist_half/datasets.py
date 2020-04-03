@@ -78,7 +78,7 @@ def load_mnist(train):
         img = test_loader.dataset.test_data.numpy()
         label = test_loader.dataset.test_labels.numpy()
 
-    return img[:, :18, :], img[:, 10:, :], label
+    return img[:, :, :14], img[:, :, 14:], label
 
 
 # def pil_loader(path):
