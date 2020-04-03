@@ -12,7 +12,7 @@ from torch.nn import functional as F
 EPS = 1e-9
 TEMP = 0.66
 
-RED_DIM = (-1, 256, 5, 5)
+RED_DIM = (-1, 256, 4, 2)
 
 
 class EncoderA(nn.Module):
@@ -34,7 +34,7 @@ class EncoderA(nn.Module):
             nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(128, 256, 4, 1, 0, bias=False),
+            nn.Conv2d(128, 256, 4, 2, 1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU())
 
@@ -76,15 +76,15 @@ class EncoderA(nn.Module):
                  name='privateA')
 
         # attributes
-        print('muPrivateA: ', muPrivate)
-        print('logvarPrivateA: ', logvarPrivate)
-        print('stdPrivateA: ', stdPrivate)
-        print('----------------------------')
-
-        print('muSharedA: ', muShared)
-        print('logvarSharedA: ', logvarShared)
-        print('stdSharedA: ', stdShared)
-        print('----------------------------')
+        # print('muPrivateA: ', muPrivate)
+        # print('logvarPrivateA: ', logvarPrivate)
+        # print('stdPrivateA: ', stdPrivate)
+        # print('----------------------------')
+        #
+        # print('muSharedA: ', muShared)
+        # print('logvarSharedA: ', logvarShared)
+        # print('stdSharedA: ', stdShared)
+        # print('----------------------------')
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedA')
@@ -109,7 +109,7 @@ class DecoderA(nn.Module):
         )
 
         self.hallucinate = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
@@ -191,7 +191,7 @@ class EncoderB(nn.Module):
             nn.Conv2d(64, 128, 4, 2, 1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Conv2d(128, 256, 4, 1, 0, bias=False),
+            nn.Conv2d(128, 256, 4, 2, 1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU())
 
@@ -232,16 +232,16 @@ class EncoderB(nn.Module):
                  scale=stdPrivate,
                  name='privateB')
 
-        print('muPrivateB: ', muPrivate)
-        print('logvarPrivateB: ', logvarPrivate)
-        print('stdPrivateB: ', stdPrivate)
-        print('----------------------------')
-
-
-        print('muSharedB: ', muShared)
-        print('logvarSharedB: ', logvarShared)
-        print('stdSharedB: ', stdShared)
-        print('----------------------------')
+        # print('muPrivateB: ', muPrivate)
+        # print('logvarPrivateB: ', logvarPrivate)
+        # print('stdPrivateB: ', stdPrivate)
+        # print('----------------------------')
+        #
+        #
+        # print('muSharedB: ', muShared)
+        # print('logvarSharedB: ', logvarShared)
+        # print('stdSharedB: ', stdShared)
+        # print('----------------------------')
 
         # attributes
         q.normal(loc=muShared,
@@ -268,7 +268,7 @@ class DecoderB(nn.Module):
         )
 
         self.hallucinate = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d(256, 128, 4, 2, 1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
