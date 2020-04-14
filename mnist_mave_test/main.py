@@ -6,8 +6,7 @@ import torch
 import os
 import visdom
 import numpy as np
-
-from model import EncoderA, DecoderA, EncoderB2, DecoderB2
+from model import EncoderA, DecoderA, EncoderB, DecoderB
 from sklearn.metrics import f1_score
 
 import sys
@@ -197,8 +196,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
 decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
-encB = EncoderB2(args.wseed, zShared_dim=args.n_shared)
-decB = DecoderB2(args.wseed, zShared_dim=args.n_shared)
+encB = EncoderB(args.wseed, zShared_dim=args.n_shared)
+decB = DecoderB(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
@@ -307,6 +306,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             # compute the KL annealing factor for the current mini-batch in the current epoch
             annealing_factor = (float(b + epoch * len(train_data) + 1) /
                                 float(args.annealing_epochs * len(train_data)))
+            annealing_factor = 1.0
         else:
             # by default the KL annealing factor is unity
             annealing_factor = 1.0
