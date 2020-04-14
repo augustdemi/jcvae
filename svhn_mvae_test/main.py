@@ -302,73 +302,25 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             # by default the KL annealing factor is unity
             annealing_factor = 1.0
 
-        # annealing_factor = 1
-        if args.label_frac > 1 and random.random() < args.sup_frac:
-            # print(b)
-            N += 1
-            shuffled_idx = list(range(int(args.label_frac)))
-            random.shuffle(shuffled_idx)
-            shuffled_idx = shuffled_idx[:args.batch_size]
-            # print(shuffled_idx[:10])
-            images = fixed_imgs[shuffled_idx]
-            fixed_labels_batch = fixed_labels[shuffled_idx]
-            labels_onehot = torch.zeros(args.batch_size, 10)
-            labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-            optimizer.zero_grad()
-            if CUDA:
-                images = images.cuda()
-                labels = labels.cuda()
-                labels_onehot = labels_onehot.cuda()
+        if images.size()[0] == args.batch_size:
+            if args.label_frac > 1 and random.random() < args.sup_frac:
+                # print(b)
+                N += 1
+                shuffled_idx = list(range(int(args.label_frac)))
+                random.shuffle(shuffled_idx)
+                shuffled_idx = shuffled_idx[:args.batch_size]
+                # print(shuffled_idx[:10])
+                images = fixed_imgs[shuffled_idx]
+                fixed_labels_batch = fixed_labels[shuffled_idx]
+                labels_onehot = torch.zeros(args.batch_size, 10)
+                labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
+                labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+                optimizer.zero_grad()
+                if CUDA:
+                    images = images.cuda()
+                    labels = labels.cuda()
+                    labels_onehot = labels_onehot.cuda()
 
-            # encode
-            q = encA(images, CUDA)
-            q = encB(labels, CUDA, q=q)
-
-            ## poe ##
-            mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                       q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            q.normal(mu_poe,
-                     std_poe,
-                     name='poe')
-
-            # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-            # q['sharedA'].dist.loc = muA
-            # q['sharedA'].dist.scale = stdA
-            #
-            # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-            # q['sharedB'].dist.loc = muB
-            # q['sharedB'].dist.scale = stdB
-
-            # decode attr
-            shared_dist = {'poe': 'poe', 'own': 'sharedB'}
-            pB, _ = decB(labels_onehot, shared_dist, q=q)
-
-            # decode img
-            shared_dist = {'poe': 'poe', 'own': 'sharedA'}
-            pA = decA(images, shared_dist, q=q)
-
-            for param in encB.parameters():
-                param.requires_grad = True
-            for param in decB.parameters():
-                param.requires_grad = True
-            # loss
-            loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
-        else:
-            N += 1
-            labels_onehot = torch.zeros(args.batch_size, 10)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-            if CUDA:
-                images = images.cuda()
-                labels = labels.cuda()
-                labels_onehot = labels_onehot.cuda()
-            optimizer.zero_grad()
-
-            if b not in label_mask:
-                label_mask[b] = (random.random() < args.label_frac)
-
-            if (label_mask[b] and args.label_frac == args.sup_frac):
                 # encode
                 q = encA(images, CUDA)
                 q = encB(labels, CUDA, q=q)
@@ -381,23 +333,12 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                          name='poe')
 
                 # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
                 # q['sharedA'].dist.loc = muA
                 # q['sharedA'].dist.scale = stdA
+                #
+                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
                 # q['sharedB'].dist.loc = muB
                 # q['sharedB'].dist.scale = stdB
-
-                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                # mu, logvar = probtorch.util.prior_expert((1, args.batch_size, args.n_shared),
-                #                           use_cuda=CUDA)
-                #
-                #
-                # mu = torch.cat((mu, muA), dim=0)
-                # logvar = torch.cat((logvar, torch.log(stdA ** 2 + EPS)), dim=0)
-                #
-                # mu = torch.cat((mu, muB), dim=0)
-                # logvar = torch.cat((logvar, torch.log(stdB ** 2 + EPS)), dim=0)
 
                 # decode attr
                 shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -414,65 +355,124 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 # loss
                 loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
             else:
-                shuffled_idx = list(range(args.batch_size))
-                random.shuffle(shuffled_idx)
-                labels_onehot = labels_onehot[shuffled_idx]
+                N += 1
+                labels_onehot = torch.zeros(args.batch_size, 10)
+                labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+                labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+                if CUDA:
+                    images = images.cuda()
+                    labels = labels.cuda()
+                    labels_onehot = labels_onehot.cuda()
+                optimizer.zero_grad()
 
-                # encode
-                q = encA(images, CUDA)
-                q = encB(labels, CUDA, q=q)
+                if b not in label_mask:
+                    label_mask[b] = (random.random() < args.label_frac)
 
-                # decode attr
-                shared_dist = {'own': 'sharedB'}
-                pB, _ = decB(labels_onehot, shared_dist, q=q)
+                if (label_mask[b] and args.label_frac == args.sup_frac):
+                    # encode
+                    q = encA(images, CUDA)
+                    q = encB(labels, CUDA, q=q)
 
-                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                # q['sharedA'].dist.loc = muA
-                # q['sharedA'].dist.scale = stdA
-                #
-                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                # q['sharedB'].dist.loc = muB
-                # q['sharedB'].dist.scale = stdB
+                    ## poe ##
+                    mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                               q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                    q.normal(mu_poe,
+                             std_poe,
+                             name='poe')
 
-                # decode img
-                shared_dist = {'own': 'sharedA'}
-                pA = decA(images, shared_dist, q=q)
-                for param in encB.parameters():
-                    param.requires_grad = False
-                for param in decB.parameters():
-                    param.requires_grad = False
-                loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
+                    # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                    # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                    # q['sharedA'].dist.loc = muA
+                    # q['sharedA'].dist.scale = stdA
+                    # q['sharedB'].dist.loc = muB
+                    # q['sharedB'].dist.scale = stdB
 
-        loss.backward()
-        optimizer.step()
-        if CUDA:
-            loss = loss.cpu()
-            recA[0] = recA[0].cpu()
-            recB[0] = recB[0].cpu()
-            kl[0] = kl[0].cpu()
-            kl[1] = kl[1].cpu()
+                    # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                    # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                    # mu, logvar = probtorch.util.prior_expert((1, args.batch_size, args.n_shared),
+                    #                           use_cuda=CUDA)
+                    #
+                    #
+                    # mu = torch.cat((mu, muA), dim=0)
+                    # logvar = torch.cat((logvar, torch.log(stdA ** 2 + EPS)), dim=0)
+                    #
+                    # mu = torch.cat((mu, muB), dim=0)
+                    # logvar = torch.cat((logvar, torch.log(stdB ** 2 + EPS)), dim=0)
 
-        epoch_elbo += loss.item()
-        epoch_recA += recA[0].item()
-        epoch_recB += recB[0].item()
-        kl_A += kl[0].item()
-        kl_B += kl[1].item()
+                    # decode attr
+                    shared_dist = {'poe': 'poe', 'own': 'sharedB'}
+                    pB, _ = decB(labels_onehot, shared_dist, q=q)
 
-        if recA[1] is not None:
+                    # decode img
+                    shared_dist = {'poe': 'poe', 'own': 'sharedA'}
+                    pA = decA(images, shared_dist, q=q)
+
+                    for param in encB.parameters():
+                        param.requires_grad = True
+                    for param in decB.parameters():
+                        param.requires_grad = True
+                    # loss
+                    loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
+                else:
+                    shuffled_idx = list(range(args.batch_size))
+                    random.shuffle(shuffled_idx)
+                    labels_onehot = labels_onehot[shuffled_idx]
+
+                    # encode
+                    q = encA(images, CUDA)
+                    q = encB(labels, CUDA, q=q)
+
+                    # decode attr
+                    shared_dist = {'own': 'sharedB'}
+                    pB, _ = decB(labels_onehot, shared_dist, q=q)
+
+                    # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
+                    # q['sharedA'].dist.loc = muA
+                    # q['sharedA'].dist.scale = stdA
+                    #
+                    # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+                    # q['sharedB'].dist.loc = muB
+                    # q['sharedB'].dist.scale = stdB
+
+                    # decode img
+                    shared_dist = {'own': 'sharedA'}
+                    pA = decA(images, shared_dist, q=q)
+                    for param in encB.parameters():
+                        param.requires_grad = False
+                    for param in decB.parameters():
+                        param.requires_grad = False
+                    loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
+
+            loss.backward()
+            optimizer.step()
             if CUDA:
-                kl[2] = kl[2].cpu()
-                for i in range(2):
-                    recA[i] = recA[i].cpu()
-                    recB[i] = recB[i].cpu()
-            epoch_rec_poeA += recA[1].item()
-            epoch_rec_poeB += recB[1].item()
-            kl_poe += kl[2].item()
-            pair_cnt += 1
+                loss = loss.cpu()
+                recA[0] = recA[0].cpu()
+                recB[0] = recB[0].cpu()
+                kl[0] = kl[0].cpu()
+                kl[1] = kl[1].cpu()
 
-        if b % 100 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
-                e, b * args.batch_size, len(data.dataset),
-                   100. * b * args.batch_size / len(data.dataset), annealing_factor))
+            epoch_elbo += loss.item()
+            epoch_recA += recA[0].item()
+            epoch_recB += recB[0].item()
+            kl_A += kl[0].item()
+            kl_B += kl[1].item()
+
+            if recA[1] is not None:
+                if CUDA:
+                    kl[2] = kl[2].cpu()
+                    for i in range(2):
+                        recA[i] = recA[i].cpu()
+                        recB[i] = recB[i].cpu()
+                epoch_rec_poeA += recA[1].item()
+                epoch_rec_poeB += recB[1].item()
+                kl_poe += kl[2].item()
+                pair_cnt += 1
+
+            if b % 100 == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
+                    e, b * args.batch_size, len(data.dataset),
+                       100. * b * args.batch_size / len(data.dataset), annealing_factor))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
                                                                          epoch_rec_poeB / pair_cnt], [kl_A / N,
                                                                                                       kl_B / N,
