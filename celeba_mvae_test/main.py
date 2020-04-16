@@ -437,10 +437,13 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 else:
                     # encode
                     q = encA(images, num_samples=NUM_SAMPLES)
+                    q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
 
                     # decode img
                     shared_dist = {'own': 'sharedA'}
                     pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
+                    pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+
                     for param in encB.parameters():
                         param.requires_grad = False
                     for param in decB.parameters():
