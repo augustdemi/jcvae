@@ -210,43 +210,40 @@ optimizer = torch.optim.Adam(
     lr=args.lr)
 
 
-#
-# def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0):
-#     muA_own = q['sharedA'].dist.loc.squeeze(0)
-#     stdA_own = q['sharedA'].dist.scale.squeeze(0)
-#     muB_own = q['sharedB'].dist.loc.squeeze(0)
-#     stdB_own = q['sharedB'].dist.scale.squeeze(0)
-#
+# def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0, lamb_annealing_factor=1.0):
 #     # from each of modality
-#     reconst_loss_A = pA['images_own'].loss.mean()
-#     kl_A = 0.5 * torch.sum(1 + torch.log(stdA_own ** 2 + EPS) - muA_own ** 2 - stdA_own ** 2,
-#                            dim=1).mean()
-#
-#     reconst_loss_B = pB['label_own'].loss.mean()
-#     kl_B = 0.5 * torch.sum(1 + torch.log(stdB_own ** 2 + EPS) - muB_own ** 2 - stdB_own ** 2,
-#                            dim=1).mean()
+#     beta1 = (1.0, 1.0, 1.0)
+#     beta2 = (1.0, 1.0, 1.0)
+#     bias = 1.0
+#     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_own'], latents=['sharedA'],
+#                                                                sample_dim=0, batch_dim=1,
+#                                                                beta=beta1, bias=bias)
+#     reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['label_own'], latents=['sharedB'],
+#                                                                sample_dim=0, batch_dim=1,
+#                                                                beta=beta2, bias=bias)
 #
 #     if q['poe'] is not None:
-#         mu_poe = q['poe'].dist.loc.squeeze(0)
-#         std_poe = q['poe'].dist.scale.squeeze(0)
-#         reconst_loss_poeA = pA['images_poe'].loss.mean()
-#         reconst_loss_poeB = pB['label_poe'].loss.mean()
-#         kl_poe = 0.5 * torch.sum(
-#             1 + torch.log(std_poe ** 2 + EPS) - mu_poe.pow(2) - std_poe ** 2, dim=1).mean()
+#         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'], latents=['poe'],
+#                                                                          sample_dim=0, batch_dim=1,
+#                                                                          beta=beta1, bias=bias)
+#         reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['label_poe'], latents=['poe'],
+#                                                                          sample_dim=0, batch_dim=1,
+#                                                                          beta=beta2, bias=bias)
 #
-#         loss = (reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B) + (
-#             reconst_loss_poeA + lamb * reconst_loss_poeB + annealing_factor * kl_poe)
+#         kl_poe = (kl_poeA + kl_poeB)
+#         loss = (reconst_loss_A - annealing_factor * kl_A) + (
+#             lamb_annealing_factor * lamb * reconst_loss_B - annealing_factor * kl_B) + (
+#                    reconst_loss_poeA + lamb * reconst_loss_poeB - annealing_factor * kl_poe)
 #
 #     else:
 #         reconst_loss_poeA = reconst_loss_poeB = kl_poe = None
-#         loss = 2 * ((reconst_loss_A + annealing_factor * kl_A) + (lamb * reconst_loss_B + annealing_factor * kl_B))
-#
+#         loss = 2 * ((reconst_loss_A - annealing_factor * kl_A) + (
+#             lamb_annealing_factor * lamb * reconst_loss_B - annealing_factor * kl_B))
 #     return -loss, [reconst_loss_A, reconst_loss_poeA], [reconst_loss_B, reconst_loss_poeB], [kl_A, kl_B, kl_poe]
-#
 
 
 
-def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0, lamb_annealing_factor=1.0):
+def elbo(q, pA, pB=None, lamb=1.0, annealing_factor=1.0, lamb_annealing_factor=1.0):
     # from each of modality
     beta1 = (1.0, 1.0, 1.0)
     beta2 = (1.0, 1.0, 1.0)
@@ -254,9 +251,10 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0, lamb_annealing_factor=1.0):
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_own'], latents=['sharedA'],
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta1, bias=bias)
-    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['label_own'], latents=['sharedB'],
-                                                               sample_dim=0, batch_dim=1,
-                                                               beta=beta2, bias=bias)
+    if pB:
+        reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['label_own'], latents=['sharedB'],
+                                                                   sample_dim=0, batch_dim=1,
+                                                                   beta=beta2, bias=bias)
 
     if q['poe'] is not None:
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'], latents=['poe'],
@@ -273,8 +271,13 @@ def elbo(q, pA, pB, lamb=1.0, annealing_factor=1.0, lamb_annealing_factor=1.0):
 
     else:
         reconst_loss_poeA = reconst_loss_poeB = kl_poe = None
-        loss = 2 * ((reconst_loss_A - annealing_factor * kl_A) + (
-            lamb_annealing_factor * lamb * reconst_loss_B - annealing_factor * kl_B))
+
+        if pB:
+            loss = 2 * ((reconst_loss_A - annealing_factor * kl_A) + (
+                lamb_annealing_factor * lamb * reconst_loss_B - annealing_factor * kl_B))
+        else:
+            reconst_loss_B = kl_B = None
+            loss = 2 * (reconst_loss_A - annealing_factor * kl_A)
     return -loss, [reconst_loss_A, reconst_loss_poeA], [reconst_loss_B, reconst_loss_poeB], [kl_A, kl_B, kl_poe]
 
 
@@ -414,56 +417,40 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                     # loss
                     loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
                 else:
-                    shuffled_idx = list(range(args.batch_size))
-                    random.shuffle(shuffled_idx)
-                    labels_onehot = labels_onehot[shuffled_idx]
-
                     # encode
                     q = encA(images, CUDA)
-                    q = encB(labels, CUDA, q=q)
-
-                    # decode attr
-                    shared_dist = {'own': 'sharedB'}
-                    pB, _ = decB(labels_onehot, shared_dist, q=q)
-
-                    # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                    # q['sharedA'].dist.loc = muA
-                    # q['sharedA'].dist.scale = stdA
-                    #
-                    # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                    # q['sharedB'].dist.loc = muB
-                    # q['sharedB'].dist.scale = stdB
 
                     # decode img
                     shared_dist = {'own': 'sharedA'}
                     pA = decA(images, shared_dist, q=q)
+
                     for param in encB.parameters():
                         param.requires_grad = False
                     for param in decB.parameters():
                         param.requires_grad = False
-                    loss, recA, recB, kl = elbo(q, pA, pB, lamb=args.lambda_text, annealing_factor=annealing_factor)
+                    loss, recA, recB, kl = elbo(q, pA, lamb=args.lambda_text, annealing_factor=annealing_factor)
 
             loss.backward()
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
                 recA[0] = recA[0].cpu()
-                recB[0] = recB[0].cpu()
                 kl[0] = kl[0].cpu()
-                kl[1] = kl[1].cpu()
+
 
             epoch_elbo += loss.item()
             epoch_recA += recA[0].item()
-            epoch_recB += recB[0].item()
             kl_A += kl[0].item()
-            kl_B += kl[1].item()
 
             if recA[1] is not None:
                 if CUDA:
+                    kl[1] = kl[1].cpu()
                     kl[2] = kl[2].cpu()
                     for i in range(2):
                         recA[i] = recA[i].cpu()
                         recB[i] = recB[i].cpu()
+                epoch_recB += recB[0].item()
+                kl_B += kl[1].item()
                 epoch_rec_poeA += recA[1].item()
                 epoch_rec_poeB += recB[1].item()
                 kl_poe += kl[2].item()
