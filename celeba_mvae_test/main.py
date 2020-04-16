@@ -143,6 +143,7 @@ def visualize_line():
     llB = torch.tensor(np.stack([recon_B, recon_poeB], -1))
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
     acc = torch.tensor(np.stack([test_acc], -1))
+    f1 = torch.Tensor(data['test_f1'])
 
     VIZ.line(
         X=epoch, Y=kl, env=MODEL_NAME + '/lines',
@@ -178,14 +179,21 @@ def visualize_line():
                   title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
+    VIZ.line(
+        X=epoch, Y=f1, env=MODEL_NAME + '/lines',
+        win=WIN_ID['f1'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='F1 score', legend=['test_f1'])
+    )
+
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses', kl='win_kl'
+        llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses', kl='win_kl', f1='win_f1'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB',
-        'total_loss', 'test_total_loss', 'test_acc', 'kl_A', 'kl_B', 'kl_poe'
+        'total_loss', 'test_total_loss', 'test_acc', 'kl_A', 'kl_B', 'kl_poe', 'test_f1'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -631,6 +639,7 @@ for e in range(args.ckpt_epochs, args.epochs):
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
                            test_acc=test_accuracy,
+                           test_f1=test_f1,
                            test_total_loss=test_elbo,
                            total_loss=train_elbo,
                            recon_A=rec_lossA[0],
