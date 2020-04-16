@@ -24,26 +24,26 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=6, metavar='N',
+    parser.add_argument('--run_id', type=int, default=1, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=10,
+    parser.add_argument('--n_shared', type=int, default=100,
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+    parser.add_argument('--epochs', type=int, default=20, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=1627.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.4,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=50.,
+    parser.add_argument('--lambda_text', type=float, default=100.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument('--annealing-epochs', type=int, default=20, metavar='N',
                         help='number of epochs to anneal KL for [default: 200]')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_mvae/1',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/celeba_mvae_test',
                         help='save and load path for ckpt')
 
     # visdom
@@ -506,7 +506,7 @@ def test(data, encA, decA, encB, decB):
 
             # decode attr
             shared_dist = {'own': 'sharedB', 'cross': 'sharedA'}
-            pB, pred_attr = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB, pred_attr = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES, train=False)
 
             # decode img
             shared_dist = {'own': 'sharedA', 'cross': 'sharedB'}
@@ -650,9 +650,9 @@ for e in range(args.ckpt_epochs, args.epochs):
 if args.ckpt_epochs == args.epochs:
     decA.eval()
     encB.eval()
-
-    util.evaluation.save_cross_mnist_mvae(args.ckpt_epochs, decA, encB, 64,
-                                          CUDA, MODEL_NAME)
+    #
+    # util.evaluation.save_cross_mnist_mvae(args.ckpt_epochs, decA, encB, 64,
+    #                                       CUDA, MODEL_NAME)
 
     test_elbo, test_accuracy, test_f1 = test(test_data, encA, decA, encB, decB)
 
