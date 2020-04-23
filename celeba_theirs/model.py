@@ -84,7 +84,7 @@ class Encoder(nn.Module):
         attrs = []
         labels_onehot = None
         for i in range(self.num_attr):
-            if attr:
+            if attr is not None:
                 labels_onehot = torch.zeros((100, 2))
                 labels_onehot.scatter_(1, attr[:, :, i].squeeze(0).unsqueeze(1).type(torch.long), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS).unsqueeze(0)
