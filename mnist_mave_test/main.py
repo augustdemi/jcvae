@@ -6,7 +6,7 @@ import torch
 import os
 import visdom
 import numpy as np
-from model import EncoderA, DecoderA, EncoderB, DecoderB
+from model import EncoderA, DecoderA, EncoderB2, DecoderB2
 from sklearn.metrics import f1_score
 
 import sys
@@ -61,7 +61,7 @@ if __name__ == "__main__":
                         help='save and load path for ckpt')
 
     parser.add_argument('--pretrain',
-                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+                        default=True, type=probtorch.util.str2bool, help='enable visdom visualization')
 
     # visdom
     parser.add_argument('--viz_on',
@@ -127,6 +127,7 @@ def visualize_line():
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
     acc = torch.tensor(np.stack([test_acc], -1))
 
+    mus = torch.Tensor(data['mus']).squeeze(0)
     VIZ.line(
         X=epoch, Y=kl, env=MODEL_NAME + '/lines',
         win=WIN_ID['kl'], update='append',
@@ -161,14 +162,42 @@ def visualize_line():
                   title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
+    VIZ.line(
+        X=epoch, Y=mus[0].unsqueeze(0), env=MODEL_NAME + '/lines',
+        win=WIN_ID['mus1'], update='append',
+        opts=dict(xlabel='epoch', ylabel='mu',
+                  title='First sample', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=mus[1].unsqueeze(0), env=MODEL_NAME + '/lines',
+        win=WIN_ID['mus2'], update='append',
+        opts=dict(xlabel='epoch', ylabel='mu',
+                  title='Second sample', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=mus[2].unsqueeze(0), env=MODEL_NAME + '/lines',
+        win=WIN_ID['mus3'], update='append',
+        opts=dict(xlabel='epoch', ylabel='mu',
+                  title='Third sample', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=mus[3].unsqueeze(0), env=MODEL_NAME + '/lines',
+        win=WIN_ID['mus4'], update='append',
+        opts=dict(xlabel='epoch', ylabel='mu',
+                  title='sample mean', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+    )
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses', kl='win_kl'
+        llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses', kl='win_kl',
+        mus1='mus1', mus2='mus2', mus3='mus3', mus4='mus4'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB',
-        'total_loss', 'test_total_loss', 'test_acc', 'kl_A', 'kl_B', 'kl_poe'
+        'total_loss', 'test_total_loss', 'test_acc', 'kl_A', 'kl_B', 'kl_poe', 'mus'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -196,8 +225,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
 decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
-encB = EncoderB(args.wseed, zShared_dim=args.n_shared)
-decB = DecoderB(args.wseed, zShared_dim=args.n_shared)
+encB = EncoderB2(args.wseed, zShared_dim=args.n_shared)
+decB = DecoderB2(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
@@ -294,6 +323,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
+    mus = [0, 0, 0, 0]
 
     ############I added #########################
     # lamb_annealing_factor = np.power(2.0, (epoch + 1) // args.lamb_annealing_epochs)
@@ -306,7 +336,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             # compute the KL annealing factor for the current mini-batch in the current epoch
             annealing_factor = (float(b + epoch * len(train_data) + 1) /
                                 float(args.annealing_epochs * len(train_data)))
-            annealing_factor = 1.0
+            # annealing_factor = 1.0
         else:
             # by default the KL annealing factor is unity
             annealing_factor = 1.0
@@ -484,10 +514,30 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
                 e, b * args.batch_size, len(data.dataset),
                    100. * b * args.batch_size / len(data.dataset), annealing_factor))
+        if b == 0:
+            mu_a = torch.argmax(q['sharedA'].dist.loc, dim=2).squeeze(0)
+            mu_b = torch.argmax(q['sharedB'].dist.loc, dim=2).squeeze(0)
+            mu_poe = torch.argmax(mu_poe, dim=2).squeeze(0)
+            label = labels
+
+            if CUDA:
+                mu_a = mu_a.cpu()
+                mu_b = mu_b.cpu()
+                mu_poe = mu_poe.cpu()
+                label = label.cpu()
+
+            mus1 = torch.stack([mu_a[-1], mu_b[-1], mu_poe[-1], labels[-1]])
+            mus2 = torch.stack([mu_a[-2], mu_b[-2], mu_poe[-2], labels[-2]])
+            mus3 = torch.stack([mu_a[-3], mu_b[-3], mu_poe[-3], labels[-3]])
+            mus4 = torch.stack(
+                [mu_a.type(torch.float).mean(), mu_b.type(torch.float).mean(), mu_poe.type(torch.float).mean(),
+                 label.type(torch.float).mean()])
+            mus = [mus1.detach().numpy(), mus2.detach().numpy(), mus3.detach().numpy(), mus4.detach().numpy()]
+
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
                                                                          epoch_rec_poeB / pair_cnt], [kl_A / N,
                                                                                                       kl_B / N,
-                                                                                                      kl_poe / pair_cnt], label_mask
+                                                                                                      kl_poe / pair_cnt], mus
 
 
 def test(data, encA, decA, encB, decB):
@@ -627,9 +677,9 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, kl, mask = train(train_data, encA, decA, encB, decB, e,
-                                                       optimizer, mask, fixed_imgs=fixed_imgs,
-                                                       fixed_labels=fixed_labels)
+    train_elbo, rec_lossA, rec_lossB, kl, mus = train(train_data, encA, decA, encB, decB, e,
+                                                      optimizer, mask, fixed_imgs=fixed_imgs,
+                                                      fixed_labels=fixed_labels)
     train_end = time.time()
 
     test_start = time.time()
@@ -647,7 +697,8 @@ for e in range(args.ckpt_epochs, args.epochs):
                            recon_poeB=rec_lossB[1],
                            kl_A=kl[0],
                            kl_B=kl[1],
-                           kl_poe=kl[2]
+                           kl_poe=kl[2],
+                           mus=mus
                            )
         visualize_line()
         LINE_GATHER.flush()
