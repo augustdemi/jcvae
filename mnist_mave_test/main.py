@@ -530,7 +530,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             mus3 = torch.stack([mu_a[-3], mu_b[-3], mu_poe[-3], labels[-3]])
             mus4 = torch.stack(
                 [mu_a.type(torch.float).mean(), mu_b.type(torch.float).mean(), mu_poe.type(torch.float).mean(),
-                 label.type(torch.float).mean()])
+                 labels.type(torch.float).mean()])
             mus = [mus1.detach().numpy(), mus2.detach().numpy(), mus3.detach().numpy(), mus4.detach().numpy()]
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
