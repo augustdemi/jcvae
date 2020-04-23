@@ -7,7 +7,7 @@ import random
 from datasets import datasets
 from model import Encoder, Decoder
 from sklearn.metrics import f1_score
-
+import visdom
 import sys
 
 sys.path.append('../')
@@ -49,6 +49,11 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt_path', type=str, default='../weights/svhn_theirs',
                         help='save and load path for ckpt')
 
+    # visdom
+    parser.add_argument('--viz_on',
+                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+    parser.add_argument('--viz_port',
+                        default=8002, type=int, help='visdom port number')
     args = parser.parse_args()
 
 # ------------------------------------------------
@@ -99,6 +104,40 @@ NUM_SAMPLES = 1
 
 if not os.path.isdir(DATA_PATH):
     os.makedirs(DATA_PATH)
+
+
+# visdom setup
+def viz_init():
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
+
+
+def visualize_line():
+    data = LINE_GATHER.data
+
+    epoch = torch.Tensor(data['epoch'])
+    f1 = torch.Tensor(data['test_f1'])
+
+    VIZ.line(
+        X=epoch, Y=f1, env=MODEL_NAME + '/lines',
+        win=WIN_ID['f1'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='F1 score', legend=['test_f1'])
+    )
+
+
+if args.viz_on:
+    WIN_ID = dict(
+        f1='win_f1'
+    )
+    LINE_GATHER = probtorch.util.DataGather(
+        'epoch', 'test_f1'
+    )
+    VIZ = visdom.Visdom(port=args.viz_port)
+    viz_init()
+
 
 preprocess_data = transforms.Compose([
     transforms.CenterCrop((168, 178)),
@@ -280,8 +319,8 @@ def test(data, enc, dec, infer=True):
     print('-----------------------------------------------')
 
     print("=======================================")
-    avg_f1 = np.mean(f1, dim=0)
-    avg_acc = np.mean(all_acc, dim=0)
+    avg_f1 = np.array(f1)[:, 1].mean()
+    avg_acc = np.array(all_acc)[:, 1].mean()
     print('avg_f1: ', avg_f1)
     print('avg_acc: ', avg_acc)
     print("=======================================")
@@ -330,12 +369,20 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    # train_elbo, mask = train(train_data, enc, dec,
-    #                          optimizer, mask, fixed_imgs=fixed_imgs, fixed_attr=fixed_attr)
+    train_elbo, mask = train(train_data, enc, dec,
+                             optimizer, mask, fixed_imgs=fixed_imgs, fixed_attr=fixed_attr)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, enc, dec)
     test_end = time.time()
+
+    if args.viz_on:
+        LINE_GATHER.insert(epoch=e,
+                           test_f1=test_accuracy
+                           )
+        visualize_line()
+        LINE_GATHER.flush()
+
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
         e, train_elbo, train_end - train_start,
         test_elbo, test_accuracy, test_end - test_start))
