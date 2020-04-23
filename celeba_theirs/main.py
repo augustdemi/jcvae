@@ -243,6 +243,11 @@ def test(data, enc, dec, infer=True):
                     pred_attr.append(y_pred.unsqueeze(1))
                 pred_attr = torch.cat(pred_attr, -1)
 
+            if CUDA:
+                pred_attr = pred_attr.cpu()
+                attributes = attributes.cpu()
+                
+
             if N == args.batch_size:
                 all_pred = pred_attr
                 all_target = attributes
