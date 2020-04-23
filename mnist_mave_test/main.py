@@ -518,13 +518,12 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             mu_a = torch.argmax(q['sharedA'].dist.loc, dim=2).squeeze(0)
             mu_b = torch.argmax(q['sharedB'].dist.loc, dim=2).squeeze(0)
             mu_poe = torch.argmax(mu_poe, dim=2).squeeze(0)
-            label = labels
 
             if CUDA:
                 mu_a = mu_a.cpu()
                 mu_b = mu_b.cpu()
                 mu_poe = mu_poe.cpu()
-                label = label.cpu()
+                labels = labels.cpu()
 
             mus1 = torch.stack([mu_a[-1], mu_b[-1], mu_poe[-1], labels[-1]])
             mus2 = torch.stack([mu_a[-2], mu_b[-2], mu_poe[-2], labels[-2]])
