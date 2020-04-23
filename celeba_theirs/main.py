@@ -210,7 +210,7 @@ def train(data, enc, dec, optimizer,
                     attributes = attributes.cuda()
 
                 optimizer.zero_grad()
-                q = enc(images, attributes, num_samples=NUM_SAMPLES)
+                q = enc(images, CUDA, attributes, num_samples=NUM_SAMPLES)
                 p = dec(images, q, num_samples=NUM_SAMPLES)
                 loss = -elbo(q, p)
             else:
@@ -222,9 +222,9 @@ def train(data, enc, dec, optimizer,
                 if b not in label_mask:
                     label_mask[b] = (random.random() < label_fraction)
                 if (label_mask[b] and args.label_frac == args.sup_frac):
-                    q = enc(images, attributes, num_samples=NUM_SAMPLES)
+                    q = enc(images, CUDA, attributes, num_samples=NUM_SAMPLES)
                 else:
-                    q = enc(images, num_samples=NUM_SAMPLES)
+                    q = enc(images, CUDA, num_samples=NUM_SAMPLES)
                 p = dec(images, q, num_samples=NUM_SAMPLES)
                 loss = -elbo(q, p)
             loss.backward()
@@ -252,7 +252,7 @@ def test(data, enc, dec, infer=True):
             N += args.batch_size
             if CUDA:
                 images = images.cuda()
-            q = enc(images, num_samples=NUM_SAMPLES)
+            q = enc(images, CUDA, num_samples=NUM_SAMPLES)
             p = dec(images, q, num_samples=NUM_SAMPLES)
             batch_elbo = elbo(q, p)
             if CUDA:

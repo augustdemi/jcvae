@@ -71,7 +71,7 @@ class Encoder(nn.Module):
         self.style_log_std = nn.Linear(num_hidden + num_attr * 2, num_style)
 
     @expand_inputs
-    def forward(self, images, attr=None, num_samples=None):
+    def forward(self, images, cuda, attr=None, num_samples=None):
         q = probtorch.Trace()
         images = images.squeeze(0)
         hiddens = self.enc_hidden(images)
@@ -81,6 +81,9 @@ class Encoder(nn.Module):
         attr_log_weights = self.attr_log_weights(hiddens).unsqueeze(0)
         # attributes
 
+        if cuda and attr is not None:
+            attr = attr.cpu()
+
         attrs = []
         labels_onehot = None
         for i in range(self.num_attr):
@@ -88,6 +91,9 @@ class Encoder(nn.Module):
                 labels_onehot = torch.zeros((100, 2))
                 labels_onehot.scatter_(1, attr[:, :, i].squeeze(0).unsqueeze(1).type(torch.long), 1)
                 labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS).unsqueeze(0)
+                if cuda:
+                    images = images.cuda()
+                    labels_onehot = labels_onehot.cuda()
 
             attrs.append(q.concrete(logits=attr_log_weights[:, :, i * 2:(i + 1) * 2],
                                     temperature=self.digit_temp,
