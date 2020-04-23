@@ -108,10 +108,7 @@ if not os.path.isdir(DATA_PATH):
 
 # visdom setup
 def viz_init():
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['acc'])
-    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['f1'])
 
 
 def visualize_line():
