@@ -6,7 +6,7 @@ import torch
 import os
 import visdom
 import numpy as np
-from model import EncoderA, DecoderA, EncoderB2, DecoderB2
+from model import EncoderA, DecoderA, EncoderB, DecoderB
 from sklearn.metrics import f1_score
 
 import sys
@@ -225,8 +225,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
 decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
-encB = EncoderB2(args.wseed, zShared_dim=args.n_shared)
-decB = DecoderB2(args.wseed, zShared_dim=args.n_shared)
+encB = EncoderB(args.wseed, zShared_dim=args.n_shared)
+decB = DecoderB(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
