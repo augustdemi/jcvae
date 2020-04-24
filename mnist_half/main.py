@@ -88,7 +88,7 @@ if len(args.run_desc) > 1:
 BETA1 = (1., args.beta1, 1.)
 BETA2 = (1., args.beta2, 1.)
 # model parameters
-NUM_PIXELS = int(28 * 14)
+NUM_PIXELS = int(28 * 18)
 TEMP = 0.66
 NUM_SAMPLES = 1
 
