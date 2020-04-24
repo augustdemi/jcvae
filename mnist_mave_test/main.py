@@ -514,24 +514,24 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
                 e, b * args.batch_size, len(data.dataset),
                    100. * b * args.batch_size / len(data.dataset), annealing_factor))
-        if b == 0:
-            mu_a = torch.argmax(q['sharedA'].dist.loc, dim=2).squeeze(0)
-            mu_b = torch.argmax(q['sharedB'].dist.loc, dim=2).squeeze(0)
-            mu_poe = torch.argmax(mu_poe, dim=2).squeeze(0)
-
-            if CUDA:
-                mu_a = mu_a.cpu()
-                mu_b = mu_b.cpu()
-                mu_poe = mu_poe.cpu()
-                labels = labels.cpu()
-
-            mus1 = torch.stack([mu_a[-1], mu_b[-1], mu_poe[-1], labels[-1]])
-            mus2 = torch.stack([mu_a[-2], mu_b[-2], mu_poe[-2], labels[-2]])
-            mus3 = torch.stack([mu_a[-3], mu_b[-3], mu_poe[-3], labels[-3]])
-            mus4 = torch.stack(
-                [mu_a.type(torch.float).mean(), mu_b.type(torch.float).mean(), mu_poe.type(torch.float).mean(),
-                 labels.type(torch.float).mean()])
-            mus = [mus1.detach().numpy(), mus2.detach().numpy(), mus3.detach().numpy(), mus4.detach().numpy()]
+            # if b == 0:
+            #     mu_a = torch.argmax(q['sharedA'].dist.loc, dim=2).squeeze(0)
+            #     mu_b = torch.argmax(q['sharedB'].dist.loc, dim=2).squeeze(0)
+            #     mu_poe = torch.argmax(mu_poe, dim=2).squeeze(0)
+            #
+            #     if CUDA:
+            #         mu_a = mu_a.cpu()
+            #         mu_b = mu_b.cpu()
+            #         mu_poe = mu_poe.cpu()
+            #         labels = labels.cpu()
+            #
+            #     mus1 = torch.stack([mu_a[-1], mu_b[-1], mu_poe[-1], labels[-1]])
+            #     mus2 = torch.stack([mu_a[-2], mu_b[-2], mu_poe[-2], labels[-2]])
+            #     mus3 = torch.stack([mu_a[-3], mu_b[-3], mu_poe[-3], labels[-3]])
+            #     mus4 = torch.stack(
+            #         [mu_a.type(torch.float).mean(), mu_b.type(torch.float).mean(), mu_poe.type(torch.float).mean(),
+            #          labels.type(torch.float).mean()])
+            #     mus = [mus1.detach().numpy(), mus2.detach().numpy(), mus3.detach().numpy(), mus4.detach().numpy()]
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
                                                                          epoch_rec_poeB / pair_cnt], [kl_A / N,
