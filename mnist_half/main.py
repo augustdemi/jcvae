@@ -227,9 +227,9 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
 
 def train(data, encA, decA, encB, decB, optimizer,
           label_mask={}, fixed_imgs=None, fixed_labels=None):
-    # util.evaluation.save_traverse_half(1, data, encA, decA, encB, decB, CUDA, MODEL_NAME,
-    #                                    fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99],
-    #                                    flatten_pixel=NUM_PIXELS)
+    # util.evaluation.save_cross_mnist_half(1, data, encA, decA, encB, CUDA, MODEL_NAME,
+    #                                       fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99],
+    #                                       flatten_pixel=NUM_PIXELS)
 
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
@@ -330,9 +330,9 @@ def test(data, encA, decA, encB, decB, epoch):
             epoch_elbo += batch_elbo.item()
 
     if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
-        util.evaluation.save_traverse_half(epoch, test_data, encA, decA, encB, decB, CUDA, MODEL_NAME,
-                                           fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99],
-                                           flatten_pixel=NUM_PIXELS)
+        util.evaluation.save_cross_mnist_half(epoch, test_data, encA, decA, encB, CUDA, MODEL_NAME,
+                                              fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99],
+                                              flatten_pixel=NUM_PIXELS)
 
         save_ckpt(e + 1)
     return epoch_elbo / N
