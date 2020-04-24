@@ -3575,3 +3575,83 @@ def save_traverse_half_svhn(iters, data_loader, encA, decA, encB, decB, cuda, ou
     grid2gif(
         out_dir + '/shared', str(os.path.join(out_dir + '/shared', 'traverse.gif')), delay=10
     )
+
+
+def save_cross_mnist_half(iters, data_loader, encA, decA, encB, cuda, output_dir_trvsl, flatten_pixel=None,
+                          fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99]):
+    EPS = 1e-9
+    output_dir_trvsl = '../output/' + output_dir_trvsl
+    tr_range = 2
+    out_dir = os.path.join(output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range), 'reconst')
+    batch_size = len(fixed_idxs)
+
+    fixed_XA = [0] * len(fixed_idxs)
+    fixed_XB = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+
+        fixed_XA[i], fixed_XB[i] = \
+            data_loader.dataset.__getitem__(idx)[0:2]
+        fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
+        fixed_XB[i] = fixed_XB[i].view(-1, flatten_pixel)
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+            fixed_XB[i] = fixed_XB[i].cuda()
+
+    fixed_XA = torch.cat(fixed_XA, dim=0)
+    fixed_XB = torch.cat(fixed_XB, dim=0)
+    height = int(np.prod(fixed_XA.shape) / (fixed_XA.shape[0] * 28))
+
+    # encode
+    q = encA(fixed_XA, num_samples=1)
+    q = encB(fixed_XB, num_samples=1, q=q)
+    # making poe dist
+    mu_poe, std_poe = probtorch.util.apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                               q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+    q.normal(mu_poe,
+             std_poe,
+             name='poe')
+
+    XA_infA_recon = decA.forward2(q['privateA'].dist.loc, q['sharedA'].value, cuda)
+
+    XA_POE_recon = decA.forward2(q['privateA'].dist.loc, q['poe'].value, cuda)
+
+    XA_sinfB_recon = decA.forward2(q['privateA'].dist.loc, q['sharedB'].value, cuda)
+
+    if flatten_pixel is not None:
+        fixed_XA = fixed_XA.unsqueeze(0)
+        fixed_XA = fixed_XA.view(fixed_XA.shape[0], -1, 28, height)
+        fixed_XA = torch.transpose(fixed_XA, 0, 1)
+
+        fixed_XB = fixed_XB.unsqueeze(0)
+        fixed_XB = fixed_XB.view(fixed_XB.shape[0], -1, 28, height)
+        fixed_XB = torch.transpose(fixed_XB, 0, 1)
+
+        XA_infA_recon = XA_infA_recon.view(XA_infA_recon.shape[0], -1, 28, height)
+        XA_infA_recon = torch.transpose(XA_infA_recon, 0, 1)
+
+        XA_POE_recon = XA_POE_recon.view(XA_POE_recon.shape[0], -1, 28, height)
+        XA_POE_recon = torch.transpose(XA_POE_recon, 0, 1)
+        XA_sinfB_recon = XA_sinfB_recon.view(XA_sinfB_recon.shape[0], -1, 28, height)
+        XA_sinfB_recon = torch.transpose(XA_sinfB_recon, 0, 1)
+
+    WS = torch.ones(fixed_XA.shape)
+    if cuda:
+        WS = WS.cuda()
+
+    imgs = [fixed_XA, fixed_XB, XA_infA_recon, XA_POE_recon, XA_sinfB_recon, WS]
+    merged = torch.cat(
+        imgs, dim=0
+    )
+
+    perm = torch.arange(0, len(imgs) * batch_size).view(len(imgs), batch_size).transpose(1, 0)
+    perm = perm.contiguous().view(-1)
+    merged = merged[perm, :].cpu()
+
+    # save the results as image
+    fname = os.path.join(out_dir, 'reconA_%s.jpg' % iters)
+    mkdirs(out_dir)
+    save_image(
+        tensor=merged, filename=fname, nrow=len(imgs) * int(np.sqrt(batch_size)),
+        pad_value=1
+    )
