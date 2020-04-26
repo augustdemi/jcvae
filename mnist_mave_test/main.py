@@ -319,6 +319,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     N = 0
     torch.autograd.set_detect_anomaly(True)
     mus = [0, 0, 0, 0]
+    cnt = 0
 
 
     for b, (images, labels) in enumerate(data):
@@ -396,11 +397,19 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 labels_onehot = labels_onehot.cuda()
             optimizer.zero_grad()
 
-            if b not in label_mask:
-                label_mask[b] = (random.random() < args.label_frac)
+            if args.label_frac == 0.002 or args.label_frac == 0.001:
+                if b == 0:
+                    label_mask[b] = True
+                else:
+                    label_mask[b] = False
+            else:
+                if b not in label_mask:
+                    label_mask[b] = (random.random() < args.label_frac)
+
 
 
             if (label_mask[b] and args.label_frac == args.sup_frac):
+                cnt += 1
                 # encode
                 q = encA(images, CUDA)
                 q = encB(labels, CUDA, q=q)
@@ -505,7 +514,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             #          labels.type(torch.float).mean()])
             #     mus = [mus1.detach().numpy(), mus2.detach().numpy(), mus3.detach().numpy(), mus4.detach().numpy()]
 
-
+    print('frac:', cnt / N)
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
                                                                          epoch_rec_poeB / pair_cnt], [kl_A / N,
                                                                                                       kl_B / N,
