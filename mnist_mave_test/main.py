@@ -8,6 +8,7 @@ import visdom
 import numpy as np
 from model import EncoderA, DecoderA, EncoderB, DecoderB
 from sklearn.metrics import f1_score
+from datasets import DIGIT
 
 import sys
 
@@ -37,9 +38,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=0.5,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.5,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=50.,
                         help='multipler for text reconstruction [default: 10]')
@@ -202,14 +203,8 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-train_data = torch.utils.data.DataLoader(
-    datasets.MNIST(DATA_PATH, train=True, download=True,
-                   transform=transforms.ToTensor()),
-    batch_size=args.batch_size, shuffle=True)
-test_data = torch.utils.data.DataLoader(
-    datasets.MNIST(DATA_PATH, train=False, download=True,
-                   transform=transforms.ToTensor()),
-    batch_size=args.batch_size, shuffle=True)
+train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=True)
+test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
 
 print('>>> data loaded')
 print('train: ', len(train_data.dataset))
@@ -325,11 +320,6 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     torch.autograd.set_detect_anomaly(True)
     mus = [0, 0, 0, 0]
 
-    ############I added #########################
-    # lamb_annealing_factor = np.power(2.0, (epoch + 1) // args.lamb_annealing_epochs)
-    # print('epoch: ', epoch, ', lamb_annealing_factor:', lamb_annealing_factor)
-    #####################################
-
 
     for b, (images, labels) in enumerate(data):
         if epoch < args.annealing_epochs:
@@ -409,6 +399,7 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             if b not in label_mask:
                 label_mask[b] = (random.random() < args.label_frac)
 
+
             if (label_mask[b] and args.label_frac == args.sup_frac):
                 # encode
                 q = encA(images, CUDA)
@@ -420,25 +411,6 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 q.normal(mu_poe,
                          std_poe,
                          name='poe')
-
-                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                # q['sharedA'].dist.loc = muA
-                # q['sharedA'].dist.scale = stdA
-                # q['sharedB'].dist.loc = muB
-                # q['sharedB'].dist.scale = stdB
-
-                # muA, stdA = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale)
-                # muB, stdB = probtorch.util.apply_poe(CUDA, q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-                # mu, logvar = probtorch.util.prior_expert((1, args.batch_size, args.n_shared),
-                #                           use_cuda=CUDA)
-                #
-                #
-                # mu = torch.cat((mu, muA), dim=0)
-                # logvar = torch.cat((logvar, torch.log(stdA ** 2 + EPS)), dim=0)
-                #
-                # mu = torch.cat((mu, muB), dim=0)
-                # logvar = torch.cat((logvar, torch.log(stdB ** 2 + EPS)), dim=0)
 
                 # decode attr
                 shared_dist = {'poe': 'poe', 'own': 'sharedB'}
@@ -533,10 +505,11 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             #          labels.type(torch.float).mean()])
             #     mus = [mus1.detach().numpy(), mus2.detach().numpy(), mus3.detach().numpy(), mus4.detach().numpy()]
 
+
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
                                                                          epoch_rec_poeB / pair_cnt], [kl_A / N,
                                                                                                       kl_B / N,
-                                                                                                      kl_poe / pair_cnt], mus
+                                                                                                      kl_poe / pair_cnt], label_mask
 
 
 def test(data, encA, decA, encB, decB):
@@ -676,9 +649,9 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, kl, mus = train(train_data, encA, decA, encB, decB, e,
-                                                      optimizer, mask, fixed_imgs=fixed_imgs,
-                                                      fixed_labels=fixed_labels)
+    train_elbo, rec_lossA, rec_lossB, kl, mask = train(train_data, encA, decA, encB, decB, e,
+                                                       optimizer, mask, fixed_imgs=fixed_imgs,
+                                                       fixed_labels=fixed_labels)
     train_end = time.time()
 
     test_start = time.time()
@@ -697,7 +670,7 @@ for e in range(args.ckpt_epochs, args.epochs):
                            kl_A=kl[0],
                            kl_B=kl[1],
                            kl_poe=kl[2],
-                           mus=mus
+                           mus=[0, 0, 0, 0]
                            )
         visualize_line()
         LINE_GATHER.flush()
