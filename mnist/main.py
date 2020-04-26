@@ -230,6 +230,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     decA.train()
     decB.train()
     N = 0
+    cnt = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
         if args.label_frac > 1 and random.random() < args.sup_frac:
@@ -281,9 +282,18 @@ def train(data, encA, decA, encB, decB, optimizer,
                 images = images.cuda()
                 labels_onehot = labels_onehot.cuda()
             optimizer.zero_grad()
-            if b not in label_mask:
-                label_mask[b] = (random.random() < args.label_frac)
+
+            if args.label_frac == 0.002 or args.label_frac == 0.001:
+                if b == 0:
+                    label_mask[b] = True
+                else:
+                    label_mask[b] = False
+            else:
+                if b not in label_mask:
+                    label_mask[b] = (random.random() < args.label_frac)
+
             if (label_mask[b] and args.label_frac == args.sup_frac):
+                cnt += 1
                 # encode
                 # print(images.sum())
                 q = encA(images, num_samples=NUM_SAMPLES)
@@ -346,6 +356,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     if pair_cnt == 0:
         pair_cnt = 1
 
+    print('frac:', cnt / N)
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
                                                                                                    epoch_rec_crB / pair_cnt], label_mask
@@ -495,9 +506,40 @@ if args.ckpt_epochs == args.epochs:
     # test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, 0)
     # fixed_idxs=[28, 2, 35, 32, 4, 23, 21, 36, 84, 20], output_dir_trvsl=MODEL_NAME,
     # util.evaluation.mutual_info(test_data, encA, CUDA, flatten_pixel=NUM_PIXELS)
-    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA,
-                                  fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 20], output_dir_trvsl=MODEL_NAME,
-                                  flatten_pixel=NUM_PIXELS)
+
+    # util.evaluation.mnist_latent(test_data, encA, 1000)
+    # util.evaluation.cross_acc_mnist(test_data, encA, decA, encB, 1000, args.n_shared,
+    #                                  CUDA)
+
+    # ### for stat
+    # n_batch = 10
+    # random.seed = 0
+    # fixed_idxs = random.sample(range(len(train_data.dataset)), 100 * n_batch)
+    # fixed_XA = [0] * 100 * n_batch
+    # for i, idx in enumerate(fixed_idxs):
+    #     fixed_XA[i], _ = train_data.dataset.__getitem__(idx)[:2]
+    #     fixed_XA[i] = fixed_XA[i].view(-1, 784)
+    #     fixed_XA[i] = fixed_XA[i].squeeze(0)
+    #
+    # fixed_XA = torch.stack(fixed_XA, dim=0)
+    #
+    # zS_mean = 0
+    # # zS_ori_sum = np.zeros(zS_dim)
+    # for idx in range(n_batch):
+    #     q = encA(fixed_XA[100 * idx:100 * (idx + 1)], num_samples=1)
+    #     zS_mean += q['privateA'].dist.loc
+    #     # zS_std += q['sharedA'].dist.scale
+    # zS_mean = zS_mean.squeeze(0)
+    # min = zS_mean.min(dim=0)[0].detach().cpu().numpy()
+    # max = zS_mean.max(dim=0)[0].detach().cpu().numpy()
+    # ##############
+    #
+    # util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME,
+    #                               fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 20],
+    #                               flatten_pixel=NUM_PIXELS)
+    #
+
+
     util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
                                      args.n_shared, CUDA, MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
