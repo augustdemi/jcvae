@@ -397,14 +397,17 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
                 labels_onehot = labels_onehot.cuda()
             optimizer.zero_grad()
 
-            if args.label_frac == 0.002 or args.label_frac == 0.001:
+            if args.label_frac == 0.001:
                 if b == 0:
                     label_mask[b] = True
                 else:
                     label_mask[b] = False
             else:
-                if b not in label_mask:
-                    label_mask[b] = (random.random() < args.label_frac)
+                need_batch = int(args.label_frac * 500)
+                if b in range(need_batch):
+                    label_mask[b] = True
+                else:
+                    label_mask[b] = False
 
 
 
