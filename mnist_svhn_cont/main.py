@@ -299,26 +299,26 @@ def test(data, encA, decA, encB, decB, epoch):
     decB.eval()
     epoch_elbo = 0.0
     N = 0
-    for b, (images1, images2) in enumerate(data):
-        if images1.size()[0] == args.batch_size:
-            N += 1
-            images1 = images1.view(-1, NUM_PIXELS)
-            if CUDA:
-                images1 = images1.cuda()
-                images2 = images2.cuda()
-            # encode
-            q = encA(images1, num_samples=NUM_SAMPLES)
-            q = encB(images2, num_samples=NUM_SAMPLES, q=q)
-            pA = decA(images1, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
-                      num_samples=NUM_SAMPLES)
-            pB = decB(images2, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
-                      num_samples=NUM_SAMPLES)
-
-            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
-
-            if CUDA:
-                batch_elbo = batch_elbo.cpu()
-            epoch_elbo += batch_elbo.item()
+    # for b, (images1, images2) in enumerate(data):
+    #     if images1.size()[0] == args.batch_size:
+    #         N += 1
+    #         images1 = images1.view(-1, NUM_PIXELS)
+    #         if CUDA:
+    #             images1 = images1.cuda()
+    #             images2 = images2.cuda()
+    #         # encode
+    #         q = encA(images1, num_samples=NUM_SAMPLES)
+    #         q = encB(images2, num_samples=NUM_SAMPLES, q=q)
+    #         pA = decA(images1, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+    #                   num_samples=NUM_SAMPLES)
+    #         pB = decB(images2, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
+    #                   num_samples=NUM_SAMPLES)
+    #
+    #         batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+    #
+    #         if CUDA:
+    #             batch_elbo = batch_elbo.cpu()
+    #         epoch_elbo += batch_elbo.item()
 
     if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
         util.evaluation.save_traverse_mnist_svhn(epoch, test_data, encA, decA, encB, decB, CUDA,
