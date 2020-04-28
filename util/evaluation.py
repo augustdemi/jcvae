@@ -3612,34 +3612,39 @@ def save_cross_mnist_half(iters, data_loader, encA, decA, encB, cuda, output_dir
              std_poe,
              name='poe')
 
-    XA_infA_recon = decA.forward2(q['privateA'].dist.loc, q['sharedA'].value, cuda)
+    XA_infA_recon = decA.forward2(q['privateA'].dist.loc, q['sharedA'].dist.loc, cuda)
 
-    XA_POE_recon = decA.forward2(q['privateA'].dist.loc, q['poe'].value, cuda)
+    XA_POE_recon = decA.forward2(q['privateA'].dist.loc, q['poe'].dist.loc, cuda)
 
-    XA_sinfB_recon = decA.forward2(q['privateA'].dist.loc, q['sharedB'].value, cuda)
+    XA_sinfB_recon = decA.forward2(q['privateA'].dist.loc, q['sharedB'].dist.loc, cuda)
+
+    XA_rand = decA.forward2(q['privateA'].dist.loc, torch.rand(10, 10).unsqueeze(0), cuda)
+
 
     if flatten_pixel is not None:
         fixed_XA = fixed_XA.unsqueeze(0)
-        fixed_XA = fixed_XA.view(fixed_XA.shape[0], -1, height, 28)
+        fixed_XA = fixed_XA.view(fixed_XA.shape[0], -1, 28, height)
         fixed_XA = torch.transpose(fixed_XA, 0, 1)
 
         fixed_XB = fixed_XB.unsqueeze(0)
-        fixed_XB = fixed_XB.view(fixed_XB.shape[0], -1, height, 28)
+        fixed_XB = fixed_XB.view(fixed_XB.shape[0], -1, 28, height)
         fixed_XB = torch.transpose(fixed_XB, 0, 1)
 
-        XA_infA_recon = XA_infA_recon.view(XA_infA_recon.shape[0], -1, height, 28)
+        XA_infA_recon = XA_infA_recon.view(XA_infA_recon.shape[0], -1, 28, height)
         XA_infA_recon = torch.transpose(XA_infA_recon, 0, 1)
 
-        XA_POE_recon = XA_POE_recon.view(XA_POE_recon.shape[0], -1, height, 28)
+        XA_POE_recon = XA_POE_recon.view(XA_POE_recon.shape[0], -1, 28, height)
         XA_POE_recon = torch.transpose(XA_POE_recon, 0, 1)
-        XA_sinfB_recon = XA_sinfB_recon.view(XA_sinfB_recon.shape[0], -1, height, 28)
+        XA_sinfB_recon = XA_sinfB_recon.view(XA_sinfB_recon.shape[0], -1, 28, height)
         XA_sinfB_recon = torch.transpose(XA_sinfB_recon, 0, 1)
+        XA_rand = XA_rand.view(XA_rand.shape[0], -1, 28, height)
+        XA_rand = torch.transpose(XA_rand, 0, 1)
 
     WS = torch.ones(fixed_XA.shape)
     if cuda:
         WS = WS.cuda()
 
-    imgs = [fixed_XA, fixed_XB, XA_infA_recon, XA_POE_recon, XA_sinfB_recon, WS]
+    imgs = [fixed_XA, fixed_XB, XA_infA_recon, XA_POE_recon, XA_sinfB_recon, XA_rand, WS]
     merged = torch.cat(
         imgs, dim=0
     )
@@ -3654,4 +3659,144 @@ def save_cross_mnist_half(iters, data_loader, encA, decA, encB, cuda, output_dir
     save_image(
         tensor=merged, filename=fname, nrow=len(imgs) * int(np.sqrt(batch_size)),
         pad_value=1
+    )
+
+
+def save_traverse_mnist_svhn(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None,
+                             fixed_idxs=[3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121]):
+    tr_range = 2
+    out_dir = os.path.join('../output/' + output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range))
+
+    fixed_XA = [0] * len(fixed_idxs)
+    fixed_XB = [0] * len(fixed_idxs)
+
+    for i, idx in enumerate(fixed_idxs):
+
+        fixed_XA[i], fixed_XB[i] = \
+            data_loader.dataset.__getitem__(idx)[0:2]
+        fixed_XA[i] = fixed_XA[i].view(-1, flatten_pixel)
+        if cuda:
+            fixed_XA[i] = fixed_XA[i].cuda()
+            fixed_XB[i] = fixed_XB[i].cuda()
+        fixed_XA[i] = fixed_XA[i].squeeze(0)
+
+    fixed_XA = torch.stack(fixed_XA, dim=0)
+    fixed_XB = torch.stack(fixed_XB, dim=0)
+
+    # do traversal and collect generated images
+
+    q = encA(fixed_XA, num_samples=1)
+    q = encB(fixed_XB, num_samples=1, q=q)
+
+    zA_ori, zSA_ori = q['privateA'].dist.loc, q['sharedA'].value
+    zB_ori, zSB_ori = q['privateB'].dist.loc, q['sharedB'].value
+
+    # making poe dist
+    mu_poe, std_poe = probtorch.util.apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                               q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+    q.normal(mu_poe,
+             std_poe,
+             name='poe')
+
+    # sampling poe
+    zS_ori = q['poe'].value
+
+    zA_dim = zA_ori.shape[2]
+    zB_dim = zB_ori.shape[2]
+    zS_dim = zS_ori.shape[2]
+    interpolation = torch.tensor(np.linspace(-tr_range, tr_range, 10))
+
+    loc = -1
+    ### A
+    tempAll1 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
+    ###### A_private
+    for row in range(zA_dim):
+        if loc != -1 and row != loc:
+            continue
+        zA = zA_ori.clone()
+
+        temp = []
+        for val in interpolation:
+            zA[:, :, row] = val
+            sampleA = decA.forward2(zA, zS_ori, cuda)
+            sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
+            sampleA = torch.transpose(sampleA, 0, 1)
+            sampleA_3ch = []
+            for i in range(sampleA.size(0)):
+                each_XA = sampleA[i].clone().squeeze(0)
+                sampleA_3ch.append(torch.stack([each_XA, each_XA, each_XA]))
+            sampleA_3ch = torch.stack(sampleA_3ch)
+            temp.append((torch.cat([sampleA_3ch[i] for i in range(sampleA_3ch.shape[0])], dim=1)).unsqueeze(0))
+        tempAll1.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+
+    # shared A
+    tempS = []
+    for i in range(zS_dim):
+        zS = np.zeros((1, 1, zS_dim))
+        zS[0, 0, i % zS_dim] = 1.
+        zS = torch.Tensor(zS)
+        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+        if cuda:
+            zS = zS.cuda()
+        sampleA = decA.forward2(zA_ori, zS, cuda)
+        sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
+        sampleA = torch.transpose(sampleA, 0, 1)
+        sampleA_3ch = []
+        for i in range(sampleA.size(0)):
+            each_XA = sampleA[i].clone().squeeze(0)
+            sampleA_3ch.append(torch.stack([each_XA, each_XA, each_XA]))
+        sampleA_3ch = torch.stack(sampleA_3ch)
+        tempS.append((torch.cat([sampleA_3ch[i] for i in range(sampleA_3ch.shape[0])], dim=1)).unsqueeze(0))
+    tempAll1.append(torch.cat(tempS, dim=0).unsqueeze(0))
+
+    #### B private
+    tempAll2 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
+
+    for row in range(zB_dim):
+        if loc != -1 and row != loc:
+            continue
+        zB = zB_ori.clone()
+        temp = []
+        for val in interpolation:
+            zB[:, :, row] = val
+            sampleB = decB.forward2(zB, zS_ori, cuda)
+            sampleB = resize(28, 28, sampleB, cuda)
+            temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+        tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+
+    # shared A
+    tempS = []
+    for i in range(zS_dim):
+        zS = np.zeros((1, 1, zS_dim))
+        zS[0, 0, i % zS_dim] = 1.
+        zS = torch.Tensor(zS)
+        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+        if cuda:
+            zS = zS.cuda()
+        sampleB = decB.forward2(zB_ori, zS, cuda)
+        sampleB = resize(28, 28, sampleB, cuda)
+        tempS.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+    tempAll2.append(torch.cat(tempS, dim=0).unsqueeze(0))
+
+    gifs1 = torch.cat(tempAll1, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+    gifs2 = torch.cat(tempAll2, dim=0)  # torch.Size([11, 10, 1, 384, 32])
+
+    gifs = torch.cat([gifs1, gifs2], dim=3)
+
+    # save the generated files, also the animated gifs
+
+    mkdirs(output_dir_trvsl)
+    mkdirs(out_dir)
+
+    for j, val in enumerate(interpolation):
+        # I = torch.cat([IMG[key], gifs[:][j]], dim=0)
+        I = gifs[:, j]
+        save_image(
+            tensor=I.cpu(),
+            filename=os.path.join(out_dir, '%03d.jpg' % (j)),
+            nrow=zA_dim + zS_dim,
+            pad_value=1)
+        # make animated gif
+    grid2gif(
+        out_dir, str(os.path.join(out_dir, 'traverse.gif')), delay=10
     )
