@@ -194,30 +194,32 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                latents=['privateB', 'sharedB'],
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta2, bias=bias)
+    if q['poe'] is not None:
+        reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_poe'],
+                                                                         latents=['privateA', 'poe'], sample_dim=0,
+                                                                         batch_dim=1,
+                                                                         beta=beta1, bias=bias)
+        reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_poe'],
+                                                                         latents=['privateB', 'poe'], sample_dim=0,
+                                                                         batch_dim=1,
+                                                                         beta=beta2, bias=bias)
 
-    reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_poe'],
-                                                                     latents=['privateA', 'poe'], sample_dim=0,
-                                                                     batch_dim=1,
-                                                                     beta=beta1, bias=bias)
-    reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_poe'],
-                                                                     latents=['privateB', 'poe'], sample_dim=0,
-                                                                     batch_dim=1,
-                                                                     beta=beta2, bias=bias)
+        # # by cross
+        reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedB'],
+                                                                       latents=['privateA', 'sharedB'], sample_dim=0,
+                                                                       batch_dim=1,
+                                                                       beta=beta1, bias=bias)
+        reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_sharedA'],
+                                                                       latents=['privateB', 'sharedA'], sample_dim=0,
+                                                                       batch_dim=1,
+                                                                       beta=beta2, bias=bias)
 
-    # # by cross
-    reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedB'],
-                                                                   latents=['privateA', 'sharedB'], sample_dim=0,
-                                                                   batch_dim=1,
-                                                                   beta=beta1, bias=bias)
-    reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_sharedA'],
-                                                                   latents=['privateB', 'sharedA'], sample_dim=0,
-                                                                   batch_dim=1,
-                                                                   beta=beta2, bias=bias)
-
-    loss = (lamb * reconst_loss_A - kl_A) + (reconst_loss_B - kl_B) + \
-           (lamb * reconst_loss_poeA - kl_poeA) + (reconst_loss_poeB - kl_poeB) + \
-           (lamb * reconst_loss_crA - kl_crA) + (reconst_loss_crB - kl_crB)
-
+        loss = (lamb * reconst_loss_A - kl_A) + (reconst_loss_B - kl_B) + \
+               (lamb * reconst_loss_poeA - kl_poeA) + (reconst_loss_poeB - kl_poeB) + \
+               (lamb * reconst_loss_crA - kl_crA) + (reconst_loss_crB - kl_crB)
+    else:
+        reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
+        loss = (lamb * reconst_loss_A - kl_A) + (reconst_loss_B - kl_B)
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
                                                                           reconst_loss_crB]
 
@@ -299,26 +301,26 @@ def test(data, encA, decA, encB, decB, epoch):
     decB.eval()
     epoch_elbo = 0.0
     N = 0
-    # for b, (images1, images2) in enumerate(data):
-    #     if images1.size()[0] == args.batch_size:
-    #         N += 1
-    #         images1 = images1.view(-1, NUM_PIXELS)
-    #         if CUDA:
-    #             images1 = images1.cuda()
-    #             images2 = images2.cuda()
-    #         # encode
-    #         q = encA(images1, num_samples=NUM_SAMPLES)
-    #         q = encB(images2, num_samples=NUM_SAMPLES, q=q)
-    #         pA = decA(images1, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
-    #                   num_samples=NUM_SAMPLES)
-    #         pB = decB(images2, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
-    #                   num_samples=NUM_SAMPLES)
-    #
-    #         batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
-    #
-    #         if CUDA:
-    #             batch_elbo = batch_elbo.cpu()
-    #         epoch_elbo += batch_elbo.item()
+    for b, (images1, images2) in enumerate(data):
+        if images1.size()[0] == args.batch_size:
+            N += 1
+            images1 = images1.view(-1, NUM_PIXELS)
+            if CUDA:
+                images1 = images1.cuda()
+                images2 = images2.cuda()
+            # encode
+            q = encA(images1, num_samples=NUM_SAMPLES)
+            q = encB(images2, num_samples=NUM_SAMPLES, q=q)
+            pA = decA(images1, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            pB = decB(images2, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
+                      num_samples=NUM_SAMPLES)
+
+            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+
+            if CUDA:
+                batch_elbo = batch_elbo.cpu()
+            epoch_elbo += batch_elbo.item()
 
     if (epoch + 1) % 10 == 0 or epoch + 1 == args.epochs:
         util.evaluation.save_traverse_mnist_svhn(epoch, test_data, encA, decA, encB, decB, CUDA,
