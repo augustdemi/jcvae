@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/ mnist_half',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_svhn_cont',
                         help='save and load path for ckpt')
 
     # visdom
