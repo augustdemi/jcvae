@@ -184,7 +184,7 @@ def train(data, encA, epoch, optimizer, gt_std):
         loss = 0
         for i in range(10):
             idx = (labels == i).nonzero().squeeze(1)
-            loss += torch.abs(pred_std[idx] - gt_std[i]).sum()
+            loss += torch.pow(pred_std[idx] - gt_std[i], 2).sum()
 
         loss.backward()
         optimizer.step()
