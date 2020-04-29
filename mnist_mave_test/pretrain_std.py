@@ -76,7 +76,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist_mvae_pretrain-run_id%d-shared%02d-bs%s-lr%s' % (
+MODEL_NAME = 'mnist_mvae_pretrain_std-run_id%d-shared%02d-bs%s-lr%s' % (
     args.run_id, args.n_shared, args.batch_size, args.lr)
 DATA_PATH = '../data'
 
@@ -180,11 +180,11 @@ def train(data, encA, epoch, optimizer, gt_std):
         q = encA(images, CUDA)
         pred_std = q['sharedA'].dist.scale.squeeze(0)
 
-        loss = 0
-        for i in range(10):
-            idx = (labels == i).nonzero().squeeze(1)
-            loss += torch.abs(pred_std[idx] - gt_std[i]).sum()
-
+        # loss = 0
+        # for i in range(10):
+        #     idx = (labels == i).nonzero().squeeze(1)
+        #     loss += torch.abs(pred_std[idx] - gt_std[i]).sum()
+        loss = torch.abs(pred_std - gt_std[0]).sum()
         loss.backward()
         optimizer.step()
 
