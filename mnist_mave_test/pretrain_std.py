@@ -181,11 +181,11 @@ def train(data, encA, epoch, optimizer, gt_std):
         q = encA(images, CUDA)
         pred_std = q['sharedA'].dist.scale.squeeze(0)
 
-        # loss = 0
-        # for i in range(10):
-        #     idx = (labels == i).nonzero().squeeze(1)
-        #     loss += torch.abs(pred_std[idx] - gt_std[i]).sum()
-        loss = torch.abs(pred_std - gt_std[0]).sum()
+        loss = 0
+        for i in range(10):
+            idx = (labels == i).nonzero().squeeze(1)
+            loss += torch.abs(pred_std[idx] - gt_std[i]).sum()
+
         loss.backward()
         optimizer.step()
 
