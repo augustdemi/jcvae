@@ -170,13 +170,13 @@ def train(data, encA, epoch, optimizer, gt_std):
     encA.fc32.weight.requires_grad = True
 
     N = 0
-
+    gt_std = gt_std.detach()
     for b, (images, labels) in enumerate(data):
         N += 1
         optimizer.zero_grad()
         if CUDA:
             images = images.cuda()
-        cp_gt_std = gt_std.copy()
+
         # encode
         q = encA(images, CUDA)
         pred_std = q['sharedA'].dist.scale.squeeze(0)
@@ -185,7 +185,7 @@ def train(data, encA, epoch, optimizer, gt_std):
         # for i in range(10):
         #     idx = (labels == i).nonzero().squeeze(1)
         #     loss += torch.abs(pred_std[idx] - gt_std[i]).sum()
-        loss = torch.abs(pred_std - cp_gt_std[0]).sum()
+        loss = torch.abs(pred_std - gt_std[0]).sum()
         loss.backward()
         optimizer.step()
 
