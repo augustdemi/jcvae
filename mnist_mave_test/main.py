@@ -129,9 +129,9 @@ def visualize_line():
     acc = torch.tensor(np.stack([test_acc], -1))
 
     iterations = torch.Tensor(range(data['iterations'][0])) + (data['epoch'][0] * data['iterations'][0])
-    mus = torch.Tensor(data['mus'])
-    mu10 = torch.Tensor(data['mu10'])
-    std10 = torch.Tensor(data['std10'])
+    mus = torch.Tensor(data['mus']).squeeze(0)
+    mu10 = torch.Tensor(data['mu10']).squeeze(0)
+    std10 = torch.Tensor(data['std10']).squeeze(0)
 
 
     VIZ.line(
