@@ -118,7 +118,8 @@ class DecoderA(nn.Module):
 
             hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
-            images_mean = self.dec_image(hiddens)
+            images_mean = self.dec_image(hiddens).squeeze(0)
+
 
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
@@ -260,6 +261,9 @@ class DecoderB(nn.Module):
             hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
             hiddens = hiddens.view(-1, 256, 2, 2)
             images_mean = self.dec_image(hiddens)
+
+            images_mean = images_mean.view(images_mean.size(0), -1)
+            images = images.view(images.size(0), -1)
 
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
