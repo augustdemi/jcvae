@@ -51,9 +51,10 @@ class EncoderA(nn.Module):
         logvarPrivate = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
         stdPrivate = torch.sqrt(torch.exp(logvarPrivate) + EPS)
 
-        muShared = stats[:, :, :self.zPrivate_dim]
-        logvarShared = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
+        muShared = stats[:, :, (2 * self.zPrivate_dim):(2 * self.zPrivate_dim + self.zShared_dim)]
+        logvarShared = stats[:, :, (2 * self.zPrivate_dim + self.zShared_dim):]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
+
 
         q.normal(loc=muPrivate,
                  scale=stdPrivate,
@@ -96,16 +97,16 @@ class DecoderA(nn.Module):
                 kaiming_init(self._modules[m], self.seed)
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
-        style_mean = torch.zeros_like(q['privateA'].dist.loc)
-        style_std = torch.ones_like(q['sharedA'].dist.scale)
+        private_mean = torch.zeros_like(q['privateA'].dist.loc)
+        private_std = torch.ones_like(q['privateA'].dist.scale)
         shared_mean = torch.zeros_like(q['sharedA'].dist.loc)
         shared_std = torch.ones_like(q['sharedA'].dist.scale)
 
         p = probtorch.Trace()
 
         # prior for z_private
-        zPrivate = p.normal(style_mean,
-                            style_std,
+        zPrivate = p.normal(private_mean,
+                            private_std,
                             value=q['privateA'],
                             name='privateA')
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
@@ -118,7 +119,7 @@ class DecoderA(nn.Module):
 
             hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
-            images_mean = self.dec_image(hiddens)
+            images_mean = self.dec_image(hiddens).squeeze(0)
 
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
@@ -179,8 +180,8 @@ class EncoderB(nn.Module):
         logvarPrivate = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
         stdPrivate = torch.sqrt(torch.exp(logvarPrivate) + EPS)
 
-        muShared = stats[:, :, :self.zPrivate_dim]
-        logvarShared = stats[:, :, self.zPrivate_dim:(2 * self.zPrivate_dim)]
+        muShared = stats[:, :, (2 * self.zPrivate_dim):(2 * self.zPrivate_dim + self.zShared_dim)]
+        logvarShared = stats[:, :, (2 * self.zPrivate_dim + self.zShared_dim):]
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
 
         q.normal(loc=muPrivate,
@@ -224,16 +225,16 @@ class DecoderB(nn.Module):
                 kaiming_init(self._modules[m], self.seed)
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
-        style_mean = torch.zeros_like(q['privateB'].dist.loc)
-        style_std = torch.ones_like(q['sharedB'].dist.scale)
+        private_mean = torch.zeros_like(q['privateB'].dist.loc)
+        private_std = torch.ones_like(q['privateB'].dist.scale)
         shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
         shared_std = torch.ones_like(q['sharedB'].dist.scale)
 
         p = probtorch.Trace()
 
         # prior for z_private
-        zPrivate = p.normal(style_mean,
-                            style_std,
+        zPrivate = p.normal(private_mean,
+                            private_std,
                             value=q['privateB'],
                             name='privateB')
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
@@ -245,7 +246,7 @@ class DecoderB(nn.Module):
                                name=shared_name)
 
             hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
-            images_mean = self.dec_image(hiddens)
+            images_mean = self.dec_image(hiddens).squeeze(0)
 
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +

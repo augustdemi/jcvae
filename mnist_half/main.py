@@ -22,7 +22,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=37, metavar='N',
+    parser.add_argument('--run_id', type=int, default=2, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -32,9 +32,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=350, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=440, metavar='N',
+    parser.add_argument('--epochs', type=int, default=350, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -45,7 +45,7 @@ if __name__ == "__main__":
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/0.4/',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/ mnist_half',
                         help='save and load path for ckpt')
 
     # visdom
@@ -220,7 +220,7 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
     else:
         reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
-        loss = 3 * (reconst_loss_A - kl_A)
+        loss = 3 * ((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
                                                                           reconst_loss_crB]
 
@@ -470,9 +470,9 @@ if args.ckpt_epochs == args.epochs:
     #                               flatten_pixel=NUM_PIXELS)
     #
 
-
-    util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
-                                     args.n_shared, CUDA, MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_cross_mnist_half(args.epochs, test_data, encA, decA, encB, CUDA, MODEL_NAME,
+                                          fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99],
+                                          flatten_pixel=NUM_PIXELS)
 
     # util.evaluation.save_reconst(args.epochs, test_data, encA, decA, encB, decB, CUDA, fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
