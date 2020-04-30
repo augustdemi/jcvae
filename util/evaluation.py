@@ -3663,7 +3663,8 @@ def save_cross_mnist_half(iters, data_loader, encA, decA, encB, cuda, output_dir
 
 
 def save_traverse_mnist_svhn(iters, data_loader, encA, decA, encB, decB, cuda, output_dir_trvsl, flatten_pixel=None,
-                             fixed_idxs=[3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121]):
+                             fixed_idxs=[3246, 7001, 14305, 19000, 27444, 33100, 38000, 45231, 51000, 55121],
+                             cont=True):
     tr_range = 2
     out_dir = os.path.join('../output/' + output_dir_trvsl, str(iters) + '_' + str(-tr_range) + '~' + str(tr_range))
 
@@ -3692,11 +3693,21 @@ def save_traverse_mnist_svhn(iters, data_loader, encA, decA, encB, decB, cuda, o
     zB_ori, zSB_ori = q['privateB'].dist.loc, q['sharedB'].value
 
     # making poe dist
-    mu_poe, std_poe = probtorch.util.apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                               q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-    q.normal(mu_poe,
-             std_poe,
-             name='poe')
+    if cont:
+        mu_poe, std_poe = probtorch.util.apply_poe(cuda, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+                                                   q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+        q.normal(mu_poe,
+                 std_poe,
+                 name='poe')
+    else:
+        TEMP = 0.66
+        prior_logit = torch.zeros_like(
+            q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+        poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
+        q.concrete(logits=poe_logit,
+                   temperature=TEMP,
+                   name='poe')
+
 
     # sampling poe
     zS_ori = q['poe'].value
@@ -3730,24 +3741,45 @@ def save_traverse_mnist_svhn(iters, data_loader, encA, decA, encB, decB, cuda, o
         tempAll1.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
     # shared A
-    tempS = []
-    for i in range(zS_dim):
-        zS = np.zeros((1, 1, zS_dim))
-        zS[0, 0, i % zS_dim] = 1.
-        zS = torch.Tensor(zS)
-        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
-        if cuda:
-            zS = zS.cuda()
-        sampleA = decA.forward2(zA_ori, zS, cuda)
-        sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
-        sampleA = torch.transpose(sampleA, 0, 1)
-        sampleA_3ch = []
-        for i in range(sampleA.size(0)):
-            each_XA = sampleA[i].clone().squeeze(0)
-            sampleA_3ch.append(torch.stack([each_XA, each_XA, each_XA]))
-        sampleA_3ch = torch.stack(sampleA_3ch)
-        tempS.append((torch.cat([sampleA_3ch[i] for i in range(sampleA_3ch.shape[0])], dim=1)).unsqueeze(0))
-    tempAll1.append(torch.cat(tempS, dim=0).unsqueeze(0))
+    if cont:
+        for row in range(zS_dim):
+            if loc != -1 and row != loc:
+                continue
+            zS = zS_ori.clone()
+
+            temp = []
+            for val in interpolation:
+                zS[:, :, row] = val
+                sampleA = decA.forward2(zA_ori, zS, cuda)
+                sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
+                sampleA = torch.transpose(sampleA, 0, 1)
+                sampleA_3ch = []
+                for i in range(sampleA.size(0)):
+                    each_XA = sampleA[i].clone().squeeze(0)
+                    sampleA_3ch.append(torch.stack([each_XA, each_XA, each_XA]))
+                sampleA_3ch = torch.stack(sampleA_3ch)
+                temp.append((torch.cat([sampleA_3ch[i] for i in range(sampleA_3ch.shape[0])], dim=1)).unsqueeze(0))
+            tempAll1.append(
+                torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+    else:
+        tempS = []
+        for i in range(zS_dim):
+            zS = np.zeros((1, 1, zS_dim))
+            zS[0, 0, i % zS_dim] = 1.
+            zS = torch.Tensor(zS)
+            zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+            if cuda:
+                zS = zS.cuda()
+            sampleA = decA.forward2(zA_ori, zS, cuda)
+            sampleA = sampleA.view(sampleA.shape[0], -1, 28, 28)
+            sampleA = torch.transpose(sampleA, 0, 1)
+            sampleA_3ch = []
+            for i in range(sampleA.size(0)):
+                each_XA = sampleA[i].clone().squeeze(0)
+                sampleA_3ch.append(torch.stack([each_XA, each_XA, each_XA]))
+            sampleA_3ch = torch.stack(sampleA_3ch)
+            tempS.append((torch.cat([sampleA_3ch[i] for i in range(sampleA_3ch.shape[0])], dim=1)).unsqueeze(0))
+        tempAll1.append(torch.cat(tempS, dim=0).unsqueeze(0))
 
     #### B private
     tempAll2 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
@@ -3764,19 +3796,33 @@ def save_traverse_mnist_svhn(iters, data_loader, encA, decA, encB, decB, cuda, o
             temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
         tempAll2.append(torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
 
-    # shared A
-    tempS = []
-    for i in range(zS_dim):
-        zS = np.zeros((1, 1, zS_dim))
-        zS[0, 0, i % zS_dim] = 1.
-        zS = torch.Tensor(zS)
-        zS = torch.cat([zS] * len(fixed_idxs), dim=1)
-        if cuda:
-            zS = zS.cuda()
-        sampleB = decB.forward2(zB_ori, zS, cuda)
-        sampleB = resize(28, 28, sampleB, cuda)
-        tempS.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
-    tempAll2.append(torch.cat(tempS, dim=0).unsqueeze(0))
+    # shared B
+    if cont:
+        for row in range(zS_dim):
+            if loc != -1 and row != loc:
+                continue
+            zS = zS_ori.clone()
+            temp = []
+            for val in interpolation:
+                zS[:, :, row] = val
+                sampleB = decB.forward2(zB_ori, zS, cuda)
+                sampleB = resize(28, 28, sampleB, cuda)
+                temp.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+            tempAll2.append(
+                torch.cat(temp, dim=0).unsqueeze(0))  # torch.cat(temp, dim=0) = num_trv, 1, 32*num_samples, 32
+    else:
+        tempS = []
+        for i in range(zS_dim):
+            zS = np.zeros((1, 1, zS_dim))
+            zS[0, 0, i % zS_dim] = 1.
+            zS = torch.Tensor(zS)
+            zS = torch.cat([zS] * len(fixed_idxs), dim=1)
+            if cuda:
+                zS = zS.cuda()
+            sampleB = decB.forward2(zB_ori, zS, cuda)
+            sampleB = resize(28, 28, sampleB, cuda)
+            tempS.append((torch.cat([sampleB[i] for i in range(sampleB.shape[0])], dim=1)).unsqueeze(0))
+        tempAll2.append(torch.cat(tempS, dim=0).unsqueeze(0))
 
     gifs1 = torch.cat(tempAll1, dim=0)  # torch.Size([11, 10, 1, 384, 32])
     gifs2 = torch.cat(tempAll2, dim=0)  # torch.Size([11, 10, 1, 384, 32])
