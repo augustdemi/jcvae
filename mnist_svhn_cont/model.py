@@ -97,7 +97,7 @@ class DecoderA(nn.Module):
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
         style_mean = torch.zeros_like(q['privateA'].dist.loc)
-        style_std = torch.ones_like(q['sharedA'].dist.scale)
+        style_std = torch.ones_like(q['privateA'].dist.scale)
         shared_mean = torch.zeros_like(q['sharedA'].dist.loc)
         shared_std = torch.ones_like(q['sharedA'].dist.scale)
 
@@ -239,7 +239,7 @@ class DecoderB(nn.Module):
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
         style_mean = torch.zeros_like(q['privateB'].dist.loc)
-        style_std = torch.ones_like(q['sharedB'].dist.scale)
+        style_std = torch.ones_like(q['privateB'].dist.scale)
         shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
         shared_std = torch.ones_like(q['sharedB'].dist.scale)
 
