@@ -3781,9 +3781,9 @@ def save_traverse_mnist_svhn(iters, data_loader, encA, decA, encB, decB, cuda, o
             tempS.append((torch.cat([sampleA_3ch[i] for i in range(sampleA_3ch.shape[0])], dim=1)).unsqueeze(0))
         tempAll1.append(torch.cat(tempS, dim=0).unsqueeze(0))
 
-    #### B private
+    #### B
     tempAll2 = []  # zA_dim + zS_dim , num_trv, 1, 32*num_samples, 32
-
+    # B private
     for row in range(zB_dim):
         if loc != -1 and row != loc:
             continue
