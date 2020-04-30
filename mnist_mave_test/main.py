@@ -128,7 +128,7 @@ def visualize_line():
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
     acc = torch.tensor(np.stack([test_acc], -1))
 
-    iterations = torch.Tensor(range(data['iterations']))
+    iterations = torch.Tensor((epoch * data['iterations']) + range(data['iterations']))
     mus = torch.Tensor(data['mus'])
     mu10 = torch.Tensor(data['mu10'])
     std10 = torch.Tensor(data['std10'])
