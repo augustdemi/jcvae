@@ -43,7 +43,9 @@ if __name__ == "__main__":
                         help='how many labels to use')
     parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=1.,
+    parser.add_argument('--lambda_text1', type=float, default=1.,
+                        help='multipler for text reconstruction [default: 10]')
+    parser.add_argument('--lambda_text2', type=float, default=1.,
                         help='multipler for text reconstruction [default: 10]')
     parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -72,8 +74,9 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist_svhn_cont-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
-    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
+MODEL_NAME = 'mnist_svhn_cont-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text1_%s-lamb_text2_%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
+    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text1, args.lambda_text2, args.beta1,
+    args.beta2, args.seed,
     args.batch_size, args.wseed)
 DATA_PATH = '../data'
 
@@ -184,7 +187,7 @@ optimizer = torch.optim.Adam(
     lr=args.lr)
 
 
-def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedA'],
                                                                latents=['privateA', 'sharedA'], sample_dim=0,
@@ -214,12 +217,12 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                        batch_dim=1,
                                                                        beta=beta2, bias=bias)
 
-        loss = (lamb * reconst_loss_A - kl_A) + (reconst_loss_B - kl_B) + \
-               (lamb * reconst_loss_poeA - kl_poeA) + (reconst_loss_poeB - kl_poeB) + \
-               (lamb * reconst_loss_crA - kl_crA) + (reconst_loss_crB - kl_crB)
+        loss = (lamb1 * reconst_loss_A - kl_A) + (lamb2 * reconst_loss_B - kl_B) + \
+               (lamb1 * reconst_loss_poeA - kl_poeA) + (lamb2 * reconst_loss_poeB - kl_poeB) + \
+               (lamb1 * reconst_loss_crA - kl_crA) + (lamb2 * reconst_loss_crB - kl_crB)
     else:
         reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
-        loss = (lamb * reconst_loss_A - kl_A) + (reconst_loss_B - kl_B)
+        loss = (lamb1 * reconst_loss_A - kl_A) + (lamb2 * reconst_loss_B - kl_B)
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
                                                                           reconst_loss_crB]
 
@@ -262,7 +265,8 @@ def train(data, encA, decA, encB, decB, optimizer,
         pB = decB(images2, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                   num_samples=NUM_SAMPLES)
         # loss
-        loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+        loss, recA, recB = elbo(q, pA, pB, lamb1=args.lambda_text1, lamb2=args.lambda_text2, beta1=BETA1, beta2=BETA2,
+                                bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
@@ -316,7 +320,8 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(images2, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES)
 
-            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+            batch_elbo, _, _ = elbo(q, pA, pB, lamb1=args.lambda_text1, lamb2=args.lambda_text2, beta1=BETA1,
+                                    beta2=BETA2, bias=BIAS_TEST)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
