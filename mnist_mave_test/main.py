@@ -128,7 +128,12 @@ def visualize_line():
     total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
     acc = torch.tensor(np.stack([test_acc], -1))
 
-    mus = torch.Tensor(data['mus']).squeeze(0)
+    iterations = torch.Tensor(range(data['iterations']))
+    mus = torch.Tensor(data['mus'])
+    mu10 = torch.Tensor(data['mu10'])
+    std10 = torch.Tensor(data['std10'])
+
+
     VIZ.line(
         X=epoch, Y=kl, env=MODEL_NAME + '/lines',
         win=WIN_ID['kl'], update='append',
@@ -163,42 +168,171 @@ def visualize_line():
                   title='Total Loss', legend=['train_loss', 'test_loss'])
     )
 
+    ######################################################
     VIZ.line(
-        X=epoch, Y=mus[0].unsqueeze(0), env=MODEL_NAME + '/lines',
-        win=WIN_ID['mus1'], update='append',
-        opts=dict(xlabel='epoch', ylabel='mu',
-                  title='First sample', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+        X=iterations, Y=mus, env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean_argmax'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean_argmax', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
     )
 
     VIZ.line(
-        X=epoch, Y=mus[1].unsqueeze(0), env=MODEL_NAME + '/lines',
-        win=WIN_ID['mus2'], update='append',
-        opts=dict(xlabel='epoch', ylabel='mu',
-                  title='Second sample', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+        X=iterations, Y=mu10[0], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean1'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean1', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
     )
 
     VIZ.line(
-        X=epoch, Y=mus[2].unsqueeze(0), env=MODEL_NAME + '/lines',
-        win=WIN_ID['mus3'], update='append',
-        opts=dict(xlabel='epoch', ylabel='mu',
-                  title='Third sample', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+        X=iterations, Y=mu10[1], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean2'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean2', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
     )
 
     VIZ.line(
-        X=epoch, Y=mus[3].unsqueeze(0), env=MODEL_NAME + '/lines',
-        win=WIN_ID['mus4'], update='append',
-        opts=dict(xlabel='epoch', ylabel='mu',
-                  title='sample mean', legend=['mu1', 'mu2', 'mu_poe', 'label'])
+        X=iterations, Y=mu10[2], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean3'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean3', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
     )
+
+    VIZ.line(
+        X=iterations, Y=mu10[3], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean4'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean4', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=mu10[4], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean5'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean5', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=mu10[5], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean6'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean6', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=mu10[6], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean7'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean7', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=mu10[7], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean8'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean8', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=mu10[8], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean9'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean9', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=mu10[9], env=MODEL_NAME + '/lines',
+        win=WIN_ID['mean10'], update='append',
+        opts=dict(xlabel='iter', ylabel='mean',
+                  title='mean10', legend=['mean_A', 'mean_B', 'mean_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[0], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std1'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std1', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[1], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std2'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std2', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[2], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std3'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std3', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[3], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std4'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std4', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[4], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std5'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std5', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[5], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std6'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std6', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[6], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std7'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std7', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[7], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std8'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std8', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[8], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std9'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std9', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+    VIZ.line(
+        X=iterations, Y=std10[9], env=MODEL_NAME + '/lines',
+        win=WIN_ID['std10'], update='append',
+        opts=dict(xlabel='iter', ylabel='std',
+                  title='std10', legend=['std_A', 'std_B', 'std_poe', 'label'])
+    )
+
+
+######################################################
+
+
 
 if args.viz_on:
     WIN_ID = dict(
         llA='win_llA', llB='win_llB', acc='win_acc', total_losses='win_total_losses', kl='win_kl',
-        mus1='mus1', mus2='mus2', mus3='mus3', mus4='mus4'
+        mean_argmax='win_mean_argmax',
+        mean1='win_mean1', mean2='win_mean2', mean3='win_mean3', mean4='win_mean4', mean5='win_mean5',
+        mean6='win_mean6', mean7='win_mean7', mean8='win_mean8', mean9='win_mean9', mean10='win_mean10',
+        std1='win_std1', std2='win_std2', std3='win_std3', std4='win_std4', std5='win_std5',
+        std6='win_std6', std7='win_std7', std8='win_std8', std9='win_std9', std10='win_std10'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB',
-        'total_loss', 'test_total_loss', 'test_acc', 'kl_A', 'kl_B', 'kl_poe', 'mus'
+        'total_loss', 'test_total_loss', 'test_acc', 'kl_A', 'kl_B', 'kl_poe', 'mus', 'mu10', 'std10', 'iterations'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -318,7 +452,9 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
     decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
-    mus = [0, 0, 0, 0]
+    mus = []
+    mu10 = []
+    std10 = []
     cnt = 0
 
 
@@ -498,30 +634,48 @@ def train(data, encA, decA, encB, decB, epoch, optimizer,
             print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
                 e, b * args.batch_size, len(data.dataset),
                    100. * b * args.batch_size / len(data.dataset), annealing_factor))
-            # if b == 0:
-            #     mu_a = torch.argmax(q['sharedA'].dist.loc, dim=2).squeeze(0)
-            #     mu_b = torch.argmax(q['sharedB'].dist.loc, dim=2).squeeze(0)
-            #     mu_poe = torch.argmax(mu_poe, dim=2).squeeze(0)
-            #
-            #     if CUDA:
-            #         mu_a = mu_a.cpu()
-            #         mu_b = mu_b.cpu()
-            #         mu_poe = mu_poe.cpu()
-            #         labels = labels.cpu()
-            #
-            #     mus1 = torch.stack([mu_a[-1], mu_b[-1], mu_poe[-1], labels[-1]])
-            #     mus2 = torch.stack([mu_a[-2], mu_b[-2], mu_poe[-2], labels[-2]])
-            #     mus3 = torch.stack([mu_a[-3], mu_b[-3], mu_poe[-3], labels[-3]])
-            #     mus4 = torch.stack(
-            #         [mu_a.type(torch.float).mean(), mu_b.type(torch.float).mean(), mu_poe.type(torch.float).mean(),
-            #          labels.type(torch.float).mean()])
-            #     mus = [mus1.detach().numpy(), mus2.detach().numpy(), mus3.detach().numpy(), mus4.detach().numpy()]
 
+        #######################################################################
+        mu_sharedA = q['sharedA'].dist.loc.squeeze(0)
+        mu_sharedB = q['sharedB'].dist.loc.squeeze(0)
+        std_sharedA = q['sharedA'].dist.scale.squeeze(0)
+        std_sharedB = q['sharedB'].dist.scale.squeeze(0)
+
+        mu_poe = mu_poe.squeeze(0)
+        std_poe = std_poe.squeeze(0)
+
+        if CUDA:
+            mu_sharedA = mu_sharedA.cpu()
+            mu_sharedB = mu_sharedB.cpu()
+            std_sharedA = std_sharedA.cpu()
+            std_sharedB = std_sharedB.cpu()
+            mu_poe = mu_poe.cpu()
+            std_poe = std_poe.cpu()
+            labels = labels.cpu()
+            labels_onehot = labels_onehot.cpu()
+
+        mu_a = torch.argmax(mu_sharedA, dim=1)
+        mu_b = torch.argmax(mu_sharedB, dim=1)
+        mus.append(torch.stack([mu_a[0], mu_b[0], torch.argmax(mu_poe, dim=1)[0], labels[0]]).detach().numpy())
+
+        one_sample_mu10 = np.array(
+            [mu_sharedA[0].detach().numpy(), mu_sharedB[0].detach().numpy(), mu_poe[0].detach().numpy(),
+             labels_onehot[0].detach().numpy()])
+        mu10.append(np.transpose(one_sample_mu10, (1, 0)))
+
+        one_sample_std10 = np.array(
+            [std_sharedA[0].detach().numpy(), std_sharedB[0].detach().numpy(), std_poe[0].detach().numpy()])
+        std10.append(np.transpose(one_sample_std10, (1, 0)))
+
+        #######################################################################
     print('frac:', cnt / N)
+    mus = np.array(mus)
+    mu10 = np.transpose(np.array(mu10), (1, 0, 2))
+    std10 = np.transpose(np.array(std10), (1, 0, 2))
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt], [epoch_recB / N,
                                                                          epoch_rec_poeB / pair_cnt], [kl_A / N,
                                                                                                       kl_B / N,
-                                                                                                      kl_poe / pair_cnt], label_mask
+                                                                                                      kl_poe / pair_cnt], label_mask, mus, mu10, std10, N
 
 
 def test(data, encA, decA, encB, decB):
@@ -647,7 +801,7 @@ if args.ckpt_epochs > 0:
 
 if args.pretrain:
     print('>>>> pretrained encA')
-    pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain-run_id1-shared10-bs100-lr0.001-encA_epoch140.rar'
+    pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain_std-run_id5-shared10-bs100-lr0.001-encA_epoch140.rar'
     if CUDA:
         encA.load_state_dict(torch.load(pretrain_model))
     else:
@@ -661,9 +815,10 @@ if args.label_frac > 1:
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, kl, mask = train(train_data, encA, decA, encB, decB, e,
-                                                       optimizer, mask, fixed_imgs=fixed_imgs,
-                                                       fixed_labels=fixed_labels)
+    train_elbo, rec_lossA, rec_lossB, kl, mask, mus, mu10, std10, iterations = train(train_data, encA, decA, encB, decB,
+                                                                                     e,
+                                                                                     optimizer, mask, fixed_imgs=fixed_imgs,
+                                                                                     fixed_labels=fixed_labels)
     train_end = time.time()
 
     test_start = time.time()
@@ -682,7 +837,10 @@ for e in range(args.ckpt_epochs, args.epochs):
                            kl_A=kl[0],
                            kl_B=kl[1],
                            kl_poe=kl[2],
-                           mus=[0, 0, 0, 0]
+                           mus=mus,
+                           mu10=mu10,
+                           std10=std10,
+                           iterations=iterations
                            )
         visualize_line()
         LINE_GATHER.flush()
