@@ -3578,7 +3578,7 @@ def save_traverse_half_svhn(iters, data_loader, encA, decA, encB, decB, cuda, ou
 
 
 def save_cross_mnist_half(iters, data_loader, encA, decA, encB, cuda, output_dir_trvsl, flatten_pixel=None,
-                          fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99]):
+                          fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], horiz=True):
     EPS = 1e-9
     output_dir_trvsl = '../output/' + output_dir_trvsl
     tr_range = 2
@@ -3620,8 +3620,7 @@ def save_cross_mnist_half(iters, data_loader, encA, decA, encB, cuda, output_dir
 
     XA_rand = decA.forward2(q['privateA'].dist.loc, torch.rand(10, 10).unsqueeze(0), cuda)
 
-
-    if flatten_pixel is not None:
+    if horiz:
         fixed_XA = fixed_XA.unsqueeze(0)
         fixed_XA = fixed_XA.view(fixed_XA.shape[0], -1, height, 28)
         fixed_XA = torch.transpose(fixed_XA, 0, 1)
@@ -3637,6 +3636,27 @@ def save_cross_mnist_half(iters, data_loader, encA, decA, encB, cuda, output_dir
         XA_POE_recon = torch.transpose(XA_POE_recon, 0, 1)
         XA_sinfB_recon = XA_sinfB_recon.view(XA_sinfB_recon.shape[0], -1, height, 28)
         XA_sinfB_recon = torch.transpose(XA_sinfB_recon, 0, 1)
+
+        XA_rand = XA_rand.view(XA_rand.shape[0], -1, height, 28)
+        XA_rand = torch.transpose(XA_rand, 0, 1)
+    else:
+        fixed_XA = fixed_XA.unsqueeze(0)
+        fixed_XA = fixed_XA.view(fixed_XA.shape[0], -1, 28, height)
+        fixed_XA = torch.transpose(fixed_XA, 0, 1)
+
+        fixed_XB = fixed_XB.unsqueeze(0)
+        fixed_XB = fixed_XB.view(fixed_XB.shape[0], -1, 28, height)
+        fixed_XB = torch.transpose(fixed_XB, 0, 1)
+
+        XA_infA_recon = XA_infA_recon.view(XA_infA_recon.shape[0], -1, 28, height)
+        XA_infA_recon = torch.transpose(XA_infA_recon, 0, 1)
+
+        XA_POE_recon = XA_POE_recon.view(XA_POE_recon.shape[0], -1, 28, height)
+        XA_POE_recon = torch.transpose(XA_POE_recon, 0, 1)
+        XA_sinfB_recon = XA_sinfB_recon.view(XA_sinfB_recon.shape[0], -1, 28, height)
+        XA_sinfB_recon = torch.transpose(XA_sinfB_recon, 0, 1)
+        XA_rand = XA_rand.view(XA_rand.shape[0], -1, 28, height)
+        XA_rand = torch.transpose(XA_rand, 0, 1)
 
     WS = torch.ones(fixed_XA.shape)
     if cuda:
