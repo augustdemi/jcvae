@@ -106,7 +106,6 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-
 encA = EncoderA(zPrivate_dim=args.n_private)
 decA = DecoderA(zPrivate_dim=args.n_private)
 encB = EncoderB(zPrivate_dim=args.n_private)
@@ -237,27 +236,71 @@ def train(data, encA, decA, encB, decB, optimizer,
                 optimizer.zero_grad()
                 if b not in label_mask:
                     label_mask[b] = (random.random() < args.label_frac)
-                # encode
-                q = encA(svhn, num_samples=NUM_SAMPLES)
-                q = encB(mnist, num_samples=NUM_SAMPLES, q=q)
-                ## poe ##
-                prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-                poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-                q.concrete(logits=poe_logit,
-                           temperature=TEMP,
-                           name='poe')
-                # decode
-                pA = decA(svhn, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                pB = decB(mnist, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
-                          num_samples=NUM_SAMPLES)
+                if (label_mask[b] and args.label_frac == args.sup_frac):
+                    # encode
+                    q = encA(svhn, num_samples=NUM_SAMPLES)
+                    q = encB(mnist, num_samples=NUM_SAMPLES, q=q)
+                    ## poe ##
+                    prior_logit = torch.zeros_like(
+                        q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+                    poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
+                    q.concrete(logits=poe_logit,
+                               temperature=TEMP,
+                               name='poe')
+                    # decode
+                    pA = decA(svhn, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
+                              num_samples=NUM_SAMPLES)
+                    pB = decB(mnist, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
+                              num_samples=NUM_SAMPLES)
 
-                for param in encB.parameters():
-                    param.requires_grad = True
-                for param in decB.parameters():
-                    param.requires_grad = True
-                # loss
-                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                    # if b % 10 ==0:
+                    #     print('--------------------------------iter ', b, '---------------------------------------')
+                    #     print('sharedA')
+                    #     cnt = [0] * 10
+                    #     for elt in q['sharedA'].value.argmax(dim=2)[0]:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
+                    #
+                    #     print('poe')
+                    #     # print(q['poe'].value.argmax(dim=2)[0][:20])
+                    #     cnt = [0] * 10
+                    #     for elt in q['poe'].value.argmax(dim=2)[0]:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
+                    #
+                    #     print('sharedB')
+                    #     # print(q['sharedB'].value.argmax(dim=2)[0][:20])
+                    #     cnt = [0] * 10
+                    #     for elt in q['sharedB'].value.argmax(dim=2)[0]:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
+                    #
+                    #     print('labels')
+                    #     cnt = [0] * 10
+                    #     for elt in labels:
+                    #         cnt[elt] +=1
+                    #     print(cnt)
+
+                    for param in encB.parameters():
+                        param.requires_grad = True
+                    for param in decB.parameters():
+                        param.requires_grad = True
+                    # loss
+                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+                else:
+                    # labels_onehot = labels_onehot[:, torch.randperm(10)]
+                    q = encA(images, num_samples=NUM_SAMPLES)
+                    q = encB(imagesB, num_samples=NUM_SAMPLES, q=q)
+                    zS[0, 0, i % zS_dim] = 1.
+                    pA = decA(images, {'sharedA': q['sharedA']}, q=q,
+                              num_samples=NUM_SAMPLES)
+                    pB = decB(imagesB, {'sharedB': q['sharedB']}, q=q,
+                              num_samples=NUM_SAMPLES)
+                    for param in encB.parameters():
+                        param.requires_grad = False
+                    for param in decB.parameters():
+                        param.requires_grad = False
+                    loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
             loss.backward()
             optimizer.step()
@@ -376,6 +419,7 @@ fixed_imgs=None
 fixed_labels=None
 if args.label_frac > 1:
     fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
+
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
