@@ -192,6 +192,10 @@ def train(data, encA, decA, encB, decB, optimizer,
     for b, (svhn, mnist, _) in enumerate(data):
         if svhn.size()[0] == args.batch_size:
             N += 1
+            mnist = mnist.view(-1, NUM_PIXELS)
+            if CUDA:
+                svhn = svhn.cuda()
+                mnist = mnist.cuda()
             # encode
             q = encA(svhn, num_samples=NUM_SAMPLES)
             q = encB(mnist, num_samples=NUM_SAMPLES, q=q)
