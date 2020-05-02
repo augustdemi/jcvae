@@ -196,6 +196,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             if CUDA:
                 svhn = svhn.cuda()
                 mnist = mnist.cuda()
+            optimizer.zero_grad()
             # encode
             q = encA(svhn, num_samples=NUM_SAMPLES)
             q = encB(mnist, num_samples=NUM_SAMPLES, q=q)
