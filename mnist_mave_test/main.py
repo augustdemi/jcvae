@@ -6,7 +6,7 @@ import torch
 import os
 import visdom
 import numpy as np
-from model import EncoderA, DecoderA, EncoderB, DecoderB
+from model import EncoderA, DecoderA, EncoderB2, DecoderB2
 from sklearn.metrics import f1_score
 from datasets import DIGIT
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=6, metavar='N',
+    parser.add_argument('--run_id', type=int, default=12, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -31,16 +31,16 @@ if __name__ == "__main__":
                         help='size of the latent embedding of shared')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=460, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=500, metavar='N',
+    parser.add_argument('--epochs', type=int, default=461, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=0.5,
+    parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.5,
+    parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=50.,
                         help='multipler for text reconstruction [default: 10]')
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     parser.add_argument('--lamb_annealing_epochs', type=int, default=20, metavar='N',
                         help='number of epochs to anneal KL for [default: 200]')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_mvae/1',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_mvae_test/',
                         help='save and load path for ckpt')
 
     parser.add_argument('--pretrain',
@@ -220,8 +220,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
 decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
-encB = EncoderB(args.wseed, zShared_dim=args.n_shared)
-decB = DecoderB(args.wseed, zShared_dim=args.n_shared)
+encB = EncoderB2(args.wseed, zShared_dim=args.n_shared)
+decB = DecoderB2(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
