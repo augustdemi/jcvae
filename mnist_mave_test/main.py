@@ -647,7 +647,7 @@ if args.ckpt_epochs > 0:
 
 if args.pretrain:
     print('>>>> pretrained encA')
-    pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain-run_id1-shared10-bs100-lr0.001-encA_epoch140.rar'
+    pretrain_model = '../weights/mnist_mvae_pretrain/mnist_mvae_pretrain_std-run_id5-shared10-bs100-lr0.001-encA_epoch140'
     if CUDA:
         encA.load_state_dict(torch.load(pretrain_model))
     else:
