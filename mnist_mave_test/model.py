@@ -4,8 +4,10 @@ import sys
 
 sys.path.append('../')
 import probtorch
-from probtorch.util import expand_inputs, normal_init, kaiming_init
+from probtorch.util import expand_inputs, normal_init, kaiming_init, default_kaiming_init
 from torch.nn import functional as F
+import numpy as np
+import random
 
 EPS = 1e-9
 TEMP = 0.66
@@ -26,20 +28,15 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
         self.seed = seed
 
-        # self.enc_hidden = nn.Sequential(
-        #     nn.Linear(784, 512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, 512),
-        #     nn.ReLU())
-
+        self.fix_seed()
         self.fc1 = nn.Linear(784, 512)
-        self.bn1 = nn.BatchNorm1d(num_features=512)
+        self.fix_seed()
         self.fc2 = nn.Linear(512, 512)
-        self.bn2 = nn.BatchNorm1d(num_features=512)
+        self.fix_seed()
         self.fc31 = nn.Linear(512, zShared_dim)
+        self.fix_seed()
         self.fc32 = nn.Linear(512, zShared_dim)
         self.swish = Swish()
-        self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
@@ -49,13 +46,19 @@ class EncoderA(nn.Module):
             else:
                 kaiming_init(self._modules[m], self.seed)
 
+    def fix_seed(self):
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
+
     def forward(self, x, cuda, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
 
         # h = self.enc_hidden(x.view(-1, 784))
-        h = F.relu(self.bn1(self.fc1(x.view(-1, 784))))
-        h = F.relu(self.bn2(self.fc2(h)))
+        h = self.swish(self.fc1(x.view(-1, 784)))
+        h = self.swish(self.fc2(h))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -74,23 +77,18 @@ class DecoderA(nn.Module):
         self.num_digits = zShared_dim
         self.seed = seed
 
-        # self.dec_hidden = nn.Sequential(
-        #     nn.Linear(zShared_dim, 512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, 512),
-        #     nn.ReLU(),
-        #     nn.Linear(512, 512),
-        #     nn.ReLU()
-        # )
+        self.fix_seed()
         self.fc1 = nn.Linear(zShared_dim, 512)
+        self.fix_seed()
         self.fc2 = nn.Linear(512, 512)
+        self.fix_seed()
         self.fc3 = nn.Linear(512, 512)
+        self.fix_seed()
         self.dec_image = nn.Sequential(
             nn.Linear(512, 784),
             nn.Sigmoid())
 
         self.swish = Swish()
-        self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
@@ -99,6 +97,12 @@ class DecoderA(nn.Module):
                     kaiming_init(one_module, self.seed)
             else:
                 kaiming_init(self._modules[m], self.seed)
+
+    def fix_seed(self):
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
         shared_mean = torch.zeros_like(q['sharedA'].dist.loc)
@@ -114,9 +118,9 @@ class DecoderA(nn.Module):
                                name=shared[shared_from])
 
             # h = self.dec_hidden(zShared.squeeze(0))
-            h = F.relu(self.fc1(zShared.squeeze(0)))
-            h = F.relu(self.fc2(h))
-            h = F.relu(self.fc3(h))
+            h = self.swish(self.fc1(zShared.squeeze(0)))
+            h = self.swish(self.fc2(h))
+            h = self.swish(self.fc3(h))
             images_mean = self.dec_image(h)
             # define reconstruction loss (log prob of bernoulli dist)
             p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
@@ -138,15 +142,15 @@ class EncoderB(nn.Module):
         self.zShared_dim = zShared_dim
         self.seed = seed
 
+        self.fix_seed()
         self.fc1 = nn.Embedding(10, 512)
-        self.bn1 = nn.BatchNorm1d(num_features=512)
+        self.fix_seed()
         self.fc2 = nn.Linear(512, 512)
-        self.bn2 = nn.BatchNorm1d(num_features=512)
+        self.fix_seed()
         self.fc31 = nn.Linear(512, zShared_dim)
+        self.fix_seed()
         self.fc32 = nn.Linear(512, zShared_dim)
         self.swish = Swish()
-
-        self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
@@ -156,12 +160,18 @@ class EncoderB(nn.Module):
             else:
                 kaiming_init(self._modules[m], self.seed)
 
+    def fix_seed(self):
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
+
     def forward(self, labels, cuda, num_samples=None, q=None):
         if q is None:
             q = probtorch.Trace()
         # h = self.enc_hidden(labels)
-        h = F.relu(self.bn1(self.fc1(labels)))
-        h = F.relu(self.bn2(self.fc2(h)))
+        h = self.swish(self.fc1(labels))
+        h = self.swish(self.fc2(h))
         muShared = self.fc31(h).unsqueeze(0)
         logvarShared = self.fc32(h).unsqueeze(0)
         stdShared = torch.sqrt(torch.exp(logvarShared) + EPS)
@@ -179,13 +189,16 @@ class DecoderB(nn.Module):
         self.digit_temp = TEMP
         self.seed = seed
 
+        self.fix_seed()
         self.fc1 = nn.Linear(zShared_dim, 512)
+        self.fix_seed()
         self.fc2 = nn.Linear(512, 512)
+        self.fix_seed()
         self.fc3 = nn.Linear(512, 512)
+        self.fix_seed()
         self.fc4 = nn.Linear(512, 10)
 
         self.swish = Swish()
-        self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
@@ -194,6 +207,12 @@ class DecoderB(nn.Module):
                     kaiming_init(one_module, self.seed)
             else:
                 kaiming_init(self._modules[m], self.seed)
+
+    def fix_seed(self):
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed(self.seed)
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True, CUDA=False):
         shared_mean = torch.zeros_like(q['sharedB'].dist.loc)
@@ -210,9 +229,9 @@ class DecoderB(nn.Module):
                                name=shared[shared_from])
 
             # h = self.dec_hidden(zShared.squeeze(0))
-            h = F.relu(self.fc1(zShared.squeeze(0)))
-            h = F.relu(self.fc2(h))
-            h = F.relu(self.fc3(h))
+            h = self.swish(self.fc1(zShared.squeeze(0)))
+            h = self.swish(self.fc2(h))
+            h = self.swish(self.fc3(h))
             pred_labels = self.fc4(h)
 
             pred_labels = F.log_softmax(pred_labels + EPS, dim=1)
@@ -246,6 +265,7 @@ class EncoderB2(nn.Module):
         muShared = labels_onehot.unsqueeze(0)
 
         stdShared = torch.zeros_like(muShared) + EPS
+
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedB')
