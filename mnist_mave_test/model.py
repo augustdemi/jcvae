@@ -4,7 +4,7 @@ import sys
 
 sys.path.append('../')
 import probtorch
-from probtorch.util import expand_inputs, normal_init, kaiming_init, default_kaiming_init
+from probtorch.util import expand_inputs, normal_init, kaiming_init
 from torch.nn import functional as F
 import numpy as np
 import random
