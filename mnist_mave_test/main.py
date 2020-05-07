@@ -48,7 +48,7 @@ if __name__ == "__main__":
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--seed', type=int, default=0, metavar='N',
+    parser.add_argument('--seed', type=float, default=1., metavar='N',
                         help='random seed for get_paired_data')
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
@@ -354,7 +354,7 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
 decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
-encB = EncoderB2(args.wseed, zShared_dim=args.n_shared)
+encB = EncoderB2(args.seed, zShared_dim=args.n_shared)
 decB = DecoderB2(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
