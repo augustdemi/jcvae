@@ -158,7 +158,7 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=True)
+train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
 test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
 
 train_data_size = len(train_data)
