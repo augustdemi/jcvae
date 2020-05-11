@@ -29,20 +29,20 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=440, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=440, metavar='N',
+    parser.add_argument('--epochs', type=int, default=300, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=100.,
+    parser.add_argument('--label_frac', type=float, default=0.002,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.4,
+    parser.add_argument('--sup_frac', type=float, default=0.002,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=2000.,
+    parser.add_argument('--lambda_text', type=float, default=10000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/0.4/',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/',
                         help='save and load path for ckpt')
 
     # visdom
@@ -158,7 +158,7 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=True)
+train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
 test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
 
 
@@ -233,26 +233,34 @@ def train(data, encA, decA, encB, decB, optimizer,
     cnt = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if args.label_frac > 1 and random.random() < args.sup_frac:
-            # print(b)
-            N += 1
-            shuffled_idx = list(range(int(args.label_frac)))
-            random.shuffle(shuffled_idx)
-            shuffled_idx = shuffled_idx[:args.batch_size]
-            # print(shuffled_idx[:10])
-            fixed_imgs_batch = fixed_imgs[shuffled_idx]
-            fixed_labels_batch = fixed_labels[shuffled_idx]
-            images = fixed_imgs_batch.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, fixed_labels_batch.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+        N += 1
+        images = images.view(-1, NUM_PIXELS)
+        labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+        labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+        labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+        if CUDA:
+            images = images.cuda()
+            labels_onehot = labels_onehot.cuda()
+        optimizer.zero_grad()
 
-            optimizer.zero_grad()
-            if CUDA:
-                images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
+        if args.label_frac == 0.001:
+            if b == 0:
+                label_mask[b] = True
+            else:
+                label_mask[b] = False
+        else:
+            need_batch = int(args.label_frac * 500)
+            if b in range(need_batch):
+                label_mask[b] = True
+            else:
+                label_mask[b] = False
+                # if b not in label_mask:
+                #     label_mask[b] = (random.random() < args.label_frac)
 
+        if (label_mask[b] and args.label_frac == args.sup_frac):
+            cnt += 1
             # encode
+            # print(images.sum())
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             ## poe ##
@@ -266,75 +274,27 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                       num_samples=NUM_SAMPLES)
-            for param in encB.parameters():
-                param.requires_grad = True
-            for param in decB.parameters():
-                param.requires_grad = True
+            # for param in encB.parameters():
+            #     param.requires_grad = True
+            # for param in decB.parameters():
+            #     param.requires_grad = True
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
-            N += 1
-            images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
-            if CUDA:
-                images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
-            optimizer.zero_grad()
-
-            if args.label_frac == 0.001:
-                if b == 0:
-                    label_mask[b] = True
-                else:
-                    label_mask[b] = False
-            else:
-                need_batch = int(args.label_frac * 500)
-                if b in range(need_batch):
-                    label_mask[b] = True
-                else:
-                    label_mask[b] = False
-                    # if b not in label_mask:
-                    #     label_mask[b] = (random.random() < args.label_frac)
-
-            if (label_mask[b] and args.label_frac == args.sup_frac):
-                cnt += 1
-                # encode
-                # print(images.sum())
-                q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                ## poe ##
-                prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-                poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-                q.concrete(logits=poe_logit,
-                           temperature=TEMP,
-                           name='poe')
-                # decode
-                pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                        num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                        num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = True
-                for param in decB.parameters():
-                    param.requires_grad = True
-                # loss
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
-            else:
-                shuffled_idx = list(range(args.batch_size))
-                random.shuffle(shuffled_idx)
-                labels_onehot = labels_onehot[shuffled_idx]
-                q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                pA = decA(images, {'sharedA': q['sharedA']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = False
-                for param in decB.parameters():
-                    param.requires_grad = False
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+            shuffled_idx = list(range(args.batch_size))
+            random.shuffle(shuffled_idx)
+            labels_onehot = labels_onehot[shuffled_idx]
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            pA = decA(images, {'sharedA': q['sharedA']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            # for param in encB.parameters():
+            #     param.requires_grad = False
+            # for param in decB.parameters():
+            #     param.requires_grad = False
+            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
@@ -539,12 +499,12 @@ if args.ckpt_epochs == args.epochs:
     # max = zS_mean.max(dim=0)[0].detach().cpu().numpy()
     # ##############
     #
-    # util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME,
-    #                               fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 20],
-    #                               flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME,
+                                  fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 20],
+                                  flatten_pixel=NUM_PIXELS)
     #
 
-
+    #
     util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
                                      args.n_shared, CUDA, MODEL_NAME, flatten_pixel=NUM_PIXELS)
 
