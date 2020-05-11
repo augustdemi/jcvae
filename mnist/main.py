@@ -244,7 +244,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             labels_onehot = labels_onehot.cuda()
         optimizer.zero_grad()
 
-        if (label_mask[b] and args.label_frac == args.sup_frac):
+        if label_mask[b]:
             cnt += 1
             # encode
             # print(images.sum())
