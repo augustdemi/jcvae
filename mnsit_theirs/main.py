@@ -23,16 +23,16 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=300, metavar='N',
+    parser.add_argument('--epochs', type=int, default=400, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=100,
+    parser.add_argument('--label_frac', type=float, default=1.,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=0.02,
+    parser.add_argument('--sup_frac', type=float, default=1.,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=-1.,
                         help='multipler for text reconstruction [default: 10]')
@@ -76,7 +76,7 @@ if not os.path.isdir(DATA_PATH):
 train_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=True, download=True,
                                transform=transforms.ToTensor()),
-    batch_size=args.batch_size, shuffle=True)
+    batch_size=args.batch_size, shuffle=False)
 test_data = torch.utils.data.DataLoader(
                 datasets.MNIST(DATA_PATH, train=False, download=True,
                                transform=transforms.ToTensor()),
@@ -278,7 +278,15 @@ torch.save(dec.state_dict(),
            '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
 
 if args.ckpt_epochs == args.epochs:
+    # test_elbo, test_accuracy = test(test_data, enc, dec)
+    # util.evaluation.cross_acc_mnist_baseline(test_data, enc, dec, 1000, args.n_shared,
+    #                                  CUDA)
+    #
+    util.evaluation.mnist_base_latent(test_data, enc, 1000)
     # util.evaluation.mutual_info(test_data, enc, CUDA, flatten_pixel=NUM_PIXELS, baseline=True)
-    util.evaluation.save_traverse_base(args.epochs, test_data, enc, dec, CUDA,
-                                       fixed_idxs=[3, 2, 1, 30, 4, 23, 21, 41, 84, 99], output_dir_trvsl=MODEL_NAME,
-                                       flatten_pixel=NUM_PIXELS)
+    # util.evaluation.save_traverse_base(args.epochs, test_data, enc, dec, CUDA,
+    #                                    fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99], output_dir_trvsl=MODEL_NAME,
+    #                                    flatten_pixel=NUM_PIXELS)
+    #
+    # util.evaluation.save_cross_mnist_base(e, dec, enc, 64,
+    #                                           CUDA, MODEL_NAME)
