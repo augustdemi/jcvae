@@ -1,11 +1,10 @@
-import numpy as np
 import torch
 import torch.nn as nn
 
 import sys
 sys.path.append('../')
 import probtorch
-from probtorch.util import expand_inputs, normal_init, kaiming_init
+from probtorch.util import expand_inputs, kaiming_init
 from torch.nn import functional as F
 
 EPS = 1e-9
@@ -69,9 +68,6 @@ class DecoderA(nn.Module):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
 
-        self.style_mean = zPrivate_dim
-        self.style_std = zPrivate_dim
-        self.num_digits = zShared_dim
         self.seed = seed
 
         self.dec_hidden = nn.Sequential(
@@ -183,7 +179,6 @@ class DecoderB(nn.Module):
                  zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
-        self.num_digits = zShared_dim
         self.seed = seed
 
         self.dec_hidden = nn.Sequential(
