@@ -5,16 +5,18 @@ import torch.nn as nn
 import sys
 sys.path.append('../')
 import probtorch
-from probtorch.util import expand_inputs, normal_init
+from probtorch.util import expand_inputs, kaiming_init
 from torch.nn import functional as F
 
 EPS = 1e-9
 TEMP = 0.66
 
 class EncoderA(nn.Module):
-    def __init__(self, zShared_dim=10,
-                     zPrivate_dim=50):
+    def __init__(self, seed,
+                 zShared_dim=10,
+                 zPrivate_dim=50):
         super(self.__class__, self).__init__()
+        self.seed = seed
         self.digit_temp = torch.tensor(TEMP)
         self.zPrivate_dim = zPrivate_dim
         self.zShared_dim = zShared_dim
@@ -32,7 +34,12 @@ class EncoderA(nn.Module):
 
     def weight_init(self):
         for m in self._modules:
-            normal_init(self._modules[m])
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
 
     # @expand_inputs
     def forward(self, x, num_samples=None, q=None):
@@ -60,15 +67,12 @@ class EncoderA(nn.Module):
 
 
 class DecoderA(nn.Module):
-    def __init__(self,
-                    zShared_dim=10,
-                    zPrivate_dim=50):
+    def __init__(self, seed,
+                 zShared_dim=10,
+                 zPrivate_dim=50):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
-
-        self.style_mean = zPrivate_dim
-        self.style_std = zPrivate_dim
-        self.num_digits = zShared_dim
+        self.seed = seed
 
         self.dec_hidden = nn.Sequential(
                             nn.Linear(zPrivate_dim + zShared_dim, 512),
@@ -84,21 +88,26 @@ class DecoderA(nn.Module):
 
     def weight_init(self):
         for m in self._modules:
-            normal_init(self._modules[m])
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
-        digit_log_weights = torch.zeros_like(q['sharedA'].dist.logits) # prior is the concrete dist for uniform dist. with all params=1
-        style_mean = torch.zeros_like(q['privateA'].dist.loc)
-        style_std = torch.ones_like(q['privateA'].dist.scale)
+        digit_log_weights = torch.zeros_like(q['sharedA'].dist.logits)
+        private_mean = torch.zeros_like(q['privateA'].dist.loc)
+        private_std = torch.ones_like(q['privateA'].dist.scale)
 
         p = probtorch.Trace()
 
         # prior for z_private
-        zPrivate = p.normal(style_mean,
-                        style_std,
-                        value=q['privateA'],
-                        name='privateA')
-        # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
+        zPrivate = p.normal(private_mean,
+                            private_std,
+                            value=q['privateA'],
+                            name='privateA')
+
         for shared_name in shared.keys():
             # prior for z_shared
             zShared = p.concrete(logits=digit_log_weights,
@@ -122,28 +131,33 @@ class DecoderA(nn.Module):
                    images_mean, images, name= 'images_' + shared_name)
         return p
 
+
 class EncoderB(nn.Module):
-    def __init__(self, num_digis=10,
-                       num_hidden=256,
-                       zShared_dim=10):
+    def __init__(self, seed, num_digis=10,
+                 num_hidden=256,
+                 zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = torch.tensor(TEMP)
         self.zShared_dim = zShared_dim
-
+        self.seed = seed
         self.enc_hidden = nn.Sequential(
             nn.Linear(num_digis, num_hidden),
             nn.ReLU())
 
-        self.fc  = nn.Linear(num_hidden, zShared_dim)
+        self.fc = nn.Linear(num_hidden, zShared_dim)
         self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
-            normal_init(self._modules[m])
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
+
 
     @expand_inputs
     def forward(self, labels, num_samples=None, q=None):
-        # print('b:', self._modules['enc_hidden'][0].weight.sum())
         if q is None:
             q = probtorch.Trace()
         hiddens = self.enc_hidden(labels)
@@ -157,23 +171,27 @@ class EncoderB(nn.Module):
 
 
 class DecoderB(nn.Module):
-    def __init__(self, num_digits=10,
-                       num_hidden=256,
-                    zShared_dim=10):
+    def __init__(self, seed, num_digits=10,
+                 num_hidden=256,
+                 zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP
-        self.num_digits = zShared_dim
+        self.seed = seed
 
         self.dec_hidden = nn.Sequential(
-                            nn.Linear(zShared_dim, num_hidden),
+            nn.Linear(zShared_dim, num_hidden),
                             nn.ReLU())
         self.dec_label = nn.Sequential(
-                           nn.Linear(num_hidden, num_digits))
+            nn.Linear(num_hidden, num_digits))
         self.weight_init()
 
     def weight_init(self):
         for m in self._modules:
-            normal_init(self._modules[m])
+            if isinstance(self._modules[m], nn.Sequential):
+                for one_module in self._modules[m]:
+                    kaiming_init(one_module, self.seed)
+            else:
+                kaiming_init(self._modules[m], self.seed)
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True):
         p = probtorch.Trace()
