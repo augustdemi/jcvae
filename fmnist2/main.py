@@ -1,26 +1,25 @@
 from torchvision import datasets, transforms
-
+from torch.utils.data import DataLoader
 import time
 import random
 import torch
 import os
-
+import visdom
+import numpy as np
+from datasets import DIGIT
 from model import EncoderA, EncoderB, DecoderA, DecoderB
-from eval import save_traverse
 
 import sys
 sys.path.append('../')
 import probtorch
-
-
-
+import util
 #------------------------------------------------
 # training parameters
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=int, default=8, metavar='N',
+    parser.add_argument('--run_id', type=int, default=42, metavar='N',
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
@@ -32,24 +31,34 @@ if __name__ == "__main__":
                         help='input batch size for training [default: 100]')
     parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=100, metavar='N',
+    parser.add_argument('--epochs', type=int, default=500, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1,
+    parser.add_argument('--label_frac', type=float, default=0.002,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1,
+    parser.add_argument('--sup_frac', type=float, default=0.002,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=100.,
+    parser.add_argument('--lambda_text', type=float, default=5000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta', type=float, default=50.,
+    parser.add_argument('--beta1', type=float, default=3.,
+                        help='multipler for TC [default: 10]')
+    parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--seed', type=int, default=0, metavar='N',
                         help='random seed for get_paired_data')
+    parser.add_argument('--wseed', type=int, default=0, metavar='N',
+                        help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/fmnist2',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/mnist/',
                         help='save and load path for ckpt')
+
+    # visdom
+    parser.add_argument('--viz_on',
+                        default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
+    parser.add_argument('--viz_port',
+                        default=8002, type=int, help='visdom port number')
 
     args = parser.parse_args()
 
@@ -60,33 +69,100 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta%s-seed%s' % (args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta, args.seed)
+MODEL_NAME = 'fmnist2-run_id%d-priv%02ddim-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
+    args.run_id, args.n_private, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
+    args.batch_size, args.wseed)
 DATA_PATH = '../data'
+
+if not os.path.isdir(args.ckpt_path):
+    os.makedirs(args.ckpt_path)
 
 if len(args.run_desc) > 1:
     desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
     with open(desc_file, 'w') as outfile:
         outfile.write(args.run_desc)
 
-BETA = (1., args.beta, 1.)
-BIAS_TRAIN = (60000 - 1) / (args.batch_size - 1)
-BIAS_TEST = (10000 - 1) / (args.batch_size - 1)
+BETA1 = (1., args.beta1, 1.)
+BETA2 = (1., args.beta2, 1.)
 # model parameters
 NUM_PIXELS = 784
 TEMP = 0.66
-
 NUM_SAMPLES = 1
-if not os.path.isdir(DATA_PATH):
-    os.makedirs(DATA_PATH)
 
-train_data = torch.utils.data.DataLoader(
-                datasets.FashionMNIST(DATA_PATH, train=True, download=True,
-                               transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=False)
-test_data = torch.utils.data.DataLoader(
-                datasets.FashionMNIST(DATA_PATH, train=False, download=True,
-                               transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=False)
+
+# visdom setup
+def viz_init():
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
+
+
+def visualize_line():
+    data = LINE_GATHER.data
+    recon_A = torch.Tensor(data['recon_A'])
+    recon_B = torch.Tensor(data['recon_B'])
+
+    recon_poeA = torch.Tensor(data['recon_poeA'])
+    recon_poeB = torch.Tensor(data['recon_poeB'])
+    recon_crA = torch.Tensor(data['recon_crA'])
+    recon_crB = torch.Tensor(data['recon_crB'])
+    total_loss = torch.Tensor(data['total_loss'])
+
+    epoch = torch.Tensor(data['epoch'])
+    test_acc = torch.Tensor(data['test_acc'])
+    test_total_loss = torch.Tensor(data['test_total_loss'])
+
+    llA = torch.tensor(np.stack([recon_A, recon_poeA, recon_crA], -1))
+    llB = torch.tensor(np.stack([recon_B, recon_poeB, recon_crB], -1))
+    total_losses = torch.tensor(np.stack([total_loss, test_total_loss], -1))
+
+    VIZ.line(
+        X=epoch, Y=llA, env=MODEL_NAME + '/lines',
+        win=WIN_ID['llA'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loglike',
+                  title='LL of modalA', legend=['A', 'poeA', 'crA'])
+    )
+    VIZ.line(
+        X=epoch, Y=llB, env=MODEL_NAME + '/lines',
+        win=WIN_ID['llB'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loglike',
+                  title='LL of modalB', legend=['B', 'poeB', 'crB'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=test_acc, env=MODEL_NAME + '/lines',
+        win=WIN_ID['test_acc'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Test Accuracy', legend=['acc'])
+    )
+
+    VIZ.line(
+        X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
+        win=WIN_ID['total_losses'], update='append',
+        opts=dict(xlabel='epoch', ylabel='loss',
+                  title='Total Loss', legend=['train_loss', 'test_loss'])
+    )
+
+
+if args.viz_on:
+    WIN_ID = dict(
+        llA='win_llA', llB='win_llB', test_acc='win_test_acc', total_losses='win_total_losses'
+    )
+    LINE_GATHER = probtorch.util.DataGather(
+        'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
+        'total_loss', 'test_total_loss', 'test_acc'
+    )
+    VIZ = visdom.Visdom(port=args.viz_port)
+    viz_init()
+
+train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
+test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
+
+train_data_size = len(train_data)
+
+BIAS_TRAIN = (train_data_size - 1) / (args.batch_size - 1)
+BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -94,10 +170,11 @@ def cuda_tensors(obj):
         if isinstance(value, torch.Tensor):
             setattr(obj, attr, value.cuda())
 
-encA = EncoderA(zPrivate_dim=args.n_private)
-decA = DecoderA(zPrivate_dim=args.n_private)
-encB = EncoderB()
-decB = DecoderB()
+
+encA = EncoderA(args.wseed, zPrivate_dim=args.n_private)
+decA = DecoderA(args.wseed, zPrivate_dim=args.n_private)
+encB = EncoderB(args.wseed)
+decB = DecoderB(args.wseed)
 if CUDA:
     encA.cuda()
     decA.cuda()
@@ -112,90 +189,63 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(iter, q, pA, pB, lamb=1.0, beta=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
-                                        lamb=1.0, beta=beta, bias=bias)
+                                                               beta=beta1, bias=bias)
     reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedB'], latents=['sharedB'],
-                                                                   sample_dim=0, batch_dim=1,
-                                                                   lamb=lamb, beta=beta, bias=bias)
+                                                               sample_dim=0, batch_dim=1,
+                                                               beta=beta2, bias=bias)
 
     if q['poe'] is not None:
-        # by POE
-        # 기대하는바:sharedA가 sharedB를 따르길. 즉 sharedA에만 digit정보가 있으며, 그 permutataion이 GT에서처럼 identity이기를
         reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_poe'], latents=['privateA', 'poe'], sample_dim=0, batch_dim=1,
-                                                    lamb=1.0, beta=beta, bias=bias)
-        # 의미 없음. rec 은 항상 0. 인풋이 항상 GT고 poe결과도 GT를 따라갈 확률이 크기 때문(학습 초반엔 A가 unif이라서, 학습 될수록 A가 B label을 잘 따를테니)
-        #loss 값 변화 자체로는 의미 없지만, 이 일정한 loss(GT)가 나오도록하는 sharedA의 back pg에는 의미가짐
+                                                                         beta=beta1, bias=bias)
         reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_poe'], latents=['poe'], sample_dim=0, batch_dim=1,
-                                                    lamb=lamb, beta=beta, bias=bias)
+                                                                         beta=beta2, bias=bias)
 
         # # by cross
         reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedB'], latents=['privateA', 'sharedB'], sample_dim=0, batch_dim=1,
-                                                    lamb=1.0, beta=beta, bias=bias)
+                                                                       beta=beta1, bias=bias)
         reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
-                                                    lamb=lamb, beta=beta, bias=bias)
+                                                                       beta=beta2, bias=bias)
 
-        # loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-        #        (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) \
-        #loss = (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB)
         loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
                (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
                (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
-
-        # if iter % 100 == 0:
-        #     print('=========================================')
-        #     print('reconst_loss_poeA: ', reconst_loss_poeA)
-        #     print('kl_poeA: ', kl_poeA)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_poeB: ', reconst_loss_poeB)
-        #     print('kl_poeB: ', kl_poeB)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_crA: ', reconst_loss_crA)
-        #     print('kl_crA: ', kl_crA)
-        #     print('-----------------------------------------')
-        #     print('reconst_loss_crB: ', reconst_loss_crB)
-        #     print('kl_crB: ', kl_crB)
-        #     print('-----------------------------------------')
     else:
-        loss = 3*((reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B))
-
-    # if iter % 100 == 0:
-    #     print('reconst_loss_A: ', reconst_loss_A)
-    #     print('kl_A: ', kl_A)
-    #     print('-----------------------------------------')
-    #     print('reconst_loss_B: ', reconst_loss_B)
-    #     print('kl_B: ', kl_B)
-    #     print('-----------------------------------------')
-    #     print('loss: ', loss)
-    #     print(iter)
-    #     print('=========================================')
-
-    return loss
+        reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
+        loss = 3 * (reconst_loss_A - kl_A)
+    return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
+                                                                          reconst_loss_crB]
 
 def train(data, encA, decA, encB, decB, optimizer,
-          label_mask={}, fixed_imgs=None, fixed_labels=None):
+          label_mask={}):
     epoch_elbo = 0.0
+    epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
+    epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
+    pair_cnt = 0
     encA.train()
-    encA.train()
+    encB.train()
     decA.train()
-    decA.train()
+    decB.train()
     N = 0
+    cnt = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
-        if args.label_frac > 1 and random.random() < args.sup_frac:
-            # print(b)
-            N += args.batch_size
-            images = fixed_imgs.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, fixed_labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
-            optimizer.zero_grad()
-            if CUDA:
-                images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
+        N += 1
+        images = images.view(-1, NUM_PIXELS)
+        labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+        labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+        labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+        if CUDA:
+            images = images.cuda()
+            labels_onehot = labels_onehot.cuda()
+        optimizer.zero_grad()
 
+        if label_mask[b]:
+            cnt += 1
             # encode
+            # print(images.sum())
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             ## poe ##
@@ -209,68 +259,52 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                       num_samples=NUM_SAMPLES)
-            for param in encB.parameters():
-                param.requires_grad = True
-            for param in decB.parameters():
-                param.requires_grad = True
             # loss
-            loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
-            N += args.batch_size
-            images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
-            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
-            labels_onehot = torch.clamp(labels_onehot, EPS, 1-EPS)
-            if CUDA:
-                images = images.cuda()
-                labels_onehot = labels_onehot.cuda()
-            optimizer.zero_grad()
-            if b not in label_mask:
-                label_mask[b] = (random.random() < args.label_frac)
-            if (label_mask[b] and args.label_frac == args.sup_frac):
-                # encode
-                q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                ## poe ##
-                prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
-                poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
-                q.concrete(logits=poe_logit,
-                           temperature=TEMP,
-                           name='poe')
-                # decode
-                pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                        num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe':q['poe']}, q=q,
-                        num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = True
-                for param in decB.parameters():
-                    param.requires_grad = True
-                # loss
-                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-            else:
-                # labels_onehot = labels_onehot[:, torch.randperm(10)]
-                q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
-                pA = decA(images, {'sharedA': q['sharedA']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
-                          num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = False
-                for param in decB.parameters():
-                    param.requires_grad = False
-                loss = -elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
+            shuffled_idx = list(range(args.batch_size))
+            random.shuffle(shuffled_idx)
+            labels_onehot = labels_onehot[shuffled_idx]
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            pA = decA(images, {'sharedA': q['sharedA']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
+                      num_samples=NUM_SAMPLES)
+            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
         if CUDA:
             loss = loss.cpu()
-        epoch_elbo -= loss.item()
+            recA[0] = recA[0].cpu()
+            recB[0] = recB[0].cpu()
 
-    return epoch_elbo / N, label_mask
+        epoch_elbo += loss.item()
+        epoch_recA += recA[0].item()
+        epoch_recB += recB[0].item()
 
-def test(data, encA, decA, encB, decB, infer=True):
+        if recA[1] is not None:
+            if CUDA:
+                for i in range(2):
+                    recA[i] = recA[i].cpu()
+                    recB[i] = recB[i].cpu()
+            epoch_rec_poeA += recA[1].item()
+            epoch_rec_crA += recA[2].item()
+            epoch_rec_poeB += recB[1].item()
+            epoch_rec_crB += recB[2].item()
+            pair_cnt += 1
+
+    if pair_cnt == 0:
+        pair_cnt = 1
+
+    print('frac:', cnt / N)
+    return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
+                                                                                                   epoch_rec_poeB / pair_cnt,
+                                                                                                   epoch_rec_crB / pair_cnt], label_mask
+
+
+def test(data, encA, decA, encB, decB, epoch):
     encA.eval()
     decA.eval()
     encB.eval()
@@ -280,7 +314,7 @@ def test(data, encA, decA, encB, decB, infer=True):
     N = 0
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
-            N += args.batch_size
+            N += 1
             images = images.view(-1, NUM_PIXELS)
             labels_onehot = torch.zeros(args.batch_size, args.n_shared)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
@@ -293,24 +327,43 @@ def test(data, encA, decA, encB, decB, infer=True):
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
-            pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
+            pB = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
-            batch_elbo = elbo(b, q, pA, pB, lamb=args.lambda_text, beta=BETA, bias=BIAS_TRAIN)
-            # save_traverse(args.epochs, data, encA, decA, CUDA, loc=-1)
+            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
             epoch_elbo += batch_elbo.item()
             epoch_correct += pB['labels_sharedA'].loss.sum().item()
-    return epoch_elbo / N, 1 + epoch_correct / N
+
+    if (epoch + 1) % 20 == 0 or epoch + 1 == args.epochs:
+        # util.evaluation.save_traverse(epoch, test_data, encA, decA, CUDA,
+        #                               fixed_idxs=[3, 2, 1, 32, 4, 23, 21, 36, 61, 99], output_dir_trvsl=MODEL_NAME,
+        #                               flatten_pixel=NUM_PIXELS)
+
+        save_ckpt(e + 1)
+    return epoch_elbo / N, 1 + epoch_correct / (N * args.batch_size)
+
+
+def save_ckpt(e):
+    if not os.path.isdir(args.ckpt_path):
+        os.mkdir(args.ckpt_path)
+    torch.save(encA.state_dict(),
+               '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decA.state_dict(),
+               '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(encB.state_dict(),
+               '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+    torch.save(decB.state_dict(),
+               '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+
+
 
 
 def get_paired_data(paired_cnt, seed):
-    data = torch.utils.data.DataLoader(
-                datasets.FashionMNIST(DATA_PATH, train=True, download=True,
-                               transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=False)
-    tr_labels = data.dataset.targets
+    data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
+    tr_labels = data.dataset.label
 
     cnt = int(paired_cnt / 10)
     assert cnt == paired_cnt / 10
@@ -319,7 +372,7 @@ def get_paired_data(paired_cnt, seed):
     for i in range(10):
         label_idx.update({i:[]})
     for idx in  range(len(tr_labels)):
-        label = int(tr_labels[idx].data.detach().cpu().numpy())
+        label = int(tr_labels[idx])
         label_idx[label].append(idx)
 
     total_random_idx = []
@@ -338,36 +391,7 @@ def get_paired_data(paired_cnt, seed):
         labels.append(torch.tensor(label))
     imgs = torch.stack(imgs, dim=0)
     labels = torch.stack(labels, dim=0)
-
     return imgs, labels
-
-# def get_paired_data(paired_cnt, seed):
-#     data = torch.utils.data.DataLoader(
-#         datasets.MNIST(DATA_PATH, train=True, download=True,
-#                        transform=transforms.ToTensor()),
-#         batch_size=args.batch_size, shuffle=False)
-#     per_idx_img = {}
-#     for i in range(10):
-#         per_idx_img.update({i:[]})
-#     for (images, labels) in data:
-#         for i in range(labels.shape[0]):
-#             label = int(labels[i].data.detach().cpu().numpy())
-#             if len(per_idx_img[label]) < int(paired_cnt/10):
-#                 per_idx_img[label].append(images[i])
-#
-#     imgs = []
-#     labels = []
-#     for i in range(10):
-#         imgs.extend(per_idx_img[i])
-#         labels.extend([i]*int(paired_cnt/10))
-#     import numpy as np
-#     np.random.seed(0)
-#     np.random.shuffle(imgs)
-#     np.random.seed(0)
-#     np.random.shuffle(labels)
-#     imgs=torch.stack(imgs)
-#     labels=torch.tensor(labels)
-#     return imgs, labels
 
 if args.ckpt_epochs > 0:
     if CUDA:
@@ -385,35 +409,56 @@ if args.ckpt_epochs > 0:
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 
-mask = {}
-fixed_imgs=None
-fixed_labels=None
-if args.label_frac > 1:
-    fixed_imgs, fixed_labels = get_paired_data(args.label_frac, args.seed)
+label_mask = {}
+
+paired_idx = list(range(train_data_size))
+random.seed(args.seed)
+random.shuffle(paired_idx)
+paired_idx = paired_idx[:int(args.label_frac * train_data_size)]
+print('paired_idx: ', paired_idx)
+
+for b in range(train_data_size):
+    if b in paired_idx:
+        label_mask[b] = True
+    else:
+        label_mask[b] = False
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, mask = train(train_data, encA, decA, encB, decB,
-                             optimizer, mask, fixed_imgs=fixed_imgs, fixed_labels=fixed_labels)
+    train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB,
+                                                   optimizer, label_mask)
     train_end = time.time()
     test_start = time.time()
-    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB,)
+    test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
+
+    if args.viz_on:
+        LINE_GATHER.insert(epoch=e,
+                           test_acc=test_accuracy,
+                           test_total_loss=test_elbo,
+                           total_loss=train_elbo,
+                           recon_A=rec_lossA[0],
+                           recon_poeA=rec_lossA[1],
+                           recon_crA=rec_lossA[2],
+                           recon_B=rec_lossB[0],
+                           recon_poeB=rec_lossB[1],
+                           recon_crB=rec_lossB[2],
+                           )
+        visualize_line()
+        LINE_GATHER.flush()
+
     test_end = time.time()
     print('[Epoch %d] Train: ELBO %.4e (%ds) Test: ELBO %.4e, Accuracy %0.3f (%ds)' % (
             e, train_elbo, train_end - train_start,
             test_elbo, test_accuracy, test_end - test_start))
 
-if not os.path.isdir(args.ckpt_path):
-    os.mkdir(args.ckpt_path)
-torch.save(encA.state_dict(),
-           '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
-torch.save(decA.state_dict(),
-           '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
-torch.save(encB.state_dict(),
-           '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
-torch.save(decB.state_dict(),
-           '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.epochs))
+if args.ckpt_epochs == args.epochs:
 
+    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME,
+                                  fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 20],
+                                  flatten_pixel=NUM_PIXELS)
 
-print('[encoder] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=False))
-# print('[encoder+inference] ELBO: %e, ACCURACY: %f' % test(test_data, encA, decA, encB, decB, infer=True))
+    util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
+                                     args.n_shared, CUDA, MODEL_NAME, flatten_pixel=NUM_PIXELS)
+
+else:
+    save_ckpt(args.epochs)
