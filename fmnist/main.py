@@ -269,7 +269,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                       num_samples=NUM_SAMPLES)
-            epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
+            # epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
@@ -282,7 +282,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
-            epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
+            # epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()

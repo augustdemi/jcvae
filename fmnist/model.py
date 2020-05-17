@@ -238,8 +238,8 @@ class DecoderB(nn.Module):
             if train:
                 p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
                        pred_labels, labels.unsqueeze(0), name='labels_' + shared_name)
-                p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
-                       pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_acc_' + shared_name)
+                # p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
+                #        pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_acc_' + shared_name)
             else:
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
                        pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)
