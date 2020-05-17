@@ -22,10 +22,13 @@ class EncoderA(nn.Module):
         self.seed = seed
 
         self.enc_hidden = nn.Sequential(
-            nn.Linear(num_pixels, num_hidden),
-            nn.ReLU())
+            nn.Linear(num_pixels, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU()
+        )
 
-        self.fc  = nn.Linear(num_hidden, 2*zPrivate_dim + zShared_dim)
+        self.fc = nn.Linear(512, 2 * zPrivate_dim + zShared_dim)
         self.weight_init()
 
     def weight_init(self):
@@ -71,10 +74,13 @@ class DecoderA(nn.Module):
         self.seed = seed
 
         self.dec_hidden = nn.Sequential(
-                            nn.Linear(zPrivate_dim + zShared_dim, num_hidden),
-                            nn.ReLU())
+            nn.Linear(zPrivate_dim + zShared_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU()
+        )
         self.dec_image = nn.Sequential(
-                           nn.Linear(num_hidden, num_pixels),
+            nn.Linear(512, num_pixels),
                            nn.Sigmoid())
         self.weight_init()
 
@@ -217,6 +223,8 @@ class DecoderB(nn.Module):
             if train:
                 p.loss(lambda y_pred, target: -(target * y_pred).sum(-1), \
                        pred_labels, labels.unsqueeze(0), name='labels_' + shared_name)
+                p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
+                       pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_acc_' + shared_name)
             else:
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
                        pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)

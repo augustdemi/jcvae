@@ -89,12 +89,12 @@ NUM_PIXELS = 784
 TEMP = 0.66
 NUM_SAMPLES = 1
 
-
 # visdom setup
 def viz_init():
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llA'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['llB'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['test_acc'])
+    VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['tr_acc'])
     VIZ.close(env=MODEL_NAME + '/lines', win=WIN_ID['total_losses'])
 
 
@@ -111,6 +111,7 @@ def visualize_line():
 
     epoch = torch.Tensor(data['epoch'])
     test_acc = torch.Tensor(data['test_acc'])
+    tr_acc = torch.Tensor(data['tr_acc'])
     test_total_loss = torch.Tensor(data['test_total_loss'])
 
     llA = torch.tensor(np.stack([recon_A, recon_poeA, recon_crA], -1))
@@ -138,6 +139,13 @@ def visualize_line():
     )
 
     VIZ.line(
+        X=epoch, Y=tr_acc, env=MODEL_NAME + '/lines',
+        win=WIN_ID['tr_acc'], update='append',
+        opts=dict(xlabel='epoch', ylabel='accuracy',
+                  title='Training Accuracy', legend=['acc'])
+    )
+
+    VIZ.line(
         X=epoch, Y=total_losses, env=MODEL_NAME + '/lines',
         win=WIN_ID['total_losses'], update='append',
         opts=dict(xlabel='epoch', ylabel='loss',
@@ -147,11 +155,11 @@ def visualize_line():
 
 if args.viz_on:
     WIN_ID = dict(
-        llA='win_llA', llB='win_llB', test_acc='win_test_acc', total_losses='win_total_losses'
+        llA='win_llA', llB='win_llB', test_acc='win_test_acc', total_losses='win_total_losses', tr_acc='win_tr_acc'
     )
     LINE_GATHER = probtorch.util.DataGather(
         'epoch', 'recon_A', 'recon_B', 'recon_poeA', 'recon_poeB', 'recon_crA', 'recon_crB',
-        'total_loss', 'test_total_loss', 'test_acc'
+        'total_loss', 'test_total_loss', 'test_acc', 'tr_acc'
     )
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
@@ -230,6 +238,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     decB.train()
     N = 0
     cnt = 0
+    epoch_correct = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
         N += 1
@@ -259,6 +268,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedA': q['sharedA'], 'sharedB': q['sharedB'], 'poe': q['poe']}, q=q,
                       num_samples=NUM_SAMPLES)
+            epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
@@ -271,6 +281,7 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
+            epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
@@ -301,7 +312,8 @@ def train(data, encA, decA, encB, decB, optimizer,
     print('frac:', cnt / N)
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
-                                                                                                   epoch_rec_crB / pair_cnt], label_mask
+                                                                                                   epoch_rec_crB / pair_cnt], 1 + epoch_correct / (
+               N * args.batch_size)
 
 
 def test(data, encA, decA, encB, decB, epoch):
@@ -425,14 +437,15 @@ for b in range(train_data_size):
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB,
-                                                   optimizer, label_mask)
+    train_elbo, rec_lossA, rec_lossB, tr_acc = train(train_data, encA, decA, encB, decB,
+                                                     optimizer, label_mask)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
 
     if args.viz_on:
         LINE_GATHER.insert(epoch=e,
+                           tr_acc=tr_acc,
                            test_acc=test_accuracy,
                            test_total_loss=test_elbo,
                            total_loss=train_elbo,
