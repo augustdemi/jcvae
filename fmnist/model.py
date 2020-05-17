@@ -43,7 +43,6 @@ class EncoderA(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(64 * 7 * 7, 512),
             nn.ReLU(),
-            nn.Dropout(0.5),
             nn.Linear(512, 2 * zPrivate_dim + zShared_dim))
         self.weight_init()
 
