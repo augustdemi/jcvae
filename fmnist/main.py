@@ -1,6 +1,7 @@
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import time
+import torchvision.datasets as dset
 import random
 import torch
 import os
@@ -165,8 +166,16 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
-train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
-test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
+# train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
+# test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
+
+train_data = torch.utils.data.DataLoader(
+    dset.FashionMNIST('../../data/fMNIST', train=True, download=True,
+                      transform=transforms.ToTensor()), batch_size=args.batch_size, shuffle=False)
+test_data = torch.utils.data.DataLoader(
+    dset.FashionMNIST('../../data/fMNIST', train=False, download=True,
+                      transform=transforms.ToTensor()), batch_size=args.batch_size, shuffle=False)
+
 
 train_data_size = len(train_data)
 
