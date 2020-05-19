@@ -55,6 +55,10 @@ if __name__ == "__main__":
     parser.add_argument('--ckpt_path', type=str, default='../weights/fmnist/',
                         help='save and load path for ckpt')
 
+    parser.add_argument('--annealing-epochs', type=int, default=200, metavar='N',
+                        help='number of epochs to anneal KL for [default: 200]')
+
+
     # visdom
     parser.add_argument('--viz_on',
                         default=False, type=probtorch.util.str2bool, help='enable visdom visualization')
@@ -207,7 +211,7 @@ optimizer =  torch.optim.Adam(list(encB.parameters())+list(decB.parameters())+li
                               lr=args.lr)
 
 
-def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
+def elbo(q, pA, pB, annealing_factor, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images_sharedA'], latents=['privateA', 'sharedA'], sample_dim=0, batch_dim=1,
                                                                beta=beta1, bias=bias)
@@ -227,17 +231,21 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
         reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['labels_sharedA'], latents=['sharedA'], sample_dim=0, batch_dim=1,
                                                                        beta=beta2, bias=bias)
 
-        loss = (reconst_loss_A - kl_A) + (lamb * reconst_loss_B - kl_B) + \
-               (reconst_loss_poeA - kl_poeA) + (lamb * reconst_loss_poeB - kl_poeB) + \
-               (reconst_loss_crA - kl_crA) + (lamb * reconst_loss_crB - kl_crB)
+        loss = (reconst_loss_A - annealing_factor * kl_A) + (lamb * reconst_loss_B - annealing_factor * kl_B) + \
+               (reconst_loss_poeA - annealing_factor * kl_poeA) + (
+               lamb * reconst_loss_poeB - annealing_factor * kl_poeB) + \
+               (reconst_loss_crA - annealing_factor * kl_crA) + (lamb * reconst_loss_crB - annealing_factor * kl_crB)
+
+
+
     else:
         reconst_loss_poeA = reconst_loss_crA = reconst_loss_poeB = reconst_loss_crB = None
-        loss = 3 * (reconst_loss_A - kl_A)
+        loss = 3 * (reconst_loss_A - annealing_factor * kl_A)
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
                                                                           reconst_loss_crB]
 
 def train(data, encA, decA, encB, decB, optimizer,
-          label_mask={}):
+          label_mask, epoch):
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
@@ -252,6 +260,16 @@ def train(data, encA, decA, encB, decB, optimizer,
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
         N += 1
+
+        if epoch < args.annealing_epochs:
+            # compute the KL annealing factor for the current mini-batch in the current epoch
+            annealing_factor = (float(b + epoch * len(train_data) + 1) /
+                                float(args.annealing_epochs * len(train_data)))
+            # annealing_factor = 1.0
+        else:
+            # by default the KL annealing factor is unity
+            annealing_factor = 1.0
+
         # images = images.view(-1, NUM_PIXELS)
         labels_onehot = torch.zeros(args.batch_size, args.n_shared)
         labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
@@ -280,7 +298,8 @@ def train(data, encA, decA, encB, decB, optimizer,
                       num_samples=NUM_SAMPLES)
             epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
             # loss
-            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+            loss, recA, recB = elbo(q, pA, pB, annealing_factor, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2,
+                                    bias=BIAS_TRAIN)
         else:
             shuffled_idx = list(range(args.batch_size))
             random.shuffle(shuffled_idx)
@@ -292,7 +311,8 @@ def train(data, encA, decA, encB, decB, optimizer,
             pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
             # epoch_correct += pB['labels_acc_sharedA'].loss.sum().item()
-            loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+            loss, recA, recB = elbo(q, pA, pB, annealing_factor, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2,
+                                    bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
@@ -316,10 +336,17 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
+        if b % 100 == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)], annealing_factor: {:.3f})'.format(
+                e, b * args.batch_size, len(data.dataset),
+                   100. * b * args.batch_size / len(data.dataset), annealing_factor))
+
+
     if pair_cnt == 0:
         pair_cnt = 1
 
     print('frac:', cnt / N)
+
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
                                                                                                    epoch_rec_crB / pair_cnt], 1 + epoch_correct / (
@@ -352,7 +379,7 @@ def test(data, encA, decA, encB, decB, epoch):
             pB = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES, train=False)
 
-            batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
+            batch_elbo, _, _ = elbo(q, pA, pB, 1, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TEST)
 
             if CUDA:
                 batch_elbo = batch_elbo.cpu()
@@ -448,7 +475,7 @@ for b in range(train_data_size):
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB, tr_acc = train(train_data, encA, decA, encB, decB,
-                                                     optimizer, label_mask)
+                                                     optimizer, label_mask, e)
     train_end = time.time()
     test_start = time.time()
     test_elbo, test_accuracy = test(test_data, encA, decA, encB, decB, e)
