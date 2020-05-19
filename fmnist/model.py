@@ -22,28 +22,13 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
 
         self.enc_hidden = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1, bias=False),
+            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Conv2d(32, 32, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.MaxPool2d(2),
-            nn.Dropout(0.25),
-            nn.Conv2d(32, 64, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.BatchNorm2d(64),
-            nn.Dropout(0.25)
-
-        )
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.ReLU())
         self.fc = nn.Sequential(
-            nn.Linear(64 * 7 * 7, 512),
+            nn.Linear(128 * 7 * 7, 512),
             nn.ReLU(),
-            nn.Dropout(0.5),
             nn.Linear(512, 2 * zPrivate_dim + zShared_dim))
         self.weight_init()
 
@@ -92,21 +77,12 @@ class DecoderA(nn.Module):
         self.dec_hidden = nn.Sequential(
             nn.Linear(zPrivate_dim + zShared_dim, 512),
                             nn.ReLU(),
-            nn.Linear(512, 64 * 7 * 7),
+            nn.Linear(512, 128 * 7 * 7),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-            nn.Upsample(scale_factor=2),
-            nn.ConvTranspose2d(64, 64, 3, padding=1, bias=False),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
                            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 32, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Upsample(scale_factor=2),
-            nn.ConvTranspose2d(32, 32, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 1, 3, padding=1, bias=False),
+            nn.ConvTranspose2d(64, 1, 4, 2, 1, bias=False),
                            nn.Sigmoid())
         self.weight_init()
 
@@ -144,7 +120,7 @@ class DecoderA(nn.Module):
             else:
                 hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
-            hiddens = hiddens.view(-1, 64, 7, 7)
+            hiddens = hiddens.view(-1, 128, 7, 7)
             images_mean = self.dec_image(hiddens)
 
             images_mean = images_mean.view(images_mean.size(0), -1)
