@@ -34,9 +34,9 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=150, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=150, metavar='N',
+    parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='LR',
                         help='learning rate [default: 1e-3]')
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
 
-    parser.add_argument('--ckpt_path', type=str, default='../weights/celeba/1',
+    parser.add_argument('--ckpt_path', type=str, default='../weights/celeba/0.4',
                         help='save and load path for ckpt')
 
     parser.add_argument('--attr', type=str, default='Male',
@@ -101,6 +101,9 @@ if not os.path.isdir(args.ckpt_path):
     os.makedirs(args.ckpt_path)
 
 if len(args.run_desc) > 1:
+    print('-----------------------------------------')
+    print(args.run_desc)
+    print('-----------------------------------------')
     desc_file = os.path.join(args.ckpt_path, 'run_id' + str(args.run_id) + '.txt')
     with open(desc_file, 'w') as outfile:
         outfile.write(args.run_desc)
@@ -108,11 +111,11 @@ if len(args.run_desc) > 1:
 BETA1 = (1., args.beta1, 1.)
 BETA2 = (1., args.beta2, 1.)
 # model parameters
-NUM_PIXELS = 784
 TEMP = 0.66
 NUM_SAMPLES = 1
 N_ATTR = 18
-ATTR_TO_PLOT = ['Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling', 'Blond_Hair', 'Eyeglasses', 'Bangs', 'off',
+ATTR_TO_PLOT = ['Receding_Hairline', 'Bushy_Eyebrows', 'Heavy_Makeup', 'Male', 'Mouth_Slightly_Open', 'Smiling',
+                'Blond_Hair', 'Eyeglasses', 'Bangs', 'off',
                 'Black_Hair', 'Wavy_Hair']
 
 # visdom setup
@@ -212,7 +215,6 @@ val_data = torch.utils.data.DataLoader(datasets(partition='val', data_dir='../..
                                                 image_transform=preprocess_data), batch_size=args.batch_size,
                                        shuffle=False)
 
-print('>>> data loaded')
 
 BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
 BIAS_VAL = (len(val_data.dataset) - 1) / (args.batch_size - 1)
@@ -298,7 +300,7 @@ def elbo(q, pA, pB=None, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0),
 
 
 def train(data, encA, decA, encB, decB, optimizer,
-          label_mask={}, fixed_imgs=None, fixed_attr=None):
+          label_mask):
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
@@ -308,22 +310,17 @@ def train(data, encA, decA, encB, decB, optimizer,
     decA.train()
     decB.train()
     N = 0
+    cnt = 0
     torch.autograd.set_detect_anomaly(True)
     for b, (images, attributes) in enumerate(data):
-        if args.label_frac > 1 and random.random() < args.sup_frac:
-            # print(b)
-            N += 1
-            shuffled_idx = list(range(int(args.label_frac)))
-            random.shuffle(shuffled_idx)
-            shuffled_idx = shuffled_idx[:args.batch_size]
-            # print(shuffled_idx[:10])
-            images = fixed_imgs[shuffled_idx]
-            attributes = fixed_attr[shuffled_idx]
-            optimizer.zero_grad()
-            if CUDA:
-                images = images.cuda()
-                attributes = attributes.cuda()
+        N += 1
+        if CUDA:
+            images = images.cuda()
+            attributes = attributes.cuda()
+        optimizer.zero_grad()
 
+        if label_mask[b]:
+            cnt += 1
             # encode
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
@@ -349,87 +346,26 @@ def train(data, encA, decA, encB, decB, optimizer,
                 sharedB_attr.append('sharedB' + str(i))
 
             # decode attr
-            shared_dist = {'poe': poe_attr, 'cross': sharedA_attr, 'own': sharedB_attr}
-            pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB, _ = decB(attributes, {'poe': poe_attr, 'cross': sharedA_attr, 'own': sharedB_attr}, q=q,
+                         num_samples=NUM_SAMPLES)
 
             # decode img
-            shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
-            pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pA = decA(images, {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}, q=q,
+                      num_samples=NUM_SAMPLES)
 
-            for param in encB.parameters():
-                param.requires_grad = True
-            for param in decB.parameters():
-                param.requires_grad = True
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
         else:
-            N += 1
-            if CUDA:
-                images = images.cuda()
-                attributes = attributes.cuda()
-            optimizer.zero_grad()
+            # encode
+            q = encA(images, num_samples=NUM_SAMPLES)
 
-            if b not in label_mask:
-                label_mask[b] = (random.random() < args.label_frac)
+            # decode img
+            sharedA_attr = []
+            for i in range(N_ATTR):
+                sharedA_attr.append('sharedA' + str(i))
 
-            if (label_mask[b] and args.label_frac == args.sup_frac):
-                # encode
-                q = encA(images, num_samples=NUM_SAMPLES)
-                q = encB(attributes, num_samples=NUM_SAMPLES, q=q)
-
-                # poe
-                for i in range(N_ATTR):
-                    prior_logit = torch.zeros_like(
-                        q['sharedA0'].dist.logits)  # prior is the concrete dist. of uniform dist.
-                    poe_logit = q['sharedA' + str(i)].dist.logits + q[
-                        'sharedB' + str(i)].dist.logits + prior_logit
-                    q.concrete(logits=poe_logit,
-                               temperature=TEMP,
-                               name='poe' + str(i))
-
-                # decode
-                sharedA_attr = []
-                sharedB_attr = []
-                poe_attr = []
-
-                for i in range(N_ATTR):
-                    poe_attr.append('poe' + str(i))
-                    sharedA_attr.append('sharedA' + str(i))
-                    sharedB_attr.append('sharedB' + str(i))
-
-                # decode attr
-                shared_dist = {'poe': poe_attr, 'cross': sharedA_attr, 'own': sharedB_attr}
-                pB, _ = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
-
-                # decode img
-                shared_dist = {'poe': poe_attr, 'cross': sharedB_attr, 'own': sharedA_attr}
-                pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
-
-                for param in encB.parameters():
-                    param.requires_grad = True
-                for param in decB.parameters():
-                    param.requires_grad = True
-                # loss
-                loss, recA, recB = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
-            else:
-                # encode
-                q = encA(images, num_samples=NUM_SAMPLES)
-
-                # decode
-                sharedA_attr = []
-
-                for i in range(N_ATTR):
-                    sharedA_attr.append('sharedA' + str(i))
-
-
-                # decode img
-                shared_dist = {'own': sharedA_attr}
-                pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
-                for param in encB.parameters():
-                    param.requires_grad = False
-                for param in decB.parameters():
-                    param.requires_grad = False
-                loss, recA, recB = elbo(q, pA, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
+            pA = decA(images, {'own': sharedA_attr}, q=q, num_samples=NUM_SAMPLES)
+            loss, recA, recB = elbo(q, pA, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=BIAS_TRAIN)
 
         loss.backward()
         optimizer.step()
@@ -454,16 +390,17 @@ def train(data, encA, decA, encB, decB, optimizer,
             epoch_rec_crB += recB[2].item()
             pair_cnt += 1
 
-        if pair_cnt == 0:
-            pair_cnt = 1
-
         if b % 100 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]'.format(
                 e, b * args.batch_size, len(data.dataset),
                    100. * b * args.batch_size / len(data.dataset)))
+
+    if pair_cnt == 0:
+        pair_cnt = 1
+    print('frac:', cnt / N)
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / pair_cnt, epoch_rec_crA / pair_cnt], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / pair_cnt,
-                                                                                                   epoch_rec_crB / pair_cnt], label_mask
+                                                                                                   epoch_rec_crB / pair_cnt]
 
 
 def test(data, encA, decA, encB, decB, epoch, bias):
@@ -472,8 +409,6 @@ def test(data, encA, decA, encB, decB, epoch, bias):
     encB.eval()
     decB.eval()
     epoch_elbo = 0.0
-    epoch_acc = 0
-    epoch_f1 = 0
     N = 0
     all_pred = []
     all_target = []
@@ -491,18 +426,15 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             # decode
             sharedA_attr = []
             sharedB_attr = []
-
             for i in range(N_ATTR):
                 sharedA_attr.append('sharedA' + str(i))
                 sharedB_attr.append('sharedB' + str(i))
 
             # decode attr
-            shared_dist = {'own': sharedB_attr, 'cross': sharedA_attr}
-            pB, pred_attr = decB(attributes, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pB, pred_attr = decB(attributes, {'own': sharedB_attr, 'cross': sharedA_attr}, q=q, num_samples=NUM_SAMPLES)
 
             # decode img
-            shared_dist = {'own': sharedA_attr, 'cross': sharedB_attr}
-            pA = decA(images, shared_dist, q=q, num_samples=NUM_SAMPLES)
+            pA = decA(images, {'own': sharedA_attr, 'cross': sharedB_attr}, q=q, num_samples=NUM_SAMPLES)
 
             batch_elbo, _, _ = elbo(q, pA, pB, lamb=args.lambda_text, beta1=BETA1, beta2=BETA2, bias=bias)
 
@@ -515,9 +447,6 @@ def test(data, encA, decA, encB, decB, epoch, bias):
             pred = pred_attr.detach().numpy()
             pred = np.round(np.exp(pred))
             target = attributes.detach().numpy()
-            epoch_acc += (pred == target).mean()
-            epoch_f1 += f1_score(target, pred, average="samples")
-
             if N == 1:
                 all_pred = pred
                 all_target = target
@@ -525,31 +454,42 @@ def test(data, encA, decA, encB, decB, epoch, bias):
                 all_pred = np.concatenate((all_pred, pred), axis=0)
                 all_target = np.concatenate((all_target, target), axis=0)
 
-    print('---------------------f1------------------------')
+    print('---------------------f1 mic------------------------')
     f1 = []
     for i in range(18):
-        f1.append(f1_score(all_target[:, i], all_pred[:, i], average="binary"))
-
-    f1 = list(enumerate(f1))
-    f1.sort(key=lambda f1: f1[1])
-
+        f1.append([IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]], f1_score(all_target[:, i], all_pred[:, i], average="micro")])
+    f1.sort(key=lambda f1: f1[0])
     for i in range(18):
-        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[f1[i][0]]], f1[i][1])
+        print(f1[i][0], f1[i][1])
+    print('avg:', np.mean([elt[1] for elt in f1]))
+    print('---------------------f1 mac------------------------')
+    f1 = []
+    for i in range(18):
+        f1.append([IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]], f1_score(all_target[:, i], all_pred[:, i], average="macro")])
+    f1.sort(key=lambda f1: f1[0])
+    for i in range(18):
+        print(f1[i][0], f1[i][1])
+    print('avg:', np.mean([elt[1] for elt in f1]))
+    print('---------------------f1 bin------------------------')
+    f1 = []
+    for i in range(18):
+        f1.append([IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]], f1_score(all_target[:, i], all_pred[:, i], average="binary")])
+    f1.sort(key=lambda f1: f1[0])
+    for i in range(18):
+        print(f1[i][0], f1[i][1])
+    print('avg:', np.mean([elt[1] for elt in f1]))
     print('---------------------acc------------------------')
-
-    all_acc = []
+    acc = []
     for i in range(18):
-        acc = (all_target[:, i] == all_pred[:, i]).mean()
-        all_acc.append(acc)
-
-    all_acc = list(enumerate(all_acc))
-    all_acc.sort(key=lambda all_acc: all_acc[1])
+        acc.append([IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[i]], (all_target[:, i] == all_pred[:, i]).mean()])
+    acc.sort(key=lambda all_acc: all_acc[0])
 
     for i in range(18):
-        print(IX_TO_ATTR_DICT[ATTR_IX_TO_KEEP[all_acc[i][0]]], all_acc[i][1])
+        print(acc[i][0], acc[i][1])
+    print('avg:', np.mean([elt[1] for elt in acc]))
     print('-----------------------------------------------')
 
-    return epoch_elbo / N, epoch_acc / N, epoch_f1 / N
+    return epoch_elbo / N, np.mean([elt[1] for elt in acc]), np.mean([elt[1] for elt in f1])
 
 
 def save_ckpt(e):
@@ -565,23 +505,6 @@ def save_ckpt(e):
                '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
 
 
-
-def get_paired_data(paired_cnt, seed):
-    data = torch.utils.data.DataLoader(datasets(partition='train', data_dir='../../data/celeba2',
-                                                image_transform=preprocess_data), batch_size=args.batch_size,
-                                       shuffle=False)
-    random.seed(seed)
-    total_random_idx = random.sample(range(len(data.dataset)), int(paired_cnt))
-
-    imgs = []
-    attrs = []
-    for idx in total_random_idx:
-        img, attr = data.dataset.__getitem__(idx)
-        imgs.append(img)
-        attrs.append(torch.tensor(attr))
-    imgs = torch.stack(imgs, dim=0)
-    attrs = torch.stack(attrs, dim=0)
-    return imgs, attrs
 
 
 if args.ckpt_epochs > 0:
@@ -600,17 +523,25 @@ if args.ckpt_epochs > 0:
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
 
+label_mask = {}
 
-mask = {}
-fixed_imgs = None
-fixed_attr = None
-if args.label_frac > 1:
-    fixed_imgs, fixed_attr = get_paired_data(args.label_frac, args.seed)
+paired_idx = list(range(len(train_data)))
+random.seed(args.seed)
+random.shuffle(paired_idx)
+paired_idx = paired_idx[:int(args.label_frac * len(train_data))]
+print('paired_idx: ', paired_idx)
+
+for b in range(len(train_data)):
+    if b in paired_idx:
+        label_mask[b] = True
+    else:
+        label_mask[b] = False
+
 
 for e in range(args.ckpt_epochs, args.epochs):
     train_start = time.time()
-    train_elbo, rec_lossA, rec_lossB, mask = train(train_data, encA, decA, encB, decB,
-                                                   optimizer, mask, fixed_imgs=fixed_imgs, fixed_attr=fixed_attr)
+    train_elbo, rec_lossA, rec_lossB = train(train_data, encA, decA, encB, decB,
+                                             optimizer, label_mask)
     train_end = time.time()
 
     val_start = time.time()
@@ -659,10 +590,12 @@ for e in range(args.ckpt_epochs, args.epochs):
 
 if args.ckpt_epochs == args.epochs:
 
-    util.evaluation.cross_acc_celeba(args.ckpt_epochs, train_data, encA, decA, encB, 5000, args.n_shared,
-                                     CUDA, MODEL_NAME)
-    # util.evaluation.save_cross_celeba(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 64, args.n_shared,
-    #                                   CUDA, MODEL_NAME)
+    # util.evaluation.cross_acc_celeba(train_data, encA, decA, encB, 1000, args.n_shared,
+    #                                  CUDA)
+    # util.evaluation.celeba_latent(test_data, encA, 1000)
+
+    util.evaluation.save_cross_celeba(args.ckpt_epochs, test_data, encA, decA, encB, ATTR_TO_PLOT, 25, args.n_shared,
+                                      CUDA, MODEL_NAME)
 
     # util.evaluation.save_traverse_celeba(args.ckpt_epochs, train_data, encA, decA, args.n_shared, CUDA, MODEL_NAME,
     #                                      fixed_idxs=[5, 10000, 22000, 30000, 45500, 50000, 60000, 70000, 75555, 95555],

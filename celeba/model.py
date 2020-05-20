@@ -130,7 +130,7 @@ class DecoderA(nn.Module):
                             value=q['privateA'],
                             name='privateA')
 
-        for shared_from in shared.keys():
+        for shared_from in shared.keys():  # own, poe, cross
             latents = [zPrivate]
             # prior for z_shared_atrr
 
