@@ -27,7 +27,7 @@ if __name__ == "__main__":
                         help='run_id')
     parser.add_argument('--run_desc', type=str, default='',
                         help='run_id desc')
-    parser.add_argument('--n_shared', type=int, default=10,
+    parser.add_argument('--n_shared', type=int, default=64,
                         help='size of the latent embedding of shared')
     parser.add_argument('--n_private', type=int, default=10,
                         help='size of the latent embedding of private')
@@ -268,7 +268,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             annealing_factor = 1.0
 
         # images = images.view(-1, NUM_PIXELS)
-        labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+        labels_onehot = torch.zeros(args.batch_size, 10)
         labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
         labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
         if CUDA:
@@ -358,7 +358,7 @@ def test(data, encA, decA, encB, decB, epoch):
         if images.size()[0] == args.batch_size:
             N += 1
             # images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, 10)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
@@ -432,7 +432,7 @@ def conf_mat(data, encA, decA, encB, decB, epoch):
         if images.size()[0] == args.batch_size:
             N += 1
             # images = images.view(-1, NUM_PIXELS)
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, 10)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
