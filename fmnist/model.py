@@ -166,7 +166,7 @@ class DecoderA(nn.Module):
     def forward2(self, zPrivate, zShared, cuda):
         zShared = self.make_one_hot(zShared.squeeze(0), cuda).unsqueeze(0)
         hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
-        hiddens = hiddens.view(-1, 128, 7, 7)
+        hiddens = hiddens.view(-1, 64, 7, 7)
         images_mean = self.dec_image(hiddens)
         return images_mean
 
