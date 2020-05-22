@@ -131,6 +131,20 @@ class DecoderA(nn.Module):
                    images_mean, images, name= 'images_' + shared_name)
         return p
 
+    def make_one_hot(self, alpha, cuda):
+        _, max_alpha = torch.max(alpha, dim=1)
+        one_hot_samples = torch.zeros(alpha.size())
+        one_hot_samples.scatter_(1, max_alpha.view(-1, 1).data.cpu(), 1)
+        if cuda:
+            one_hot_samples = one_hot_samples.cuda()
+        return one_hot_samples
+
+    def forward2(self, zPrivate, zShared, cuda):
+        zShared = self.make_one_hot(zShared.squeeze(0), cuda).unsqueeze(0)
+        hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
+        hiddens = hiddens.view(-1, 128, 7, 7)
+        images_mean = self.dec_image(hiddens)
+        return images_mean
 
 class EncoderB(nn.Module):
     def __init__(self, seed, num_digis=10,
@@ -219,6 +233,8 @@ class DecoderB(nn.Module):
             else:
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
                        pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)
-
+        # pred.update({shared_name: pred_labels.max(-1)[1]})
+        #
+        # return p, pred['sharedA']
         return p
 
