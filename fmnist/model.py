@@ -22,28 +22,13 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
 
         self.enc_hidden = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1, bias=False),
+            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
             nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Conv2d(32, 32, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.MaxPool2d(2),
-            nn.Dropout(0.25),
-            nn.Conv2d(32, 64, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.Conv2d(64, 64, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.BatchNorm2d(64),
-            nn.Dropout(0.25)
-
-        )
+            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
+            nn.ReLU())
         self.fc = nn.Sequential(
-            nn.Linear(64 * 7 * 7, 512),
+            nn.Linear(128 * 7 * 7, 512),
             nn.ReLU(),
-            nn.Dropout(0.5),
             nn.Linear(512, 2 * zPrivate_dim + zShared_dim))
         self.weight_init()
 
@@ -92,21 +77,12 @@ class DecoderA(nn.Module):
         self.dec_hidden = nn.Sequential(
             nn.Linear(zPrivate_dim + zShared_dim, 512),
                             nn.ReLU(),
-            nn.Linear(512, 64 * 7 * 7),
+            nn.Linear(512, 128 * 7 * 7),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-            nn.Upsample(scale_factor=2),
-            nn.ConvTranspose2d(64, 64, 3, padding=1, bias=False),
+            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
                            nn.ReLU(),
-            nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 32, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.Upsample(scale_factor=2),
-            nn.ConvTranspose2d(32, 32, 3, padding=1, bias=False),
-            nn.ReLU(),
-            nn.BatchNorm2d(32),
-            nn.ConvTranspose2d(32, 1, 3, padding=1, bias=False),
+            nn.ConvTranspose2d(64, 1, 4, 2, 1, bias=False),
                            nn.Sigmoid())
         self.weight_init()
 
@@ -144,7 +120,7 @@ class DecoderA(nn.Module):
             else:
                 hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
-            hiddens = hiddens.view(-1, 64, 7, 7)
+            hiddens = hiddens.view(-1, 128, 7, 7)
             images_mean = self.dec_image(hiddens)
 
             images_mean = images_mean.view(images_mean.size(0), -1)
@@ -155,20 +131,6 @@ class DecoderA(nn.Module):
                    images_mean, images, name= 'images_' + shared_name)
         return p
 
-    def make_one_hot(self, alpha, cuda):
-        _, max_alpha = torch.max(alpha, dim=1)
-        one_hot_samples = torch.zeros(alpha.size())
-        one_hot_samples.scatter_(1, max_alpha.view(-1, 1).data.cpu(), 1)
-        if cuda:
-            one_hot_samples = one_hot_samples.cuda()
-        return one_hot_samples
-
-    def forward2(self, zPrivate, zShared, cuda):
-        zShared = self.make_one_hot(zShared.squeeze(0), cuda).unsqueeze(0)
-        hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
-        hiddens = hiddens.view(-1, 64, 7, 7)
-        images_mean = self.dec_image(hiddens)
-        return images_mean
 
 class EncoderB(nn.Module):
     def __init__(self, seed, num_digis=10,
@@ -233,7 +195,6 @@ class DecoderB(nn.Module):
 
     def forward(self, labels, shared, q=None, p=None, num_samples=None, train=True):
         p = probtorch.Trace()
-        pred = {}
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared # prior is the concrete dist for uniform dist. with all params=1
@@ -258,7 +219,5 @@ class DecoderB(nn.Module):
             else:
                 p.loss(lambda y_pred, target: (1 - (target == y_pred).float()), \
                        pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)
-                pred.update({shared_name: pred_labels.max(-1)[1]})
 
-        return p, pred['sharedA']
-        # return p
+        return p
