@@ -30,20 +30,20 @@ if __name__ == "__main__":
                         help='size of the latent embedding of private')
     parser.add_argument('--batch_size', type=int, default=100, metavar='N',
                         help='input batch size for training [default: 100]')
-    parser.add_argument('--ckpt_epochs', type=int, default=0, metavar='N',
+    parser.add_argument('--ckpt_epochs', type=int, default=400, metavar='N',
                         help='number of epochs to train [default: 200]')
-    parser.add_argument('--epochs', type=int, default=40, metavar='N',
+    parser.add_argument('--epochs', type=int, default=400, metavar='N',
                         help='number of epochs to train [default: 200]')
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=0.002,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.002,
                         help='supervision ratio')
-    parser.add_argument('--lambda_text', type=float, default=300000.,
+    parser.add_argument('--lambda_text', type=float, default=250000.,
                         help='multipler for text reconstruction [default: 10]')
-    parser.add_argument('--beta1', type=float, default=3.,
+    parser.add_argument('--beta1', type=float, default=5.,
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
@@ -409,39 +409,6 @@ def save_ckpt(e):
 
 
 
-
-def get_paired_data(paired_cnt, seed):
-    data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
-    tr_labels = data.dataset.label
-
-    cnt = int(paired_cnt / 10)
-    assert cnt == paired_cnt / 10
-
-    label_idx = {}
-    for i in range(10):
-        label_idx.update({i:[]})
-    for idx in  range(len(tr_labels)):
-        label = int(tr_labels[idx])
-        label_idx[label].append(idx)
-
-    total_random_idx = []
-    for i in range(10):
-        random.seed(seed)
-        per_label_random_idx = random.sample(label_idx[i], cnt)
-        total_random_idx.extend(per_label_random_idx)
-    random.seed(seed)
-    random.shuffle(total_random_idx)
-
-    imgs = []
-    labels = []
-    for idx in total_random_idx:
-        img, label = data.dataset.__getitem__(idx)
-        imgs.append(img)
-        labels.append(torch.tensor(label))
-    imgs = torch.stack(imgs, dim=0)
-    labels = torch.stack(labels, dim=0)
-    return imgs, labels
-
 if args.ckpt_epochs > 0:
     if CUDA:
         encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
@@ -457,6 +424,74 @@ if args.ckpt_epochs > 0:
                                         map_location=torch.device('cpu')))
         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
                                         map_location=torch.device('cpu')))
+
+
+def conf_mat(data, encA, decA, encB, decB, epoch):
+    encA.eval()
+    decA.eval()
+    encB.eval()
+    decB.eval()
+
+    N = 0
+    all_target = []
+    all_pred = []
+
+    for b, (images, labels) in enumerate(data):
+        if images.size()[0] == args.batch_size:
+            N += 1
+            # images = images.view(-1, NUM_PIXELS)
+            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
+            labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
+            if CUDA:
+                images = images.cuda()
+                labels_onehot = labels_onehot.cuda()
+            # encode
+            q = encA(images, num_samples=NUM_SAMPLES)
+            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            _, pred = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
+                           num_samples=NUM_SAMPLES, train=False)
+            # pA['images_sharedA']
+
+            if N == 1:
+                all_pred = pred.squeeze(0).detach().numpy()
+                all_target = labels.detach().numpy()
+            else:
+                all_pred = np.concatenate((all_pred, pred.squeeze(0).detach().numpy()), axis=0)
+                all_target = np.concatenate((all_target, labels.detach().numpy()), axis=0)
+
+    mat = np.zeros((10, 10))
+    for i in range(all_target.shape[0]):
+        mat[[all_target[i]], all_pred[i]] += 1
+    mat = mat.astype(int)
+
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    LABEL_IX_TO_STRING = {0: 'T-shirt/top', 1: 'Trouser', 2: 'Pullover', 3: 'Dress',
+                          4: 'Coat', 5: 'Sandal', 6: 'Shirt', 7: 'Sneaker', 8: 'Bag',
+                          9: 'Ankle boot'}
+
+    acc = []
+    for i in range(10):
+        acc.append((i, mat[i, i] / 1000.0))
+    acc.sort(key=lambda e: e[1])
+    plt.figure(figsize=(6, 6))
+    plt.title('FMNIST accuracy of each class')
+    plt.bar([LABEL_IX_TO_STRING[e[0]] for e in acc], [e[1] for e in acc])
+    plt.xticks(rotation=90)
+    plt.yticks(np.array(range(10)) / 10.)
+    plt.show()
+
+    sns.set(font_scale=1)
+    plt.figure(figsize=(6, 6))
+    plt.title('FMNIST confusion matrix')
+    ax = sns.heatmap(mat, annot=True, fmt="d", xticklabels=list(LABEL_IX_TO_STRING.values()),
+                     yticklabels=list(LABEL_IX_TO_STRING.values()))
+    print((all_target == all_pred).mean())
+    plt.show()
+
+    return (all_target == all_pred).mean()
+
 
 label_mask = {}
 
@@ -502,14 +537,13 @@ for e in range(args.ckpt_epochs, args.epochs):
             test_elbo, test_accuracy, test_end - test_start))
 
 if args.ckpt_epochs == args.epochs:
-    test_elbo, test_accuracy = test(train_data, encA, decA, encB, decB, 40)
+    test_accuracy = conf_mat(test_data, encA, decA, encB, decB, args.ckpt_epochs)
     print(test_accuracy)
-    # util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME,
-    #                               fixed_idxs=[28, 2, 47, 32, 4, 23, 21, 36, 84, 20],
-    #                               flatten_pixel=NUM_PIXELS)
-    #
-    # util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
-    #                                  args.n_shared, CUDA, MODEL_NAME, flatten_pixel=NUM_PIXELS)
+    util.evaluation.save_traverse(args.epochs, test_data, encA, decA, CUDA, MODEL_NAME,
+                                  fixed_idxs=[19, 2, 1, 13, 6, 8, 4, 9, 18, 0])
+
+    util.evaluation.save_cross_mnist(args.ckpt_epochs, test_data, encA, decA, encB, 16,
+                                     args.n_shared, CUDA, MODEL_NAME)
 
 else:
     save_ckpt(args.epochs)
