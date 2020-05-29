@@ -12,6 +12,7 @@ sys.path.append('../')
 import probtorch
 import util
 import visdom
+from datasets import DIGIT
 
 
 
@@ -160,19 +161,11 @@ if args.viz_on:
     VIZ = visdom.Visdom(port=args.viz_port)
     viz_init()
 
+train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
+test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
 
-train_data = torch.utils.data.DataLoader(
-                datasets.SVHN(DATA_PATH, split='train', download=True,
-                               transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=True)
-test_data = torch.utils.data.DataLoader(
-                datasets.SVHN(DATA_PATH, split='test', download=True,
-                               transform=transforms.ToTensor()),
-                batch_size=args.batch_size, shuffle=True)
-
-train_data_size = len(train_data)
-BIAS_TRAIN = (train_data_size - 1) / (args.batch_size - 1)
-BIAS_TEST = (len(test_data) - 1) / (args.batch_size - 1)
+BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
+BIAS_TEST = (len(test_data.dataset) - 1) / (args.batch_size - 1)
 
 def cuda_tensors(obj):
     for attr in dir(obj):
@@ -387,13 +380,13 @@ if args.ckpt_epochs > 0:
 
 label_mask = {}
 
-paired_idx = list(range(train_data_size))
+paired_idx = list(range(len(train_data)))
 random.seed(args.seed)
 random.shuffle(paired_idx)
-paired_idx = paired_idx[:int(args.label_frac * train_data_size)]
+paired_idx = paired_idx[:int(args.label_frac * len(train_data))]
 print('paired_idx: ', paired_idx)
 
-for b in range(train_data_size):
+for b in range(len(train_data)):
     if b in paired_idx:
         label_mask[b] = True
     else:
