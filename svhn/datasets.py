@@ -68,10 +68,10 @@ def load_mnist(train):
                       transform=transforms.ToTensor()))
 
     if train:
-        img = train_loader.dataset.train_data.numpy()[:60000]
-        label = train_loader.dataset.train_labels.numpy()[:60000]
+        img = train_loader.dataset.data[:60000]
+        label = train_loader.dataset.labels[:60000]
     else:
-        img = test_loader.dataset.test_data.numpy()
-        label = test_loader.dataset.test_labels.numpy()
+        img = test_loader.dataset.data
+        label = test_loader.dataset.labels
 
     return img, label
