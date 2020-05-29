@@ -164,6 +164,16 @@ if args.viz_on:
 train_data = torch.utils.data.DataLoader(DIGIT('./data', train=True), batch_size=args.batch_size, shuffle=False)
 test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size=args.batch_size, shuffle=False)
 
+# train_data = torch.utils.data.DataLoader(
+#                 datasets.SVHN(DATA_PATH, split='train', download=True,
+#                                transform=transforms.ToTensor()),
+#                 batch_size=args.batch_size, shuffle=False)
+# test_data = torch.utils.data.DataLoader(
+#                 datasets.SVHN(DATA_PATH, split='test', download=True,
+#                                transform=transforms.ToTensor()),
+#                 batch_size=args.batch_size, shuffle=False)
+
+
 BIAS_TRAIN = (len(train_data.dataset) - 1) / (args.batch_size - 1)
 BIAS_TEST = (len(test_data.dataset) - 1) / (args.batch_size - 1)
 

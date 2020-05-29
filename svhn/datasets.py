@@ -18,8 +18,7 @@ import torch
 from torchvision import datasets, transforms
 from torch.utils.data.dataset import Dataset
 
-
-# from utils import transform
+from util import transform
 
 
 class DIGIT(Dataset):
@@ -51,7 +50,9 @@ class DIGIT(Dataset):
         """
         img, label = self.img[index], self.label[index]
 
-        img = transforms.ToTensor()(img)
+        # img = transforms.ToTensor()(img)
+        # img = img.transpose(1,0)
+        img = transform(img)
 
         return img, label
 
