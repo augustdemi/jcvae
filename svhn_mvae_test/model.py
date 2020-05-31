@@ -13,8 +13,7 @@ TEMP = 0.66
 
 
 class EncoderA(nn.Module):
-    def __init__(self, seed, num_pixels=784,
-                 num_hidden=256,
+    def __init__(self, seed,
                  zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = torch.tensor(TEMP)
@@ -68,8 +67,7 @@ class EncoderA(nn.Module):
 
 
 class DecoderA(nn.Module):
-    def __init__(self, seed, num_pixels=784,
-                 num_hidden=256,
+    def __init__(self, seed,
                  zShared_dim=10):
         super(self.__class__, self).__init__()
         self.digit_temp = TEMP

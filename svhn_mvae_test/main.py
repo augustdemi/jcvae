@@ -70,8 +70,8 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'svhn_mvae-run_id%d-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
-    args.run_id, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
+MODEL_NAME = 'svhn_mvae-run_id%d-n_shared%d-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
+    args.run_id, args.n_shared, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
     args.batch_size, args.wseed)
 DATA_PATH = '../data'
 
@@ -171,10 +171,10 @@ def cuda_tensors(obj):
             setattr(obj, attr, value.cuda())
 
 
-encA = EncoderA(args.wseed)
-decA = DecoderA(args.wseed)
-encB = EncoderB(args.wseed)
-decB = DecoderB(args.wseed)
+encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
+decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
+encB = EncoderB(args.wseed, zShared_dim=args.n_shared)
+decB = DecoderB(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
@@ -232,7 +232,7 @@ def train(data, encA, decA, encB, decB, optimizer,
     torch.autograd.set_detect_anomaly(True)
     for b, (images, labels) in enumerate(data):
         N += 1
-        labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+        labels_onehot = torch.zeros(args.batch_size, 10)
         labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
         labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
         if CUDA:
@@ -310,7 +310,7 @@ def test(data, encA, decA, encB, decB, epoch):
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, 10)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
@@ -379,7 +379,7 @@ def loglike(data, encA, decA, encB, decB, epoch):
     for b, (images, labels) in enumerate(data):
         if images.size()[0] == args.batch_size:
             N += 1
-            labels_onehot = torch.zeros(args.batch_size, args.n_shared)
+            labels_onehot = torch.zeros(args.batch_size, 10)
             labels_onehot.scatter_(1, labels.unsqueeze(1), 1)
             labels_onehot = torch.clamp(labels_onehot, EPS, 1 - EPS)
             if CUDA:
