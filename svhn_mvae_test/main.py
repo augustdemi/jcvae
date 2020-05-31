@@ -70,7 +70,7 @@ EPS = 1e-9
 CUDA = torch.cuda.is_available()
 
 # path parameters
-MODEL_NAME = 'mnist_cont-run_id%d-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
+MODEL_NAME = 'svhn_mvae-run_id%d-label_frac%s-sup_frac%s-lamb_text%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
     args.run_id, args.label_frac, args.sup_frac, args.lambda_text, args.beta1, args.beta2, args.seed,
     args.batch_size, args.wseed)
 DATA_PATH = '../data'
