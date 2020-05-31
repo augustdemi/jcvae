@@ -18,7 +18,26 @@ import torch
 from torchvision import datasets, transforms
 from torch.utils.data.dataset import Dataset
 
-from util import transform
+
+def transform(image, resize=None):
+    from PIL import Image
+
+    if len(image.shape) == 3:
+        image = np.transpose(image, (1, 2, 0))
+        image = Image.fromarray(image, mode='RGB')
+    else:
+        image = Image.fromarray(image, mode='L')
+    if resize:
+        image = transforms.Compose([
+            transforms.Resize(resize),
+            transforms.ToTensor()
+        ])(image)
+    else:
+        image = transforms.Compose([
+            transforms.ToTensor()
+        ])(image)
+    return image
+
 
 
 class DIGIT(Dataset):
