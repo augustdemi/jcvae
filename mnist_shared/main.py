@@ -174,8 +174,8 @@ def cuda_tensors(obj):
 
 encA = EncoderA(args.wseed, zShared_dim=args.n_shared)
 decA = DecoderA(args.wseed, zShared_dim=args.n_shared)
-encB = EncoderB(args.wseed)
-decB = DecoderB(args.wseed)
+encB = EncoderB(args.wseed, zShared_dim=args.n_shared)
+decB = DecoderB(args.wseed, zShared_dim=args.n_shared)
 if CUDA:
     encA.cuda()
     decA.cuda()
