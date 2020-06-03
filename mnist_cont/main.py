@@ -232,55 +232,21 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                           reconst_loss_crB]
 
 
-# def apply_poe(use_cuda, mu_sharedA, logvarSharedA, mu_sharedB, logvarSharedB):
-#     eps = 1e-8
-#     mu = Variable(torch.zeros(mu_sharedA.shape))
-#     logvar = Variable(torch.zeros(logvarSharedA.shape))
-#     if use_cuda:
-#         mu, logvar = mu.cuda(), logvar.cuda()
-#
-#     mu = torch.cat((mu, mu_sharedA, mu_sharedB), dim=0)
-#     logvar = torch.cat((logvar, logvarSharedA, logvarSharedB), dim=0)
-#     var = torch.exp(logvar) + eps
-#     T = 1. / (var + eps)
-#     pd_mu = torch.sum(mu * T, dim=0) / torch.sum(T, dim=0)
-#     pd_var = 1. / torch.sum(T, dim=0)
-#     pd_std = torch.sqrt(pd_var)
-#     return pd_mu.unsqueeze(0), pd_std.unsqueeze(0)
-
-
-def logsumexp(x, dim=None, keepdim=False):
-    if dim is None:
-        x, dim = x.view(-1), 0
-    xm, _ = torch.max(x, dim, keepdim=True)
-    x = torch.where(
-        (xm == float('inf')) | (xm == float('-inf')),
-        xm,
-        xm + torch.log(torch.sum(torch.exp(x - xm), dim, keepdim=True)))
-    return x if keepdim else x.squeeze(dim)
-
-
 def apply_poe(use_cuda, mu_sharedA, logvarSharedA, mu_sharedB, logvarSharedB):
-    '''
-    induce zS = encAB(xA,xB) via POE, that is,
-        q(zI,zT,zS|xI,xT) := qI(zI|xI) * qT(zT|xT) * q(zS|xI,xT)
-            where q(zS|xI,xT) \propto p(zS) * qI(zS|xI) * qT(zS|xT)
-    '''
-    EPS = 1e-8
-    ZERO = torch.zeros(logvarSharedA.shape)
+    eps = 1e-8
+    mu = Variable(torch.zeros(mu_sharedA.shape))
+    logvar = Variable(torch.zeros(logvarSharedA.shape))
     if use_cuda:
-        ZERO = ZERO.cuda()
+        mu, logvar = mu.cuda(), logvar.cuda()
 
-    logvarS = -torch.logsumexp(
-        torch.stack((ZERO, -logvarSharedA, -logvarSharedB), dim=2),
-        dim=2
-    )
-    stdS = torch.sqrt(torch.exp(logvarS))
-
-    muS = (mu_sharedA / (torch.exp(logvarSharedA) + EPS) +
-           mu_sharedB / (torch.exp(logvarSharedB) + EPS)) * torch.exp(logvarS)
-
-    return muS, stdS
+    mu = torch.cat((mu, mu_sharedA, mu_sharedB), dim=0)
+    logvar = torch.cat((logvar, logvarSharedA, logvarSharedB), dim=0)
+    var = torch.exp(logvar) + eps
+    T = 1. / (var + eps)
+    pd_mu = torch.sum(mu * T, dim=0) / torch.sum(T, dim=0)
+    pd_var = 1. / torch.sum(T, dim=0)
+    pd_std = torch.sqrt(pd_var)
+    return pd_mu.unsqueeze(0), pd_std.unsqueeze(0)
 
 
 def train(data, encA, decA, encB, decB, optimizer,
