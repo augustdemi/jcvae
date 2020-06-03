@@ -7,6 +7,7 @@ sys.path.append('../')
 import probtorch
 from probtorch.util import expand_inputs, kaiming_init
 from torch.nn import functional as F
+from torch.autograd import Variable
 
 EPS = 1e-9
 TEMP = 0.66
@@ -22,13 +23,28 @@ class EncoderA(nn.Module):
         self.zShared_dim = zShared_dim
 
         self.enc_hidden = nn.Sequential(
-            nn.Conv2d(1, 64, 4, 2, 1, bias=False),
+            nn.Conv2d(1, 32, 3, padding=1, bias=False),
             nn.ReLU(),
-            nn.Conv2d(64, 128, 4, 2, 1, bias=False),
-            nn.ReLU())
+            nn.BatchNorm2d(32),
+            nn.Conv2d(32, 32, 3, padding=1, bias=False),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.MaxPool2d(2),
+            nn.Dropout(0.25),
+            nn.Conv2d(32, 64, 3, padding=1, bias=False),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.Conv2d(64, 64, 3, padding=1, bias=False),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+            nn.BatchNorm2d(64),
+            nn.Dropout(0.25)
+
+        )
         self.fc = nn.Sequential(
-            nn.Linear(128 * 7 * 7, 512),
+            nn.Linear(64 * 7 * 7, 512),
             nn.ReLU(),
+            nn.Dropout(0.5),
             nn.Linear(512, 2 * zPrivate_dim + zShared_dim))
         self.weight_init()
 
@@ -77,12 +93,21 @@ class DecoderA(nn.Module):
         self.dec_hidden = nn.Sequential(
             nn.Linear(zPrivate_dim + zShared_dim, 512),
                             nn.ReLU(),
-            nn.Linear(512, 128 * 7 * 7),
+            nn.Linear(512, 64 * 7 * 7),
                             nn.ReLU())
         self.dec_image = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 4, 2, 1, bias=False),
+            nn.Upsample(scale_factor=2),
+            nn.ConvTranspose2d(64, 64, 3, padding=1, bias=False),
                            nn.ReLU(),
-            nn.ConvTranspose2d(64, 1, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ConvTranspose2d(64, 32, 3, padding=1, bias=False),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.Upsample(scale_factor=2),
+            nn.ConvTranspose2d(32, 32, 3, padding=1, bias=False),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.ConvTranspose2d(32, 1, 3, padding=1, bias=False),
                            nn.Sigmoid())
         self.weight_init()
 
@@ -96,9 +121,9 @@ class DecoderA(nn.Module):
 
 
     def forward(self, images, shared, q=None, p=None, num_samples=None):
-        digit_log_weights = torch.zeros_like(q['sharedA'].dist.logits)
-        private_mean = torch.zeros_like(q['privateA'].dist.loc)
-        private_std = torch.ones_like(q['privateA'].dist.scale)
+        digit_log_weights = Variable(torch.zeros_like(q['sharedA'].dist.logits))
+        private_mean = Variable(torch.zeros_like(q['privateA'].dist.loc))
+        private_std = Variable(torch.ones_like(q['privateA'].dist.scale))
 
         p = probtorch.Trace()
 
@@ -120,7 +145,7 @@ class DecoderA(nn.Module):
             else:
                 hiddens = self.dec_hidden(torch.cat([zPrivate, zShared], -1))
 
-            hiddens = hiddens.view(-1, 128, 7, 7)
+            hiddens = hiddens.view(-1, 64, 7, 7)
             images_mean = self.dec_image(hiddens)
 
             images_mean = images_mean.view(images_mean.size(0), -1)
@@ -198,10 +223,10 @@ class DecoderB(nn.Module):
         # private은 sharedA(infA), sharedB(crossA), sharedPOE 모두에게 공통적으로 들어가는 node로 z_private 한 샘플에 의해 모두가 다 생성돼야함
         for shared_name in shared.keys():
             # prior for z_shared # prior is the concrete dist for uniform dist. with all params=1
-            zShared = p.concrete(logits=torch.zeros_like(q['sharedB'].dist.logits),
-                                temperature=self.digit_temp,
-                                value=shared[shared_name],
-                                name=shared_name)
+            zShared = p.concrete(logits=Variable(torch.zeros_like(q['sharedB'].dist.logits)),
+                                 temperature=self.digit_temp,
+                                 value=shared[shared_name],
+                                 name=shared_name)
 
             if 'poe' in shared_name:
                 hiddens = self.dec_hidden(torch.pow(zShared + EPS, 1/3))
@@ -221,3 +246,4 @@ class DecoderB(nn.Module):
                        pred_labels.max(-1)[1], labels.max(-1)[1], name='labels_' + shared_name)
 
         return p
+

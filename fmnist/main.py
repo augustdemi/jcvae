@@ -9,6 +9,7 @@ import visdom
 import numpy as np
 from datasets import DIGIT
 from model import EncoderA, EncoderB, DecoderA, DecoderB
+from torch.autograd import Variable
 
 import sys
 sys.path.append('../')
@@ -37,9 +38,9 @@ if __name__ == "__main__":
     parser.add_argument('--lr', type=float, default=1e-3, metavar='LR',
                         help='learning rate [default: 1e-3]')
 
-    parser.add_argument('--label_frac', type=float, default=1.,
+    parser.add_argument('--label_frac', type=float, default=0.005,
                         help='how many labels to use')
-    parser.add_argument('--sup_frac', type=float, default=1.,
+    parser.add_argument('--sup_frac', type=float, default=0.005,
                         help='supervision ratio')
     parser.add_argument('--lambda_text', type=float, default=300000.,
                         help='multipler for text reconstruction [default: 10]')
@@ -268,7 +269,8 @@ def train(data, encA, decA, encB, decB, optimizer,
             q = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             ## poe ##
-            prior_logit = torch.zeros_like(q['sharedA'].dist.logits)  # prior is the concrete dist. of uniform dist.
+            prior_logit = Variable(
+                torch.zeros_like(q['sharedA'].dist.logits))  # prior is the concrete dist. of uniform dist.
             poe_logit = q['sharedA'].dist.logits + q['sharedB'].dist.logits + prior_logit
             q.concrete(logits=poe_logit,
                        temperature=TEMP,
