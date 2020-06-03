@@ -8,7 +8,7 @@ import visdom
 import numpy as np
 from datasets import DIGIT
 from model import EncoderA, EncoderB, DecoderA, DecoderB
-
+from torch.autograd import Variable
 import sys
 
 sys.path.append('../')
@@ -164,7 +164,7 @@ test_data = torch.utils.data.DataLoader(DIGIT('./data', train=False), batch_size
 
 train_data_size = len(train_data)
 
-BIAS_TRAIN = (train_data_size - 1) / (args.batch_size - 1)
+BIAS_TRAIN = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_data.dataset.__len__() - 1) / (args.batch_size - 1)
 
 
@@ -232,6 +232,23 @@ def elbo(q, pA, pB, lamb=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias
                                                                           reconst_loss_crB]
 
 
+def apply_poe(use_cuda, mu_sharedA, logvarSharedA, mu_sharedB, logvarSharedB):
+    eps = 1e-8
+    mu = Variable(torch.zeros(mu_sharedA.shape))
+    logvar = Variable(torch.zeros(logvarSharedA.shape))
+    if use_cuda:
+        mu, logvar = mu.cuda(), logvar.cuda()
+
+    mu = torch.cat((mu, mu_sharedA, mu_sharedB), dim=0)
+    logvar = torch.cat((logvar, logvarSharedA, logvarSharedB), dim=0)
+    var = torch.exp(logvar) + eps
+    T = 1. / (var + eps)
+    pd_mu = torch.sum(mu * T, dim=0) / torch.sum(T, dim=0)
+    pd_var = 1. / torch.sum(T, dim=0)
+    pd_std = torch.sqrt(pd_var)
+    return pd_mu.unsqueeze(0), pd_std.unsqueeze(0)
+
+
 def train(data, encA, decA, encB, decB, optimizer,
           label_mask={}):
     epoch_elbo = 0.0
@@ -260,11 +277,11 @@ def train(data, encA, decA, encB, decB, optimizer,
             cnt += 1
             # encode
             # print(images.sum())
-            q = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            q, logvarSharedA = encA(images, num_samples=NUM_SAMPLES)
+            q, logvarSharedB = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             ## poe ##
-            mu_poe, std_poe = probtorch.util.apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                                       q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+            mu_poe, std_poe = apply_poe(CUDA, q['sharedA'].dist.loc, logvarSharedA,
+                                        q['sharedB'].dist.loc, logvarSharedB)
             q.normal(mu_poe,
                      std_poe,
                      name='poe')
@@ -279,7 +296,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             shuffled_idx = list(range(args.batch_size))
             random.shuffle(shuffled_idx)
             labels_onehot = labels_onehot[shuffled_idx]
-            q = encA(images, num_samples=NUM_SAMPLES)
+            q, _ = encA(images, num_samples=NUM_SAMPLES)
             q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             pA = decA(images, {'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES)
