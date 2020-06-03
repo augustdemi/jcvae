@@ -297,7 +297,7 @@ def train(data, encA, decA, encB, decB, optimizer,
             random.shuffle(shuffled_idx)
             labels_onehot = labels_onehot[shuffled_idx]
             q, _ = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            q, _ = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             pA = decA(images, {'sharedA': q['sharedA']}, q=q,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedB': q['sharedB']}, q=q,
@@ -354,8 +354,8 @@ def test(data, encA, decA, encB, decB, epoch):
                 images = images.cuda()
                 labels_onehot = labels_onehot.cuda()
             # encode
-            q = encA(images, num_samples=NUM_SAMPLES)
-            q = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
+            q, _ = encA(images, num_samples=NUM_SAMPLES)
+            q, _ = encB(labels_onehot, num_samples=NUM_SAMPLES, q=q)
             pA = decA(images, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
                       num_samples=NUM_SAMPLES)
             pB = decB(labels_onehot, {'sharedB': q['sharedB'], 'sharedA': q['sharedA']}, q=q,
