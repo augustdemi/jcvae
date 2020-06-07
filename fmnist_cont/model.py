@@ -81,7 +81,7 @@ class EncoderA(nn.Module):
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedA')
-        return q
+        return q, logvarShared
 
 
 class DecoderA(nn.Module):
@@ -195,7 +195,7 @@ class EncoderB(nn.Module):
         q.normal(loc=muShared,
                  scale=stdShared,
                  name='sharedB')
-        return q
+        return q, logvarShared
 
 
 class DecoderB(nn.Module):
