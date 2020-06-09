@@ -62,10 +62,11 @@ class DIGIT(Dataset):
 
 def load_mnist(train):
     train_loader = torch.utils.data.DataLoader(
-        dset.MNIST(root='../../data/mnist', train=True, download=True, transform=transforms.ToTensor()))
-
+        dset.FashionMNIST('../../data/fMNIST', train=True, download=True,
+                          transform=transforms.ToTensor()))
     test_loader = torch.utils.data.DataLoader(
-        dset.MNIST(root='../../data/mnist', train=False, download=True, transform=transforms.ToTensor()))
+        dset.FashionMNIST('../../data/fMNIST', train=False, download=True,
+                          transform=transforms.ToTensor()))
 
     if train:
         img = train_loader.dataset.train_data.numpy()[:50000]
